@@ -34,3 +34,9 @@ DeployX consists of:
 - Action & access logging
 
 ---
+
+### 👥 Contributors
+
+- [**Chetan Chaudhari**](https://github.com/Ai-Chetan)
+- [**Nischay Chavan**](https://github.com/Nischay-loq)
+- [**Parth Shikhare**](https://github.com/ParthShikhare19)
