@@ -14,6 +14,7 @@ const io = new Server(server, {
 });
 
 let agents = {};
+let pendingResponses = {};
 
 io.on('connection', socket => {
   console.log('Agent connected:', socket.id);
@@ -25,6 +26,11 @@ io.on('connection', socket => {
 
   socket.on('command_output', ({ agentId, output }) => {
     console.log(`Output from ${agentId}:`, output);
+    // Send output to frontend if waiting
+    if (pendingResponses[agentId]) {
+      pendingResponses[agentId].send({ output });
+      delete pendingResponses[agentId];
+    }
   });
 
   socket.on('disconnect', () => {
@@ -45,8 +51,10 @@ app.post('/send-command', (req, res) => {
   const { agentId, command } = req.body;
   const agentSocket = agents[agentId];
   if (agentSocket) {
+    // Store the response object to reply later
+    pendingResponses[agentId] = res;
     agentSocket.emit('run_command', command);
-    res.send({ status: 'Sent' });
+    // Do not send response here, will send when output arrives
   } else {
     res.status(404).send({ error: 'Agent not found' });
   }
