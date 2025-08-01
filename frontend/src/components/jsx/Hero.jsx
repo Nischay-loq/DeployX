@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import '../css/Hero.css'; // Make sure this file exists
+import '../css/Hero.css';
 
 function Hero() {
   const [response, setResponse] = useState('');
@@ -18,7 +18,7 @@ function Hero() {
 
       const data = await res.json();
       setResponse(data.output || 'Command sent successfully.');
-      setCommand(''); // Clear the textbox
+      setCommand('');
     } catch (error) {
       console.error(error);
       setResponse('Failed to send command.');

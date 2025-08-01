@@ -38,3 +38,5 @@ coverage/
 # Mongo dump files
 dump/
 *.bson
+
+frontend/.vite
