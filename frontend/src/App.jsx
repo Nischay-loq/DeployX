@@ -1,15 +1,18 @@
 import React from 'react';
 import Terminal from './components/jsx/Terminal';
+import './App.css';
 
 function App() {
-    const agentId = 'agent-123'; // replace with dynamic agent ID if needed
-
-    return (
-        <div className="App">
-            <h1>DeployX Terminal</h1>
-            <Terminal agentId={agentId} />
-        </div>
-    );
+  return (
+    <div className="App">
+      <header className="App-header">
+        <h1>Remote Terminal</h1>
+      </header>
+      <main>
+        <Terminal />
+      </main>
+    </div>
+  );
 }
 
 export default App;
