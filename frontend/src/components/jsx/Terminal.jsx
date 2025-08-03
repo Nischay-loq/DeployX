@@ -295,6 +295,15 @@ const Terminal = () => {
       <div className="terminal-footer">
         <span>Use Ctrl+C to interrupt, Ctrl+L to clear, ↑↓ for history, Home/End to navigate</span>
       </div>
+      <button
+      className="logout-button"
+       onClick={() => {
+      localStorage.removeItem('token');
+      window.location.reload();
+      }}
+      >
+        Logout
+      </button>
     </div>
   );
 };
