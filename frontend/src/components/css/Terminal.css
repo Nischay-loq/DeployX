@@ -1,0 +1,236 @@
+.terminal-container {
+  width: 90%;
+  max-width: 1200px;
+  margin: 20px auto;
+  background: #1e1e1e;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  overflow: hidden;
+}
+
+.terminal-header {
+  background: #2d2d2d;
+  padding: 10px 15px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #444;
+}
+
+.terminal-buttons {
+  display: flex;
+  gap: 8px;
+  margin-right: 15px;
+}
+
+.button {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.button.close {
+  background: #ff5f56;
+}
+
+.button.minimize {
+  background: #ffbd2e;
+}
+
+.button.maximize {
+  background: #27ca3f;
+}
+
+.terminal-title {
+  color: #ccc;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.terminal-body {
+  height: 600px;
+  background: #1e1e1e;
+  position: relative;
+  cursor: text;
+  outline: none;
+}
+
+.terminal-content {
+  height: 100%;
+  padding: 15px;
+  padding-right: 30px; /* Extra space for scrollbar */
+  overflow-y: auto;
+  color: #00ff00;
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  text-align: left; /* Ensure left alignment */
+}
+
+.output-line {
+  margin: 0;
+  text-align: left; /* Force left alignment */
+  word-wrap: break-word;
+}
+
+.output-line pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  text-align: left; /* Force left alignment */
+  padding: 0;
+}
+
+.output-line.system {
+  color: #ffff00;
+}
+
+.output-line.error {
+  color: #ff4444;
+}
+
+.output-line.input {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1px 4px;
+  margin: 1px 0;
+  border-left: 2px solid #00ff00;
+}
+
+.current-input-line {
+  display: flex;
+  align-items: baseline;
+  color: #ffffff;
+  margin-top: 2px;
+  text-align: left;
+  width: 100%;
+}
+
+.prompt {
+  color: #00aaff;
+  font-weight: bold;
+  margin-right: 0;
+  font-size: 14px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.input-text {
+  flex: 1;
+  position: relative;
+  font-size: 14px;
+  line-height: 1.4;
+  min-width: 0; /* Allow shrinking */
+}
+
+.before-cursor,
+.after-cursor {
+  color: #ffffff;
+  white-space: pre;
+}
+
+.cursor {
+  background-color: #00ff00;
+  color: #1e1e1e;
+  animation: blink 1s infinite;
+  position: relative;
+  white-space: pre;
+  min-width: 1px;
+}
+
+.hidden-input {
+  position: absolute;
+  left: -9999px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.terminal-footer {
+  background: #2d2d2d;
+  padding: 8px 15px;
+  border-top: 1px solid #444;
+  color: #888;
+  font-size: 12px;
+  text-align: center;
+}
+
+/* Scrollbar styling */
+.terminal-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.terminal-content::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+.terminal-content::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+
+.terminal-content::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}
+
+/* Cursor blink animation */
+@keyframes blink {
+  0%, 50% { 
+    background-color: #00ff00;
+    color: #1e1e1e;
+  }
+  51%, 100% { 
+    background-color: transparent;
+    color: #00ff00;
+  }
+}
+
+/* Focus styles */
+.terminal-body:focus-within .cursor {
+  animation: blink 1s infinite;
+}
+
+.terminal-body:not(:focus-within) .cursor {
+  animation: none;
+  background-color: #00ff00;
+  color: #1e1e1e;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .terminal-container {
+    width: 95%;
+    margin: 10px auto;
+  }
+  
+  .terminal-body {
+    height: 500px;
+  }
+  
+  .terminal-content {
+    padding: 10px;
+    font-size: 13px;
+  }
+  
+  .prompt,
+  .input-text {
+    font-size: 13px;
+  }
+}
+
+/* Selection styling */
+.terminal-content ::selection {
+  background: rgba(0, 255, 0, 0.3);
+}
+
+.terminal-content ::-moz-selection {
+  background: rgba(0, 255, 0, 0.3);
+}
+
+/* Ensure all text is left-aligned */
+* {
+  text-align: left !important;
+}
+
+.terminal-content * {
+  text-align: left !important;
+}

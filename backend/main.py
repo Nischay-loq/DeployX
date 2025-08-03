@@ -1,35 +1,130 @@
-import asyncio
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from typing import Dict
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import socketio
+import json
+import os
+from command_executor import RealCMDExecutor
 
+# Create Socket.IO server
+sio = socketio.AsyncServer(
+    async_mode='asgi',
+    cors_allowed_origins=["http://localhost:5173"],
+    logger=True,
+    engineio_logger=True
+)
+
+# Create FastAPI app
 app = FastAPI()
 
-ui_connections: Dict[str, WebSocket] = {}
-agent_connections: Dict[str, WebSocket] = {}
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.websocket("/ws/ui/{agent_id}")
-async def websocket_ui_endpoint(websocket: WebSocket, agent_id: str):
-    await websocket.accept()
-    ui_connections[agent_id] = websocket
+# Dictionary to store client executors
+client_executors = {}
+
+@sio.event
+async def connect(sid, environ):
+    print(f"Client {sid} connected")
+    
+    # Create a new executor for this client
+    executor = RealCMDExecutor()
+    client_executors[sid] = executor
+    
+    # Send initial welcome message
+    current_path = executor.get_current_path()
+    await sio.emit('terminal_message', {
+        "type": "output",
+        "data": f"Connected to real CMD instance\nCurrent directory: {current_path}\n"
+    }, room=sid)
+    
+    # Send initial path update
+    await sio.emit('terminal_message', {
+        "type": "path_update",
+        "data": current_path
+    }, room=sid)
+
+@sio.event
+async def disconnect(sid):
+    print(f"Client {sid} disconnected")
+    
+    # Clean up executor for this client
+    if sid in client_executors:
+        client_executors[sid].cleanup()
+        del client_executors[sid]
+
+@sio.event
+async def terminal_command(sid, data):
+    """Handle terminal commands from client"""
+    if sid not in client_executors:
+        await sio.emit('terminal_message', {
+            "type": "error",
+            "data": "No executor available"
+        }, room=sid)
+        return
+    
+    executor = client_executors[sid]
+    
     try:
-        while True:
-            data = await websocket.receive_json()
-            if agent_id in agent_connections:
-                await agent_connections[agent_id].send_json(data)
+        message_type = data.get("type")
+        command_data = data.get("data", "")
+        
+        if message_type == "command":
+            if command_data.strip() == "clear":
+                await sio.emit('terminal_message', {
+                    "type": "clear",
+                    "data": ""
+                }, room=sid)
             else:
-                await websocket.send_json({"type": "output", "payload": f"Agent {agent_id} is not connected."})
-    except WebSocketDisconnect:
-        del ui_connections[agent_id]
+                # Execute command and stream output
+                async for output in executor.execute_command(command_data):
+                    await sio.emit('terminal_message', {
+                        "type": "output",
+                        "data": output
+                    }, room=sid)
+                
+                # Send updated path after command execution
+                updated_path = executor.get_current_path()
+                await sio.emit('terminal_message', {
+                    "type": "path_update",
+                    "data": updated_path
+                }, room=sid)
+        
+        elif message_type == "input":
+            async for output in executor.send_input(command_data):
+                await sio.emit('terminal_message', {
+                    "type": "output",
+                    "data": output
+                }, room=sid)
+        
+        elif message_type == "interrupt":
+            executor.interrupt()
+            await sio.emit('terminal_message', {
+                "type": "output",
+                "data": "^C\n"
+            }, room=sid)
+            
+    except Exception as e:
+        await sio.emit('terminal_message', {
+            "type": "error",
+            "data": f"Command error: {str(e)}"
+        }, room=sid)
 
-@app.websocket("/ws/agent/{agent_id}")
-async def websocket_agent_endpoint(websocket: WebSocket, agent_id: str):
-    await websocket.accept()
-    agent_connections[agent_id] = websocket
-    try:
-        while True:
-            data = await websocket.receive_json()
-            if data.get("type") == "output":
-                if agent_id in ui_connections:
-                    await ui_connections[agent_id].send_json(data)
-    except WebSocketDisconnect:
-        del agent_connections[agent_id]
+# Create Socket.IO ASGI app
+socket_app = socketio.ASGIApp(sio, app)
+
+@app.get("/")
+async def root():
+    return {"message": "Remote Terminal Server with Real CMD Running (Socket.IO)"}
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "cwd": os.getcwd()}
+
+# Export the socket app for the ASGI server
+app = socket_app
