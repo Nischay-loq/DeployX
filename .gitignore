@@ -35,6 +35,7 @@ coverage/
 *.cover
 *.test.js.snap
 
-# Mongo dump files
-dump/
-*.bson
+# VS Code
+.dist
+
+frontend/.vite
