@@ -1,20 +1,42 @@
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
 .terminal-container {
-  width: 90%;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 40px); /* Adjust height to account for spacing */
   max-width: 1200px;
-  margin: 20px auto;
+  margin: 20px auto; /* 20px spacing at top and bottom */
   background: #1e1e1e;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   overflow: hidden;
 }
 
-.terminal-header {
-  background: #2d2d2d;
+
+.terminal-header,
+.terminal-footer {
+  flex-shrink: 0;     /* Fixed height */
   padding: 10px 15px;
+  background: #2d2d2d;
+  border-bottom: 1px solid #444;
+  color: #ccc;
+  font-size: 14px;
+  font-weight: 500;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid #444;
+}
+
+.terminal-footer {
+  border-top: 1px solid #444;
+  border-bottom: none;
+  font-size: 12px;
+  justify-content: center;
+  color: #888;
 }
 
 .terminal-buttons {
@@ -29,47 +51,40 @@
   border-radius: 50%;
 }
 
-.button.close {
-  background: #ff5f56;
-}
-
-.button.minimize {
-  background: #ffbd2e;
-}
-
-.button.maximize {
-  background: #27ca3f;
-}
+.button.close { background: #ff5f56; }
+.button.minimize { background: #ffbd2e; }
+.button.maximize { background: #27ca3f; }
 
 .terminal-title {
-  color: #ccc;
-  font-size: 14px;
-  font-weight: 500;
+  flex-grow: 1;
 }
 
 .terminal-body {
-  height: 600px;
+  flex-grow: 1;       /* Take remaining vertical space */
   background: #1e1e1e;
   position: relative;
   cursor: text;
   outline: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 15px;
 }
 
 .terminal-content {
-  height: 100%;
-  padding: 15px;
-  padding-right: 30px; /* Extra space for scrollbar */
+  flex-grow: 1;       /* Fill vertical space */
   overflow-y: auto;
   color: #00ff00;
   font-size: 14px;
   line-height: 1.4;
   white-space: pre-wrap;
-  text-align: left; /* Ensure left alignment */
+  word-wrap: break-word;
+  text-align: left;
 }
 
 .output-line {
-  margin: 0;
-  text-align: left; /* Force left alignment */
+  margin: 0 0 4px 0;
+  text-align: left;
   word-wrap: break-word;
 }
 
@@ -77,20 +92,14 @@
   margin: 0;
   white-space: pre-wrap;
   word-wrap: break-word;
-  text-align: left; /* Force left alignment */
   padding: 0;
+  text-align: left;
 }
 
-.output-line.system {
-  color: #ffff00;
-}
-
-.output-line.error {
-  color: #ff4444;
-}
-
+.output-line.system { color: #ffff00; }
+.output-line.error { color: #ff4444; }
 .output-line.input {
-  color: #ffffff;
+  color: #fff;
   background: rgba(255, 255, 255, 0.05);
   padding: 1px 4px;
   margin: 1px 0;
@@ -100,16 +109,16 @@
 .current-input-line {
   display: flex;
   align-items: baseline;
-  color: #ffffff;
-  margin-top: 2px;
-  text-align: left;
+  color: #fff;
+  margin-top: 4px;
   width: 100%;
+  user-select: none;
 }
 
 .prompt {
   color: #00aaff;
   font-weight: bold;
-  margin-right: 0;
+  margin-right: 4px;
   font-size: 14px;
   flex-shrink: 0;
   white-space: nowrap;
@@ -120,12 +129,13 @@
   position: relative;
   font-size: 14px;
   line-height: 1.4;
-  min-width: 0; /* Allow shrinking */
+  min-width: 0;
+  white-space: pre-wrap;
 }
 
 .before-cursor,
 .after-cursor {
-  color: #ffffff;
+  color: #fff;
   white-space: pre;
 }
 
@@ -143,15 +153,6 @@
   left: -9999px;
   opacity: 0;
   pointer-events: none;
-}
-
-.terminal-footer {
-  background: #2d2d2d;
-  padding: 8px 15px;
-  border-top: 1px solid #444;
-  color: #888;
-  font-size: 12px;
-  text-align: center;
 }
 
 /* Scrollbar styling */
@@ -174,63 +175,32 @@
 
 /* Cursor blink animation */
 @keyframes blink {
-  0%, 50% { 
+  0%, 50% {
     background-color: #00ff00;
     color: #1e1e1e;
   }
-  51%, 100% { 
+  51%, 100% {
     background-color: transparent;
     color: #00ff00;
   }
 }
 
-/* Focus styles */
-.terminal-body:focus-within .cursor {
-  animation: blink 1s infinite;
-}
-
-.terminal-body:not(:focus-within) .cursor {
-  animation: none;
-  background-color: #00ff00;
-  color: #1e1e1e;
-}
-
-/* Responsive design */
+/* Responsive */
 @media (max-width: 768px) {
   .terminal-container {
     width: 95%;
-    margin: 10px auto;
+    border-radius: 0;
   }
-  
+
   .terminal-body {
-    height: 500px;
-  }
-  
-  .terminal-content {
     padding: 10px;
+  }
+
+  .terminal-content {
     font-size: 13px;
   }
-  
-  .prompt,
-  .input-text {
+
+  .prompt, .input-text {
     font-size: 13px;
   }
-}
-
-/* Selection styling */
-.terminal-content ::selection {
-  background: rgba(0, 255, 0, 0.3);
-}
-
-.terminal-content ::-moz-selection {
-  background: rgba(0, 255, 0, 0.3);
-}
-
-/* Ensure all text is left-aligned */
-* {
-  text-align: left !important;
-}
-
-.terminal-content * {
-  text-align: left !important;
 }
