@@ -1,25 +1,42 @@
-import { useState } from 'react';
-import '../css/login.css'; // We'll write this next
+import { useState, useEffect } from 'react';
+import '../css/login.css';
 
 function Login({ onLoginSuccess }) {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
+
+  // Auto-login if token exists in localStorage
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      onLoginSuccess(); // User stays logged in
+    }
+  }, [onLoginSuccess]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
+
     const res = await fetch('http://localhost:8000/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, password }),
     });
 
     const data = await res.json();
+
     if (res.ok) {
-      localStorage.setItem('token', data.access_token);
+      if (rememberMe) {
+        localStorage.setItem('token', data.access_token);
+      } else {
+        sessionStorage.setItem('token', data.access_token); // Optional: shorter session
+      }
+
       alert('Login successful');
       onLoginSuccess();
     } else {
-      alert(data.detail || 'Login failed');
+      console.error('Login error:', data);
+      alert(typeof data.detail === 'string' ? data.detail : JSON.stringify(data));
     }
   };
 
@@ -27,13 +44,15 @@ function Login({ onLoginSuccess }) {
     <div className="login-container">
       <form className="login-form" onSubmit={handleLogin}>
         <h2>Login</h2>
+
         <input
-          type="email"
-          value={email}
-          placeholder="Email"
-          onChange={(e) => setEmail(e.target.value)}
+          type="text"
+          value={username}
+          placeholder="Username"
+          onChange={(e) => setUsername(e.target.value)}
           required
         />
+
         <input
           type="password"
           value={password}
@@ -41,6 +60,16 @@ function Login({ onLoginSuccess }) {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
+
+        <label className="remember-me">
+          <input
+            type="checkbox"
+            checked={rememberMe}
+            onChange={() => setRememberMe(!rememberMe)}
+          />
+          Remember Me
+        </label>
+
         <button type="submit">Login</button>
       </form>
     </div>

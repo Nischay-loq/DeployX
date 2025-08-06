@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import socketio
 import os
 
+
 # Local imports
 from command_executor import RealCMDExecutor
 from auth import routes, models
@@ -17,6 +18,7 @@ models.Base.metadata.create_all(bind=engine)
 # Setup FastAPI instance
 # ──────────────────────────────
 app = FastAPI()
+
 
 # ──────────────────────────────
 # CORS Middleware

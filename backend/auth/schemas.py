@@ -8,7 +8,7 @@ class UserCreate(BaseModel):
     password: str
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    username: str
     password: str
 
 class Token(BaseModel):
@@ -21,5 +21,6 @@ class UserOut(BaseModel):
     email: EmailStr
     created_at: datetime
 
-    class Config:
-        orm_mode = True
+class Config:
+    from_attributes = True
+    orm_mode = True
