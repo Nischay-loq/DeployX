@@ -27,6 +27,7 @@ app.add_middleware(
 
 # Dictionary to store client executors
 client_executors = {}
+agent_shells_map = {}
 
 @sio.event
 async def connect(sid, environ):
@@ -35,13 +36,7 @@ async def connect(sid, environ):
     # Create a new executor for this client
     executor = RealCMDExecutor()
     client_executors[sid] = executor
-    
-    # Send initial welcome message
     current_path = executor.get_current_path()
-    await sio.emit('terminal_message', {
-        "type": "output",
-        "data": f"Connected to real CMD instance\nCurrent directory: {current_path}\n"
-    }, room=sid)
     
     # Send initial path update
     await sio.emit('terminal_message', {
@@ -57,6 +52,16 @@ async def disconnect(sid):
     if sid in client_executors:
         client_executors[sid].cleanup()
         del client_executors[sid]
+
+@sio.event
+async def agent_shells(sid, data):
+    print("Shells received from agent:", data)
+    agent_id = data["agent_id"]
+    shells = data["shells"]
+    agent_shells_map[agent_id] = shells
+
+    # Send to frontend
+    await sio.emit("available_shells", {"shells": shells})
 
 @sio.event
 async def terminal_command(sid, data):
