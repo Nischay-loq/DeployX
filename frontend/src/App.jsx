@@ -5,7 +5,6 @@ import Signup from "./components/jsx/signup";
 import Dashboard from "./components/jsx/dashboard";
 import "./App.css";
 
-// Move AppRoutes OUTSIDE App
 function AppRoutes({ isLoggedIn, handleLoginSuccess, handleLogout }) {
   const navigate = useNavigate();
 
@@ -17,15 +16,16 @@ function AppRoutes({ isLoggedIn, handleLoginSuccess, handleLogout }) {
 
   return (
     <Routes>
-      <Route
-        path="/"
-        element={
-          isLoggedIn ? <Navigate to="/dashboard" /> : <Navigate to="/login" />
-        }
-      />
+      <Route path="/" element={<Navigate to="/login" />} />
       <Route
         path="/login"
-        element={<Login onLoginSuccess={handleLoginSuccess} />}
+        element={
+          isLoggedIn ? (
+            <Navigate to="/dashboard" />
+          ) : (
+            <Login onLoginSuccess={handleLoginSuccess} />
+          )
+        }
       />
       <Route
         path="/signup"
@@ -49,15 +49,15 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) setIsLoggedIn(true);
-    else setIsLoggedIn(false);
+    const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+    setIsLoggedIn(!!token);
   }, []);
 
   const handleLoginSuccess = () => setIsLoggedIn(true);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
+    sessionStorage.removeItem("token");
     setIsLoggedIn(false);
   };
 

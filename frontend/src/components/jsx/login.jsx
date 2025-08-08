@@ -1,18 +1,21 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import '../css/login.css';
 
 function Login({ onLoginSuccess }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+  const navigate = useNavigate();
 
   // Auto-login if token exists in localStorage
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      onLoginSuccess(); // User stays logged in
+      onLoginSuccess();
+      navigate('/dashboard'); // Auto-redirect if already logged in
     }
-  }, [onLoginSuccess]);
+  }, [onLoginSuccess, navigate]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -29,11 +32,12 @@ function Login({ onLoginSuccess }) {
       if (rememberMe) {
         localStorage.setItem('token', data.access_token);
       } else {
-        sessionStorage.setItem('token', data.access_token); // Optional: shorter session
+        sessionStorage.setItem('token', data.access_token);
       }
 
       alert('Login successful');
       onLoginSuccess();
+      navigate('/dashboard'); // Redirect after login
     } else {
       console.error('Login error:', data);
       alert(typeof data.detail === 'string' ? data.detail : JSON.stringify(data));
