@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Login from './components/jsx/login';
 import Signup from './components/jsx/signup';
 import Terminal from './components/jsx/Terminal';
+import Dashboard from './components/jsx/dashboard';
 import './App.css';
 
 function App() {
@@ -22,12 +23,10 @@ function App() {
 
   return (
     <div className="App">
-      <header className="App-header">
-        <h1>Remote Terminal</h1>
-      </header>
+
       <main>
         {isLoggedIn ? (
-          <Terminal />
+          <Dashboard />
         ) : view === 'signup' ? (
           <>
             <Signup onSignupSuccess={() => setView('login')} />
