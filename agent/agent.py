@@ -1,13 +1,8 @@
 import asyncio
-import json
 import os
 import platform
+import shutil
 import signal
-import sys
-import subprocess
-import re
-import threading
-import time
 import socketio
 
 class TerminalAgent:
@@ -19,6 +14,16 @@ class TerminalAgent:
         self.special_interactive_mode = None  # For commands like choice, pause, more
         self.environment_vars = dict(os.environ)
         
+    def get_available_shells():
+        possible_shells = ["cmd.exe", "powershell.exe", "pwsh.exe", "bash.exe", "wsl.exe", "wt.exe"]
+        available = []
+
+        for shell in possible_shells:
+            path = shutil.which(shell)
+            if path:
+                available.append(shell.replace(".exe", ""))
+        return {"shells": available}
+
     async def get_prompt(self):
         """Generate a realistic command prompt"""
         if self.is_windows:
@@ -654,14 +659,30 @@ class SocketIOAgent:
         self.sio.on('terminal_command', self.on_terminal_command)
         
     async def on_connect(self):
-        """Handle connection to server"""
         print("Connected to server")
-        # Send initial prompt
         prompt = await self.agent.get_prompt()
+        shells = self.get_available_shells()
+        await self.sio.emit('agent_shells', {
+            "agent_id": "agent_123", 
+            "shells": shells
+        })
         await self.sio.emit('terminal_message', {
             "type": "output",
             "data": f"Terminal Agent Connected\n{prompt}"
         })
+
+    def get_available_shells(self):
+        import shutil
+        possible_shells = [
+            "cmd.exe", "powershell.exe", "pwsh.exe", "bash.exe",
+            "wsl.exe", "wt.exe", "sh.exe", "dash.exe", "git-bash.exe"
+        ]
+        available = []
+        for shell in possible_shells:
+            path = shutil.which(shell)
+            if path:
+                available.append(shell.replace(".exe", ""))
+        return available
         
     async def on_disconnect(self):
         """Handle disconnection from server"""
