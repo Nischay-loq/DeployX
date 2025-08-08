@@ -1,51 +1,74 @@
-import { useState, useEffect } from 'react';
-import Login from './components/jsx/login';
-import Signup from './components/jsx/signup';
-import Terminal from './components/jsx/Terminal';
-import Dashboard from './components/jsx/dashboard';
-import './App.css';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import Login from "./components/jsx/login";
+import Signup from "./components/jsx/signup";
+import Dashboard from "./components/jsx/dashboard";
+import "./App.css";
+
+// Move AppRoutes OUTSIDE App
+function AppRoutes({ isLoggedIn, handleLoginSuccess, handleLogout }) {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      navigate("/login");
+    }
+  }, [isLoggedIn, navigate]);
+
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={
+          isLoggedIn ? <Navigate to="/dashboard" /> : <Navigate to="/login" />
+        }
+      />
+      <Route
+        path="/login"
+        element={<Login onLoginSuccess={handleLoginSuccess} />}
+      />
+      <Route
+        path="/signup"
+        element={<Signup onSignupSuccess={() => {}} />}
+      />
+      <Route
+        path="/dashboard/*"
+        element={
+          isLoggedIn ? (
+            <Dashboard onLogout={handleLogout} />
+          ) : (
+            <Navigate to="/login" />
+          )
+        }
+      />
+    </Routes>
+  );
+}
 
 function App() {
-  const [view, setView] = useState('login');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // This runs once on page load to check for token
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      setIsLoggedIn(true); // Auto-login if token exists (i.e. Remember Me was checked)
-    }
+    const token = localStorage.getItem("token");
+    if (token) setIsLoggedIn(true);
+    else setIsLoggedIn(false);
   }, []);
 
-  const handleLoginSuccess = () => {
-    setIsLoggedIn(true);
+  const handleLoginSuccess = () => setIsLoggedIn(true);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    setIsLoggedIn(false);
   };
 
   return (
-    <div className="App">
-
-      <main>
-        {isLoggedIn ? (
-          <Dashboard />
-        ) : view === 'signup' ? (
-          <>
-            <Signup onSignupSuccess={() => setView('login')} />
-            <p>
-              Already have an account?{' '}
-              <button onClick={() => setView('login')}>Login</button>
-            </p>
-          </>
-        ) : (
-          <>
-            <Login onLoginSuccess={handleLoginSuccess} />
-            <p>
-              Don't have an account?{' '}
-              <button onClick={() => setView('signup')}>Signup</button>
-            </p>
-          </>
-        )}
-      </main>
-    </div>
+    <Router>
+      <AppRoutes
+        isLoggedIn={isLoggedIn}
+        handleLoginSuccess={handleLoginSuccess}
+        handleLogout={handleLogout}
+      />
+    </Router>
   );
 }
 
