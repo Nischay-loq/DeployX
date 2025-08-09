@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import socketio
 import os
+from backend import group
 
 
 # Local imports
@@ -18,6 +19,10 @@ models.Base.metadata.create_all(bind=engine)
 # Setup FastAPI instance
 # ──────────────────────────────
 app = FastAPI()
+sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*") # Initialize Socket.IO server
+app.include_router(routes.router)
+app.include_router(group.router)
+
 
 
 # ──────────────────────────────
@@ -220,3 +225,5 @@ async def terminal_command(sid, data):
 # ──────────────────────────────
 import socketio
 app = socketio.ASGIApp(sio, app)
+
+

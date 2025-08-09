@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../css/login.css';
+import Signup from './signup';
 
 function Login({ onLoginSuccess }) {
   const [username, setUsername] = useState('');
@@ -8,9 +9,9 @@ function Login({ onLoginSuccess }) {
   const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
 
-  // Auto-login if token exists in localStorage
+  // Auto-login if token exists in localStorage or sessionStorage
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
     if (token) {
       onLoginSuccess();
       navigate('/dashboard'); // Auto-redirect if already logged in
@@ -75,6 +76,24 @@ function Login({ onLoginSuccess }) {
         </label>
 
         <button type="submit">Login</button>
+
+       <button
+      type="button"
+    onClick={() => {
+    console.log('Signup button clicked!');
+    navigate('/signup');
+    }}
+    style={{ 
+    background: 'none', 
+    border: 'none', 
+    color: 'blue', 
+    cursor: 'pointer', 
+    padding: 0,
+    textDecoration: 'underline' 
+    }}
+  >
+  Signup
+</button>
       </form>
     </div>
   );
