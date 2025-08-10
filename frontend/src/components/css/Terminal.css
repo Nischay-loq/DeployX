@@ -1,206 +1,156 @@
-html, body, #root {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-}
-
 .terminal-container {
+  width: 100%;
+  height: 100vh;
+  background: #1e1e1e;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 40px); /* Adjust height to account for spacing */
-  max-width: 1200px;
-  margin: 20px auto; /* 20px spacing at top and bottom */
-  background: #1e1e1e;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  overflow: hidden;
+  font-family: 'Consolas', 'Courier New', monospace;
 }
 
+.terminal-header {
+  background: #2d2d30;
+  border-bottom: 1px solid #3e3e42;
+  padding: 8px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 48px;
+}
 
-.terminal-header,
-.terminal-footer {
-  flex-shrink: 0;     /* Fixed height */
-  padding: 10px 15px;
-  background: #2d2d2d;
-  border-bottom: 1px solid #444;
-  color: #ccc;
-  font-size: 14px;
-  font-weight: 500;
+.terminal-controls {
   display: flex;
   align-items: center;
-}
-
-.terminal-footer {
-  border-top: 1px solid #444;
-  border-bottom: none;
-  font-size: 12px;
-  justify-content: center;
-  color: #888;
-}
-
-.terminal-buttons {
-  display: flex;
-  gap: 8px;
-  margin-right: 15px;
-}
-
-.button {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-
-.button.close { background: #ff5f56; }
-.button.minimize { background: #ffbd2e; }
-.button.maximize { background: #27ca3f; }
-
-.terminal-title {
-  flex-grow: 1;
-}
-
-.terminal-body {
-  flex-grow: 1;       /* Take remaining vertical space */
-  background: #1e1e1e;
-  position: relative;
-  cursor: text;
-  outline: none;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 15px;
-}
-
-.terminal-content {
-  flex-grow: 1;       /* Fill vertical space */
-  overflow-y: auto;
-  color: #00ff00;
-  font-size: 14px;
-  line-height: 1.4;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  text-align: left;
-}
-
-.output-line {
-  margin: 0 0 4px 0;
-  text-align: left;
-  word-wrap: break-word;
-}
-
-.output-line pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  padding: 0;
-  text-align: left;
-}
-
-.output-line.system { color: #ffff00; }
-.output-line.error { color: #ff4444; }
-.output-line.input {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 1px 4px;
-  margin: 1px 0;
-  border-left: 2px solid #00ff00;
-}
-
-.current-input-line {
-  display: flex;
-  align-items: baseline;
-  color: #fff;
-  margin-top: 4px;
+  gap: 20px;
   width: 100%;
-  user-select: none;
 }
 
-.prompt {
-  color: #00aaff;
-  font-weight: bold;
-  margin-right: 4px;
-  font-size: 14px;
-  flex-shrink: 0;
-  white-space: nowrap;
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.input-text {
-  flex: 1;
-  position: relative;
-  font-size: 14px;
-  line-height: 1.4;
-  min-width: 0;
-  white-space: pre-wrap;
+.control-group label {
+  color: #d4d4d4;
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 40px;
 }
 
-.before-cursor,
-.after-cursor {
-  color: #fff;
-  white-space: pre;
+.control-group select {
+  background: #3c3c3c;
+  border: 1px solid #5a5a5a;
+  color: #d4d4d4;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  min-width: 120px;
 }
 
-.cursor {
-  background-color: #00ff00;
-  color: #1e1e1e;
-  animation: blink 1s infinite;
-  position: relative;
-  white-space: pre;
-  min-width: 1px;
+.control-group select:focus {
+  outline: none;
+  border-color: #0078d4;
+  box-shadow: 0 0 0 1px #0078d4;
 }
 
-.hidden-input {
-  position: absolute;
-  left: -9999px;
-  opacity: 0;
-  pointer-events: none;
+.control-group select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-/* Scrollbar styling */
-.terminal-content::-webkit-scrollbar {
+.start-shell-btn {
+  background: #0078d4;
+  border: none;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.start-shell-btn:hover:not(:disabled) {
+  background: #106ebe;
+}
+
+.start-shell-btn:disabled {
+  background: #5a5a5a;
+  cursor: not-allowed;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: #d4d4d4;
+  font-size: 12px;
+}
+
+.shell-status {
+  color: #0dbc79;
+  font-weight: 500;
+}
+
+.status-dot {
   width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: background-color 0.3s ease;
 }
 
-.terminal-content::-webkit-scrollbar-track {
+.status-dot.connected {
+  background-color: #0dbc79;
+  box-shadow: 0 0 4px rgba(13, 188, 121, 0.4);
+}
+
+.status-dot.disconnected {
+  background-color: #cd3131;
+  box-shadow: 0 0 4px rgba(205, 49, 49, 0.4);
+}
+
+.terminal-wrapper {
+  flex: 1;
+  padding: 16px;
+  background: #1e1e1e;
+  overflow: hidden;
+}
+
+.terminal {
+  width: 100%;
+  height: 100%;
   background: #1e1e1e;
 }
 
-.terminal-content::-webkit-scrollbar-thumb {
-  background: #555;
-  border-radius: 4px;
+/* Custom scrollbar for the terminal */
+.xterm-viewport::-webkit-scrollbar {
+  width: 12px;
 }
 
-.terminal-content::-webkit-scrollbar-thumb:hover {
-  background: #666;
+.xterm-viewport::-webkit-scrollbar-track {
+  background: #2d2d30;
 }
 
-/* Cursor blink animation */
-@keyframes blink {
-  0%, 50% {
-    background-color: #00ff00;
-    color: #1e1e1e;
-  }
-  51%, 100% {
-    background-color: transparent;
-    color: #00ff00;
-  }
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background: #5a5a5a;
+  border-radius: 6px;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .terminal-container {
-    width: 95%;
-    border-radius: 0;
-  }
+.xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: #6e6e6e;
+}
 
-  .terminal-body {
-    padding: 10px;
-  }
+/* Terminal focus styles */
+.xterm.focus .xterm-cursor {
+  background-color: #ffffff;
+}
 
-  .terminal-content {
-    font-size: 13px;
-  }
+.xterm:not(.focus) .xterm-cursor {
+  outline: 1px solid #ffffff;
+  background-color: transparent;
+}
 
-  .prompt, .input-text {
-    font-size: 13px;
-  }
+/* Selection styles */
+.xterm .xterm-selection div {
+  background-color: #264f78 !important;
 }
