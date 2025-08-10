@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,8 +10,9 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Zap, Activity, Bot, Rocket, Settings, Shield, Network, Clock, Star, MapPin, Mail, Github, Twitter, Linkedin, ArrowRight, Play, Bell, Monitor, Users, Smartphone, RotateCcw, ChevronLeft, ChevronRight, X, Eye, EyeOff, Check, AlertCircle } from 'lucide-react'
 
 export default function Component() {
+  const router = useRouter()
   const [showModal, setShowModal] = useState(false)
-  const [modalType, setModalType] = useState<'login' | 'signup' | 'forgot'>('login')
+  const [modalType, setModalType] = useState('login')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [currentServiceSlide, setCurrentServiceSlide] = useState(0)
@@ -24,7 +26,16 @@ export default function Component() {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
-  const heroRef = useRef<HTMLDivElement>(null)
+  const [registeredUsers, setRegisteredUsers] = useState([])
+  const heroRef = useRef(null)
+
+  // Load registered users from localStorage on component mount
+  useEffect(() => {
+    const savedUsers = localStorage.getItem('deployxUsers')
+    if (savedUsers) {
+      setRegisteredUsers(JSON.parse(savedUsers))
+    }
+  }, [])
 
   const features = [
     {
@@ -95,14 +106,14 @@ export default function Component() {
     setCurrentServiceSlide((prev) => (prev - 1 + services.length) % services.length)
   }
 
-  const scrollToSection = (sectionId: string) => {
+  const scrollToSection = (sectionId) => {
     const element = document.getElementById(sectionId)
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' })
     }
   }
 
-  const openModal = (type: 'login' | 'signup' | 'forgot') => {
+  const openModal = (type) => {
     setModalType(type)
     setShowModal(true)
     setMessage({ type: '', text: '' })
@@ -121,7 +132,7 @@ export default function Component() {
     setMessage({ type: '', text: '' })
   }
 
-  const handleInputChange = (field: string, value: string | boolean) => {
+  const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
@@ -139,6 +150,28 @@ export default function Component() {
         setMessage({ type: 'error', text: 'Please agree to terms and conditions' })
         return false
       }
+      // Check if user already exists
+      const userExists = registeredUsers.some(user => user.email.toLowerCase() === formData.email.toLowerCase())
+      if (userExists) {
+        setMessage({ type: 'error', text: 'An account with this email already exists. Please login instead.' })
+        return false
+      }
+    }
+    
+    if (modalType === 'login') {
+      // Check if user exists in registered users
+      const userExists = registeredUsers.some(user => user.email.toLowerCase() === formData.email.toLowerCase())
+      if (!userExists) {
+        setMessage({ type: 'error', text: 'No account found with this email. Please create an account first.' })
+        return false
+      }
+      
+      // Validate password for existing user
+      const user = registeredUsers.find(user => user.email.toLowerCase() === formData.email.toLowerCase())
+      if (user && user.password !== formData.password) {
+        setMessage({ type: 'error', text: 'Invalid password. Please try again.' })
+        return false
+      }
     }
     
     if (!formData.email.trim() || !formData.email.includes('@')) {
@@ -154,7 +187,7 @@ export default function Component() {
     return true
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     
     if (!validateForm()) return
@@ -173,21 +206,59 @@ export default function Component() {
           text: `Password reset link sent to ${formData.email}. Check your inbox!` 
         })
       } else if (modalType === 'signup') {
+        // Register new user
+        const newUser = {
+          id: Date.now(),
+          fullName: formData.fullName,
+          email: formData.email,
+          password: formData.password,
+          createdAt: new Date().toISOString()
+        }
+        
+        const updatedUsers = [...registeredUsers, newUser]
+        setRegisteredUsers(updatedUsers)
+        localStorage.setItem('deployxUsers', JSON.stringify(updatedUsers))
+        
         setMessage({ 
           type: 'success', 
-          text: 'Account created successfully! Welcome to DeployX!' 
+          text: 'Account created successfully! Redirecting to login...' 
         })
+        
         setTimeout(() => {
-          closeModal()
+          setModalType('login')
+          setFormData({
+            fullName: '',
+            email: formData.email, // Keep email for convenience
+            password: '',
+            confirmPassword: '',
+            agreeToTerms: false,
+            rememberMe: false
+          })
+          setMessage({ type: 'info', text: 'Please enter your credentials to sign in.' })
         }, 2000)
-      } else {
-        setMessage({ 
-          type: 'success', 
-          text: 'Login successful! Redirecting to dashboard...' 
-        })
-        setTimeout(() => {
-          closeModal()
-        }, 2000)
+      } else if (modalType === 'login') {
+        // Login user
+        const user = registeredUsers.find(user => user.email.toLowerCase() === formData.email.toLowerCase())
+        
+        if (user) {
+          // Store user session
+          localStorage.setItem('deployxCurrentUser', JSON.stringify({
+            id: user.id,
+            fullName: user.fullName,
+            email: user.email,
+            loginTime: new Date().toISOString()
+          }))
+          
+          setMessage({ 
+            type: 'success', 
+            text: 'Login successful! Redirecting to dashboard...' 
+          })
+          
+          setTimeout(() => {
+            closeModal()
+            router.push('/dashboard')
+          }, 2000)
+        }
       }
     } catch (error) {
       setMessage({ 
@@ -302,13 +373,17 @@ export default function Component() {
 
                 {/* Message Display */}
                 {message.text && (
-                  <div className={`mb-6 p-4 rounded-lg border ${
+                  <div className={`mb-6 p-4 rounded-lg border animate-slide-in ${
                     message.type === 'success' 
                       ? 'bg-green-500/10 border-green-400/50 text-green-400' 
+                      : message.type === 'info'
+                      ? 'bg-blue-500/10 border-blue-400/50 text-blue-400'
                       : 'bg-red-500/10 border-red-400/50 text-red-400'
                   } flex items-center space-x-2`}>
                     {message.type === 'success' ? (
                       <Check className="w-5 h-5" />
+                    ) : message.type === 'info' ? (
+                      <AlertCircle className="w-5 h-5" />
                     ) : (
                       <AlertCircle className="w-5 h-5" />
                     )}
@@ -432,6 +507,25 @@ export default function Component() {
                     </div>
                   )}
 
+                  {/* Remember Me for Login */}
+                  {modalType === 'login' && (
+                    <div className="flex items-center space-x-3">
+                      <div className="relative">
+                        <Checkbox
+                          id="remember-login"
+                          checked={formData.rememberMe}
+                          onCheckedChange={(checked) => handleInputChange('rememberMe', checked)}
+                          className="border-purple-400/50 data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500"
+                          disabled={isLoading}
+                        />
+                        <div className="absolute inset-0 rounded border border-purple-400/30 animate-pulse opacity-50"></div>
+                      </div>
+                      <label htmlFor="remember-login" className="text-sm text-gray-300 cursor-pointer">
+                        Remember Me
+                      </label>
+                    </div>
+                  )}
+
                   {/* Submit Button */}
                   <Button 
                     type="submit"
@@ -467,7 +561,19 @@ export default function Component() {
                     <div className="text-gray-400 text-sm">
                       {modalType === 'signup' ? 'Already have an account?' : "Don't have an account?"}
                       <button
-                        onClick={() => openModal(modalType === 'signup' ? 'login' : 'signup')}
+                        onClick={() => {
+                          const newType = modalType === 'signup' ? 'login' : 'signup'
+                          setModalType(newType)
+                          setMessage({ type: '', text: '' })
+                          setFormData({
+                            fullName: '',
+                            email: '',
+                            password: '',
+                            confirmPassword: '',
+                            agreeToTerms: false,
+                            rememberMe: false
+                          })
+                        }}
                         className="text-cyan-400 hover:text-cyan-300 ml-2 transition-colors duration-300"
                         disabled={isLoading}
                       >
@@ -497,6 +603,18 @@ export default function Component() {
                     <span>Secured by TLS 1.3 Encryption</span>
                   </div>
                 </div>
+
+                {/* Debug Info (Remove in production) */}
+                {process.env.NODE_ENV === 'development' && (
+                  <div className="mt-4 p-3 bg-gray-800/50 rounded-lg text-xs text-gray-400">
+                    <div>Registered Users: {registeredUsers.length}</div>
+                    {registeredUsers.length > 0 && (
+                      <div className="mt-1">
+                        Latest: {registeredUsers[registeredUsers.length - 1]?.email}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -574,89 +692,335 @@ export default function Component() {
             </Button>
           </div>
 
-          {/* Holographic Supercomputer */}
-          <div className="relative">
-            <div className="relative w-full h-96 flex items-center justify-center">
-              {/* Central Core */}
-              <div className="relative w-48 h-48">
-                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 animate-spin-slow opacity-80"></div>
-                <div className="absolute inset-2 rounded-full bg-gradient-to-r from-blue-600 via-purple-600 to-cyan-600 animate-pulse"></div>
-                <div className="absolute inset-4 rounded-full bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 animate-ping"></div>
-                <div className="absolute inset-8 rounded-full bg-white animate-pulse opacity-90 flex items-center justify-center">
-                  <Bot className="w-16 h-16 text-blue-600 animate-pulse" />
+          {/* Futuristic Server Hub Scene */}
+          <div className="relative w-full h-[600px] flex items-center justify-center">
+            {/* Professional Circuit Background */}
+            <div className="absolute inset-0 overflow-hidden">
+              <svg className="absolute inset-0 w-full h-full opacity-15" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <pattern id="professionalCircuitPattern" x="0" y="0" width="120" height="120" patternUnits="userSpaceOnUse">
+                    <path d="M15,15 L105,15 L105,60 L60,60 L60,105 L15,105 Z" 
+                          fill="none" 
+                          stroke="#00A8FF" 
+                          strokeWidth="1"
+                          opacity="0.4"/>
+                    <circle cx="15" cy="15" r="2" fill="#00FFF7" opacity="0.6"/>
+                    <circle cx="105" cy="60" r="2" fill="#00A8FF" opacity="0.6"/>
+                    <circle cx="60" cy="105" r="2" fill="#00FFF7" opacity="0.6"/>
+                  </pattern>
+                  <linearGradient id="professionalCircuitGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#00A8FF" stopOpacity="0.8"/>
+                    <stop offset="50%" stopColor="#00FFF7" stopOpacity="0.6"/>
+                    <stop offset="100%" stopColor="#001F3F" stopOpacity="0.4"/>
+                  </linearGradient>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#professionalCircuitPattern)">
+                  <animateTransform
+                    attributeName="transform"
+                    type="translate"
+                    values="0,0; 60,30; 0,0"
+                    dur="25s"
+                    repeatCount="indefinite"
+                  />
+                </rect>
+              </svg>
+            </div>
+
+            {/* Professional Digital Particle Effects */}
+            <div className="absolute inset-0 pointer-events-none">
+              {[...Array(20)].map((_, i) => (
+                <div
+                  key={`pro-particle-${i}`}
+                  className="absolute w-1 h-1 rounded-full animate-professional-float opacity-50"
+                  style={{
+                    backgroundColor: i % 3 === 0 ? '#00A8FF' : i % 3 === 1 ? '#00FFF7' : '#2E2E2E',
+                    left: `${15 + Math.random() * 70}%`,
+                    top: `${15 + Math.random() * 70}%`,
+                    animationDelay: `${Math.random() * 10}s`,
+                    animationDuration: `${8 + Math.random() * 10}s`
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Professional Electric Sparks */}
+            <div className="absolute inset-0 pointer-events-none">
+              {[...Array(6)].map((_, i) => (
+                <div
+                  key={`pro-spark-${i}`}
+                  className="absolute w-2 h-2 rounded-full animate-ping opacity-30"
+                  style={{
+                    backgroundColor: '#00FFF7',
+                    left: `${25 + Math.random() * 50}%`,
+                    top: `${25 + Math.random() * 50}%`,
+                    animationDelay: `${i * 2}s`,
+                    animationDuration: `${3 + Math.random() * 2}s`
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Central Professional Server Hub */}
+            <div className="relative z-20">
+              <div className="relative w-32 h-32 professional-server-hub animate-professional-server-pulse">
+                {/* Server Core */}
+                <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-blue-600 via-blue-700 to-blue-900 shadow-2xl border border-blue-400/30">
+                  <div className="absolute inset-2 rounded-md bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
+                    <div className="w-16 h-16 rounded-full flex items-center justify-center animate-spin-slow"
+                         style={{ background: 'linear-gradient(45deg, #00A8FF, #00FFF7)' }}>
+                      <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+                        <div className="w-4 h-4 rounded-full animate-pulse" style={{ backgroundColor: '#00A8FF' }}></div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 
-                {/* Energy Rings */}
-                <div className="absolute -inset-8 rounded-full border-2 border-cyan-400 animate-pulse opacity-60"></div>
-                <div className="absolute -inset-16 rounded-full border border-purple-400 animate-ping opacity-40"></div>
-                <div className="absolute -inset-24 rounded-full border border-blue-400 animate-pulse opacity-30"></div>
+                {/* Professional Server Glow Rings */}
+                <div className="absolute -inset-4 rounded-xl border-2 animate-pulse" style={{ borderColor: '#00A8FF80' }}></div>
+                <div className="absolute -inset-8 rounded-2xl border animate-ping" style={{ borderColor: '#00FFF750' }}></div>
+                <div className="absolute -inset-12 rounded-3xl border animate-pulse" 
+                     style={{ borderColor: '#001F3F40', animationDelay: '1s' }}></div>
+                
+                {/* Professional Status Indicators */}
+                <div className="absolute -top-2 -right-2 w-4 h-4 rounded-full animate-pulse shadow-lg"
+                     style={{ backgroundColor: '#00FFF7', boxShadow: '0 0 10px #00FFF7' }}></div>
+                <div className="absolute -bottom-2 -left-2 w-3 h-3 rounded-full animate-ping"
+                     style={{ backgroundColor: '#00A8FF' }}></div>
               </div>
+            </div>
 
-              {/* Connected Nodes */}
-              {[...Array(8)].map((_, i) => {
-                const angle = (i * 45) * (Math.PI / 180)
-                const radius = 200
+            {/* Professional Surrounding Laptops in Circular Array */}
+            {[...Array(6)].map((_, i) => {
+              const angle = (i * 60) * (Math.PI / 180)
+              const radius = 220
+              const x = Math.cos(angle) * radius
+              const y = Math.sin(angle) * radius
+              
+              return (
+                <div
+                  key={`pro-laptop-${i}`}
+                  className="absolute z-10"
+                  style={{
+                    left: `calc(50% + ${x}px - 40px)`,
+                    top: `calc(50% + ${y}px - 30px)`,
+                  }}
+                >
+                  {/* Professional Laptop Device */}
+                  <div className="relative w-20 h-16 rounded-lg border shadow-lg professional-laptop"
+                       style={{ 
+                         background: 'linear-gradient(135deg, #2E2E2E, #1a1a1a)',
+                         borderColor: '#00A8FF50'
+                       }}>
+                    {/* Professional Laptop Screen */}
+                    <div className="absolute inset-1 rounded-md overflow-hidden professional-laptop-screen"
+                         style={{ backgroundColor: '#2E2E2E' }}>
+                      {/* Professional Screen Glow */}
+                      <div className="absolute inset-0 animate-pulse"
+                           style={{ background: 'linear-gradient(135deg, #00A8FF10, #00FFF710)' }}></div>
+                      
+                      {/* Professional Terminal Interface */}
+                      <div className="relative z-10 p-1 text-[6px] font-mono leading-tight"
+                           style={{ color: '#F5F5F5' }}>
+                        <div className="professional-terminal-animation" style={{ animationDelay: `${i * 0.8}s` }}>
+                          <div className="professional-terminal-line">$ deployx connect</div>
+                          <div className="professional-terminal-line" style={{ animationDelay: `${i * 0.8 + 0.6}s` }}>
+                            &gt; Establishing secure link...
+                          </div>
+                          <div className="professional-terminal-line" style={{ animationDelay: `${i * 0.8 + 1.2}s` }}>
+                            &gt; Status: CONNECTED
+                          </div>
+                          <div className="professional-terminal-line" style={{ animationDelay: `${i * 0.8 + 1.8}s` }}>
+                            &gt; Ready for deployment █
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Professional Screen Scan Effect */}
+                      <div className="absolute inset-0 h-1 animate-professional-screen-scan"
+                           style={{ background: 'linear-gradient(to bottom, transparent, #00A8FF30, transparent)' }}></div>
+                      
+                      {/* Professional Screen Flicker */}
+                      <div className="absolute inset-0 animate-professional-terminal-flicker"
+                           style={{ backgroundColor: '#00A8FF05' }}></div>
+                    </div>
+                    
+                    {/* Professional Activity Indicator */}
+                    <div 
+                      className="absolute -top-1 -right-1 w-2 h-2 rounded-full animate-pulse"
+                      style={{ 
+                        backgroundColor: '#00FFF7',
+                        animationDelay: `${i * 0.4}s`,
+                        boxShadow: '0 0 6px #00FFF7'
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* Professional Neon Circuit Connections */}
+            <svg className="absolute inset-0 w-full h-full z-15" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="professionalConnectionGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#00A8FF" stopOpacity="0.9"/>
+                  <stop offset="50%" stopColor="#00FFF7" stopOpacity="0.7"/>
+                  <stop offset="100%" stopColor="#00A8FF" stopOpacity="0.5"/>
+                </linearGradient>
+                <filter id="professionalNeonGlow">
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                  <feMerge> 
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              </defs>
+              
+              {[...Array(6)].map((_, i) => {
+                const angle = (i * 60) * (Math.PI / 180)
+                const radius = 220
                 const x = Math.cos(angle) * radius
                 const y = Math.sin(angle) * radius
                 
                 return (
-                  <div
-                    key={i}
-                    className="absolute w-12 h-12 bg-gradient-to-r from-cyan-500/30 to-blue-500/30 rounded-lg backdrop-blur-sm border border-cyan-400/50 animate-pulse"
-                    style={{
-                      left: `calc(50% + ${x}px - 24px)`,
-                      top: `calc(50% + ${y}px - 24px)`,
-                      animationDelay: `${i * 0.2}s`
-                    }}
-                  >
-                    <div className="w-full h-full flex items-center justify-center">
-                      <div className="w-3 h-3 bg-cyan-400 rounded-full animate-ping"></div>
-                    </div>
-                  </div>
-                )
-              })}
-
-              {/* Data Streams */}
-              <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <linearGradient id="dataStream" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="rgb(34, 211, 238)" stopOpacity="0.8"/>
-                    <stop offset="50%" stopColor="rgb(59, 130, 246)" stopOpacity="0.6"/>
-                    <stop offset="100%" stopColor="rgb(147, 51, 234)" stopOpacity="0.4"/>
-                  </linearGradient>
-                  <filter id="glow">
-                    <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                    <feMerge> 
-                      <feMergeNode in="coloredBlur"/>
-                      <feMergeNode in="SourceGraphic"/>
-                    </feMerge>
-                  </filter>
-                </defs>
-                
-                {[...Array(8)].map((_, i) => {
-                  const angle = (i * 45) * (Math.PI / 180)
-                  const radius = 200
-                  const x = Math.cos(angle) * radius
-                  const y = Math.sin(angle) * radius
-                  
-                  return (
+                  <g key={`pro-connection-${i}`}>
+                    {/* Professional Main Connection Wire */}
                     <line
-                      key={i}
                       x1="50%"
                       y1="50%"
                       x2={`calc(50% + ${x}px)`}
                       y2={`calc(50% + ${y}px)`}
-                      stroke="url(#dataStream)"
+                      stroke="url(#professionalConnectionGlow)"
                       strokeWidth="2"
-                      filter="url(#glow)"
-                      className="animate-pulse"
+                      filter="url(#professionalNeonGlow)"
+                      className="animate-professional-wire-glow"
                       style={{ animationDelay: `${i * 0.3}s` }}
+                    />
+                    
+                    {/* Professional Data Pulse Animation */}
+                    <line
+                      x1="50%"
+                      y1="50%"
+                      x2={`calc(50% + ${x}px)`}
+                      y2={`calc(50% + ${y}px)`}
+                      stroke="#00FFF7"
+                      strokeWidth="3"
+                      strokeDasharray="25,15"
+                      className="animate-professional-electric-arc"
+                      filter="url(#professionalNeonGlow)"
+                      style={{ animationDelay: `${i * 0.5}s` }}
+                    />
+                    
+                    {/* Professional Traveling Data Packets */}
+                    <circle
+                      r="3"
+                      fill="#00FFF7"
+                      filter="url(#professionalNeonGlow)"
                     >
-                      <animate attributeName="stroke-dasharray" values="0,100;50,50;100,0" dur="2s" repeatCount="indefinite"/>
-                    </line>
-                  )
-                })}
-              </svg>
+                      <animateMotion
+                        dur={`${4 + Math.random() * 2}s`}
+                        repeatCount="indefinite"
+                        begin={`${i * 0.7}s`}
+                      >
+                        <mpath>
+                          <path d={`M 50% 50% L calc(50% + ${x}px) calc(50% + ${y}px)`} />
+                        </mpath>
+                      </animateMotion>
+                      <animate
+                        attributeName="r"
+                        values="3;7;3"
+                        dur="1.2s"
+                        repeatCount="indefinite"
+                      />
+                    </circle>
+                    
+                    {/* Professional Connection Nodes */}
+                    <circle
+                      cx={`calc(50% + ${x * 0.3}px)`}
+                      cy={`calc(50% + ${y * 0.3}px)`}
+                      r="2"
+                      fill="#00A8FF"
+                      opacity="0.8"
+                      className="animate-pulse"
+                      style={{ animationDelay: `${i * 0.15}s` }}
+                    />
+                    <circle
+                      cx={`calc(50% + ${x * 0.7}px)`}
+                      cy={`calc(50% + ${y * 0.7}px)`}
+                      r="2"
+                      fill="#00FFF7"
+                      opacity="0.8"
+                      className="animate-pulse"
+                      style={{ animationDelay: `${i * 0.2}s` }}
+                    />
+                    
+                    {/* Professional Particle Sparks */}
+                    <circle
+                      cx={`calc(50% + ${x * 0.5}px)`}
+                      cy={`calc(50% + ${y * 0.5}px)`}
+                      r="1"
+                      fill="#00FFF7"
+                      className="animate-ping"
+                      style={{ animationDelay: `${i * 0.8}s` }}
+                    />
+                  </g>
+                )
+              })}
+              
+              {/* Professional Central Hub Pulse Rings */}
+              <circle
+                cx="50%"
+                cy="50%"
+                r="80"
+                fill="none"
+                stroke="#00A8FF"
+                strokeWidth="1"
+                opacity="0.3"
+                className="animate-professional-data-pulse"
+              />
+              <circle
+                cx="50%"
+                cy="50%"
+                r="120"
+                fill="none"
+                stroke="#00FFF7"
+                strokeWidth="1"
+                opacity="0.2"
+                className="animate-professional-data-pulse"
+                style={{ animationDelay: '1.5s' }}
+              />
+              <circle
+                cx="50%"
+                cy="50%"
+                r="160"
+                fill="none"
+                stroke="#001F3F"
+                strokeWidth="1"
+                opacity="0.1"
+                className="animate-professional-data-pulse"
+                style={{ animationDelay: '3s' }}
+              />
+            </svg>
+
+            {/* Professional Ambient Energy Field */}
+            <div className="absolute inset-0 animate-pulse pointer-events-none"
+                 style={{ 
+                   background: 'radial-gradient(circle, #00A8FF08 0%, #00FFF705 30%, transparent 70%)'
+                 }}></div>
+            
+            {/* Professional System Status Display */}
+            <div className="absolute bottom-4 left-4 rounded-lg p-3 border backdrop-blur-sm"
+                 style={{ 
+                   backgroundColor: '#2E2E2E90',
+                   borderColor: '#00A8FF50'
+                 }}>
+              <div className="flex items-center space-x-2 text-xs" style={{ color: '#00A8FF' }}>
+                <div className="w-2 h-2 rounded-full animate-pulse" 
+                     style={{ backgroundColor: '#00FFF7' }}></div>
+                <span>System Online</span>
+              </div>
+              <div className="text-xs mt-1" style={{ color: '#F5F5F5' }}>
+                6 Nodes Active
+              </div>
             </div>
           </div>
         </div>
@@ -713,45 +1077,48 @@ export default function Component() {
                 description: "Advanced scheduling system with cron-like functionality and dependency management.",
                 color: "from-purple-500 to-blue-500"
               }
-            ].map((feature, index) => (
-              <div 
-                key={index}
-                className="group relative bg-black/40 backdrop-blur-xl rounded-2xl p-8 text-center transition-all duration-500 hover:scale-105 overflow-hidden"
-              >
-                {/* Hover Border Tracing Effect */}
-                <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                  <div className="absolute inset-0 rounded-2xl border-2 border-transparent bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 bg-clip-border animate-border-trace"></div>
-                  <div className="absolute inset-[2px] rounded-2xl bg-black/80"></div>
-                </div>
-                
-                {/* Static Border */}
-                <div className="absolute inset-0 rounded-2xl border border-white/10 group-hover:border-transparent transition-colors duration-500"></div>
-                
-                {/* Content */}
-                <div className="relative z-10">
-                  <div className={`w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-r ${feature.color} p-5 group-hover:animate-pulse shadow-lg`}>
-                    <feature.icon className="w-full h-full text-white" />
+            ].map((feature, index) => {
+              const IconComponent = feature.icon
+              return (
+                <div 
+                  key={index}
+                  className="group relative bg-black/40 backdrop-blur-xl rounded-2xl p-8 text-center transition-all duration-500 hover:scale-105 overflow-hidden"
+                >
+                  {/* Hover Border Tracing Effect */}
+                  <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                    <div className="absolute inset-0 rounded-2xl border-2 border-transparent bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 bg-clip-border animate-border-trace"></div>
+                    <div className="absolute inset-[2px] rounded-2xl bg-black/80"></div>
                   </div>
                   
-                  <h3 className="text-2xl font-bold mb-2 text-white group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:bg-clip-text transition-all duration-300"
-                      style={{ backgroundImage: `linear-gradient(135deg, var(--tw-gradient-stops))` }}
-                      className={`group-hover:${feature.color}`}>
-                    {feature.title}
-                  </h3>
+                  {/* Static Border */}
+                  <div className="absolute inset-0 rounded-2xl border border-white/10 group-hover:border-transparent transition-colors duration-500"></div>
                   
-                  <p className="text-cyan-400 font-semibold mb-4 text-sm uppercase tracking-wider">
-                    {feature.subtitle}
-                  </p>
+                  {/* Content */}
+                  <div className="relative z-10">
+                    <div className={`w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-r ${feature.color} p-5 group-hover:animate-pulse shadow-lg`}>
+                      <IconComponent className="w-full h-full text-white" />
+                    </div>
+                    
+                    <h3 className="text-2xl font-bold mb-2 text-white group-hover:text-transparent group-hover:bg-gradient-to-r group-hover:bg-clip-text transition-all duration-300"
+                        style={{ backgroundImage: `linear-gradient(135deg, var(--tw-gradient-stops))` }}
+                        className={`group-hover:${feature.color}`}>
+                      {feature.title}
+                    </h3>
+                    
+                    <p className="text-cyan-400 font-semibold mb-4 text-sm uppercase tracking-wider">
+                      {feature.subtitle}
+                    </p>
+                    
+                    <p className="text-gray-400 group-hover:text-gray-300 transition-colors duration-300 leading-relaxed">
+                      {feature.description}
+                    </p>
+                  </div>
                   
-                  <p className="text-gray-400 group-hover:text-gray-300 transition-colors duration-300 leading-relaxed">
-                    {feature.description}
-                  </p>
+                  {/* Glow Effect */}
+                  <div className={`absolute inset-0 rounded-2xl bg-gradient-to-r ${feature.color} opacity-0 group-hover:opacity-10 transition-opacity duration-500 blur-xl`}></div>
                 </div>
-                
-                {/* Glow Effect */}
-                <div className={`absolute inset-0 rounded-2xl bg-gradient-to-r ${feature.color} opacity-0 group-hover:opacity-10 transition-opacity duration-500 blur-xl`}></div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       </section>
@@ -786,74 +1153,77 @@ export default function Component() {
                 className="flex transition-transform duration-500 ease-in-out"
                 style={{ transform: `translateX(-${currentServiceSlide * 100}%)` }}
               >
-                {services.map((service, index) => (
-                  <div key={index} className="w-full flex-shrink-0 px-4">
-                    <div className="group relative bg-black/30 backdrop-blur-xl rounded-2xl p-12 transition-all duration-500 hover:scale-105 overflow-hidden max-w-4xl mx-auto">
-                      {/* Hover Border Tracing Effect */}
-                      <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                        <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
-                          <defs>
-                            <linearGradient id={`service-gradient-${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                              <stop offset="0%" stopColor="rgb(59, 130, 246)" />
-                              <stop offset="50%" stopColor="rgb(147, 51, 234)" />
-                              <stop offset="100%" stopColor="rgb(34, 211, 238)" />
-                            </linearGradient>
-                          </defs>
-                          <rect 
-                            x="2" 
-                            y="2" 
-                            width="calc(100% - 4px)" 
-                            height="calc(100% - 4px)" 
-                            rx="14" 
-                            fill="none" 
-                            stroke={`url(#service-gradient-${index})`} 
-                            strokeWidth="2"
-                            strokeDasharray="800"
-                            strokeDashoffset="800"
-                            className="animate-border-draw"
-                          />
-                        </svg>
-                      </div>
-                      
-                      {/* Static Border */}
-                      <div className="absolute inset-0 rounded-2xl border border-white/10 group-hover:border-transparent transition-colors duration-500"></div>
-                      
-                      {/* Content */}
-                      <div className="relative z-10 text-center">
-                        <div className="w-24 h-24 mx-auto mb-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 p-6 group-hover:animate-pulse shadow-lg">
-                          <service.icon className="w-full h-full text-white" />
+                {services.map((service, index) => {
+                  const ServiceIcon = service.icon
+                  return (
+                    <div key={index} className="w-full flex-shrink-0 px-4">
+                      <div className="group relative bg-black/30 backdrop-blur-xl rounded-2xl p-12 transition-all duration-500 hover:scale-105 overflow-hidden max-w-4xl mx-auto">
+                        {/* Hover Border Tracing Effect */}
+                        <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                          <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                              <linearGradient id={`service-gradient-${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stopColor="rgb(59, 130, 246)" />
+                                <stop offset="50%" stopColor="rgb(147, 51, 234)" />
+                                <stop offset="100%" stopColor="rgb(34, 211, 238)" />
+                              </linearGradient>
+                            </defs>
+                            <rect 
+                              x="2" 
+                              y="2" 
+                              width="calc(100% - 4px)" 
+                              height="calc(100% - 4px)" 
+                              rx="14" 
+                              fill="none" 
+                              stroke={`url(#service-gradient-${index})`} 
+                              strokeWidth="2"
+                              strokeDasharray="800"
+                              strokeDashoffset="800"
+                              className="animate-border-draw"
+                            />
+                          </svg>
                         </div>
                         
-                        <h3 className="text-4xl font-bold mb-4 text-white group-hover:text-blue-400 transition-colors duration-300">
-                          {service.title}
-                        </h3>
+                        {/* Static Border */}
+                        <div className="absolute inset-0 rounded-2xl border border-white/10 group-hover:border-transparent transition-colors duration-500"></div>
                         
-                        {service.subtitle && (
-                          <p className="text-purple-400 font-semibold mb-6 text-lg uppercase tracking-wider">
-                            {service.subtitle}
+                        {/* Content */}
+                        <div className="relative z-10 text-center">
+                          <div className="w-24 h-24 mx-auto mb-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 p-6 group-hover:animate-pulse shadow-lg">
+                            <ServiceIcon className="w-full h-full text-white" />
+                          </div>
+                          
+                          <h3 className="text-4xl font-bold mb-4 text-white group-hover:text-blue-400 transition-colors duration-300">
+                            {service.title}
+                          </h3>
+                          
+                          {service.subtitle && (
+                            <p className="text-purple-400 font-semibold mb-6 text-lg uppercase tracking-wider">
+                              {service.subtitle}
+                            </p>
+                          )}
+                          
+                          <p className="text-gray-400 group-hover:text-gray-300 transition-colors duration-300 leading-relaxed mb-8 text-lg max-w-2xl mx-auto">
+                            {service.description}
                           </p>
-                        )}
-                        
-                        <p className="text-gray-400 group-hover:text-gray-300 transition-colors duration-300 leading-relaxed mb-8 text-lg max-w-2xl mx-auto">
-                          {service.description}
-                        </p>
-                        
-                        {/* Feature List */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          {service.features.map((feature, featureIndex) => (
-                            <div key={featureIndex} className="flex items-center justify-center space-x-3 bg-black/40 rounded-lg p-4 border border-cyan-400/20">
-                              <div className="w-3 h-3 bg-cyan-400 rounded-full animate-pulse"></div>
-                              <span className="text-gray-300 font-medium">{feature}</span>
-                            </div>
-                          ))}
+                          
+                          {/* Feature List */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {service.features.map((feature, featureIndex) => (
+                              <div key={featureIndex} className="flex items-center justify-center space-x-3 bg-black/40 rounded-lg p-4 border border-cyan-400/20">
+                                <div className="w-3 h-3 bg-cyan-400 rounded-full animate-pulse"></div>
+                                <span className="text-gray-300 font-medium">{feature}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
+                        
+                        {/* Subtle Glow Effect */}
+                        <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                       </div>
-                      
-                      {/* Subtle Glow Effect */}
-                      <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 
