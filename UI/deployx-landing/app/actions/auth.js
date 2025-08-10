@@ -4,7 +4,7 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-export async function sendPasswordResetEmail(email: string) {
+export async function sendPasswordResetEmail(email) {
   try {
     // Generate a secure reset token (in production, store this in database)
     const resetToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
