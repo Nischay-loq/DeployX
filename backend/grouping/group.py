@@ -1,8 +1,8 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
-app = FastAPI()
+router = APIRouter()
 
 class Device(BaseModel):
     id: int
@@ -24,7 +24,6 @@ class GroupCreate(BaseModel):
     description: Optional[str] = ""
     device_ids: List[int] = []
 
-# In-memory data storage (replace with DB in real app)
 devices = [
     Device(id=1, device_name="Laptop-01", ip_address="192.168.1.2", mac_address="AA:BB:CC:DD:EE:01", os="Windows 10", status="Online", group_name="Admins"),
     Device(id=2, device_name="Phone-01", ip_address="192.168.1.3", mac_address="AA:BB:CC:DD:EE:02", os="Android", status="Offline", group_name=None),
@@ -36,13 +35,12 @@ groups = [
     Group(id=1, group_name="Admins", description="Admin devices", device_ids=[1,3])
 ]
 
-@app.get("/devices", response_model=List[Device])
+@router.get("/devices", response_model=List[Device])
 async def get_devices():
     return devices
 
-@app.get("/groups", response_model=List[dict])
+@router.get("/groups", response_model=List[dict])
 async def get_groups():
-    # Return groups with device counts
     return [
         {
             "id": g.id,
@@ -53,19 +51,16 @@ async def get_groups():
         } for g in groups
     ]
 
-@app.post("/groups", response_model=Group, status_code=201)
+@router.post("/groups", response_model=Group, status_code=201)
 async def create_group(new_group: GroupCreate):
-    # Validate group name uniqueness
     if any(g.group_name.lower() == new_group.group_name.lower() for g in groups):
         raise HTTPException(status_code=400, detail="Group name already exists")
 
     new_id = max([g.id for g in groups], default=0) + 1
     group = Group(id=new_id, group_name=new_group.group_name, description=new_group.description, device_ids=new_group.device_ids)
 
-    # Assign group_name to devices in the group
     for i, device in enumerate(devices):
         if device.id in group.device_ids:
-            # Only assign if not already in a group or override? For now, override.
             devices[i] = device.copy(update={"group_name": group.group_name})
 
     groups.append(group)
