@@ -5,7 +5,9 @@ import Signup from "./components/jsx/signup";
 import Dashboard from "./components/jsx/dashboard";
 import Terminal from "./components/jsx/Terminal";
 import Navbar from "./components/jsx/Navbar";
-import GroupsPage from "./components/jsx/Groups";
+
+// Groups feature import
+import GroupsPage from "./components/jsx/GroupList.jsx"; // Our GroupsPage is the GroupList component
 
 import "./App.css";
 
@@ -22,7 +24,7 @@ function PrivateLayout({ onLogout, username }) {
         <Routes>
           <Route path="/dashboard" element={<Dashboard username={username} />} />
           <Route path="/terminal" element={<Terminal />} />
-          <Route path="/groups" element={<GroupsPage/>} />
+          <Route path="/groups" element={<GroupsPage />} /> {/* Groups route */}
           <Route path="*" element={<Navigate to="/dashboard" />} />
         </Routes>
       </div>
@@ -46,7 +48,6 @@ function App() {
   const handleLoginSuccess = (usernameFromLogin) => {
     setIsLoggedIn(true);
     setUsername(usernameFromLogin);
-    // Store username for persistence
     localStorage.setItem("username", usernameFromLogin);
   };
 
@@ -77,7 +78,10 @@ function App() {
 
         {/* Private Routes */}
         {isLoggedIn ? (
-          <Route path="/*" element={<PrivateLayout onLogout={handleLogout} username={username} />} />
+          <Route
+            path="/*"
+            element={<PrivateLayout onLogout={handleLogout} username={username} />}
+          />
         ) : (
           <Route path="/*" element={<Navigate to="/login" />} />
         )}
