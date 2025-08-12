@@ -11,9 +11,10 @@ function Signup({ onSignupSuccess }) {
 
   const handleSendOtp = async (e) => {
     e.preventDefault();
+    const API_URL = import.meta.env.VITE_API_URL;
 
     try {
-      const res = await fetch('http://localhost:8000/auth/send-otp', {
+      const res = await fetch(`${API_URL}/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: form.email }),
@@ -35,9 +36,10 @@ function Signup({ onSignupSuccess }) {
 
   const handleSignup = async (e) => {
     e.preventDefault();
+    const API_URL = import.meta.env.VITE_API_URL;
 
     try {
-      const res = await fetch('http://localhost:8000/auth/signup', {
+      const res = await fetch(`${API_URL}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, otp }),
@@ -59,7 +61,10 @@ function Signup({ onSignupSuccess }) {
 
   return (
     <div className="signup-container">
-      <form className="signup-form" onSubmit={otpSent ? handleSignup : handleSendOtp}>
+      <form
+        className="signup-form"
+        onSubmit={otpSent ? handleSignup : handleSendOtp}
+      >
         <h2>Signup</h2>
 
         <input

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import socketio
 import os
-from grouping import group
+
 
 
 # Local imports
@@ -21,7 +21,7 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*") # Initialize Socket.IO server
 app.include_router(routes.router)
-app.include_router(group.router)
+
 
 
 
