@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import socketio
 import os
+from grouping.route import router as groups_router
 
 
 
@@ -21,6 +22,8 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*") # Initialize Socket.IO server
 app.include_router(routes.router)
+# This will expose them at /groups/
+app.include_router(groups_router)
 
 
 
