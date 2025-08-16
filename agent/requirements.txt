@@ -1,4 +1,2 @@
-psutil==7.0.0
-python-socketio==5.13.0
-Requests==2.32.4
-zeroconf==0.147.0
+python-socketio>=5.13.0
+uvloop; sys_platform != "win32"

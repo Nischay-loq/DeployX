@@ -28,10 +28,13 @@ app = FastAPI(title="Remote Command Execution Backend")
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost",
+        "http://127.0.0.1"
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["*"],  # You can also restrict headers if needed
 )
 
 # Store connected agents and frontends
@@ -153,7 +156,7 @@ async def get_shells(sid, agent_id):
             
         logger.info(f"Shell list request for agent {agent_id} from {sid}")
         shells = conn_manager.get_agent_shells(agent_id)
-        await sio.emit('shells_list', shells, room=sid)
+        await sio.emit('shells_list', list(shells.keys()), room=sid)
         logger.info(f"Sent shell list to {sid}: {shells}")
     except Exception as e:
         logger.error(f"Error getting shells for agent {agent_id}: {e}")
