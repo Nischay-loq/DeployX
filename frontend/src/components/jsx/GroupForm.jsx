@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { createGroup, getDevices } from "./GroupingApi.js";
+import axios from "axios";
+import { createGroup , getDevices } from "./GroupingApi.js";
+
+const API_URL = import.meta.env.VITE_API_URL;
 
 export default function GroupForm({ onGroupCreated }) {
   const [name, setName] = useState("");
@@ -9,16 +12,16 @@ export default function GroupForm({ onGroupCreated }) {
   const [devices, setDevices] = useState([]);
 
   // Fetch devices from backend on mount
-  useEffect(() => {
-    async function fetchDevicesData() {
+   useEffect(() => {
+    const fetchDevices = async () => {
       try {
         const data = await getDevices();
         setDevices(data);
       } catch (err) {
         console.error("Error fetching devices:", err);
       }
-    }
-    fetchDevicesData();
+    };
+    fetchDevices();
   }, []);
 
   const handleDeviceSelect = (id) => {
@@ -29,52 +32,89 @@ export default function GroupForm({ onGroupCreated }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    await createGroup({
-      group_name: name,
-      description: desc,
-      color,
-      devices: selectedDevices,
-    });
-    setName("");
-    setDesc("");
-    setColor("#6c63ff");
-    setSelectedDevices([]);
-    onGroupCreated();
+    try {
+      await createGroup({
+        group_name: name,
+        description: desc,
+        color,
+        devices: selectedDevices,
+      });
+      setName("");
+      setDesc("");
+      setColor("#6c63ff");
+      setSelectedDevices([]);
+      onGroupCreated();
+    } catch (err) {
+      console.error("Error creating group:", err);
+    }
   };
 
   return (
     <div style={styles.container}>
-      {/* Group Creation Form */}
-      <form onSubmit={handleSubmit} style={styles.form}>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Group name"
-          required
-          style={styles.input}
-        />
-        <input
-          value={desc}
-          onChange={(e) => setDesc(e.target.value)}
-          placeholder="Description"
-          style={styles.input}
-        />
-        <div style={styles.colorWrapper}>
-          <label style={styles.colorLabel}>Pick Color:</label>
+      {/* Left panel: Form + Selected Devices */}
+      <div style={styles.leftPanel}>
+        <form onSubmit={handleSubmit} style={styles.form}>
           <input
-            type="color"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-            style={styles.colorInput}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Group name"
+            required
+            style={styles.input}
           />
-        </div>
-        <button type="submit" style={styles.button}>
-          Create Group
-        </button>
-      </form>
+          <input
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+            placeholder="Description"
+            style={styles.input}
+          />
+          <div style={styles.colorWrapper}>
+            <label style={styles.colorLabel}>Pick Color:</label>
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              style={styles.colorInput}
+            />
+          </div>
+          <button type="submit" style={styles.button}>
+            Create Group
+          </button>
+        </form>
 
-      {/* Devices Table */}
-      <div style={styles.tableContainer}>
+        {/* Selected Devices Table */}
+        <div style={styles.selectedTableContainer}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>IP Address</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selectedDevices.length > 0 ? (
+                selectedDevices.map((id) => {
+                  const device = devices.find((d) => d.id === id);
+                  return (
+                    <tr key={id}>
+                      <td>{device?.device_name || ""}</td>
+                      <td>{device?.ip_address || ""}</td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan="2" style={{ textAlign: "center" }}>
+                    No devices selected
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Right panel: All Devices */}
+      <div style={styles.rightPanel}>
         <table style={styles.table}>
           <thead>
             <tr>
@@ -89,7 +129,7 @@ export default function GroupForm({ onGroupCreated }) {
             </tr>
           </thead>
           <tbody>
-            {devices && devices.length > 0 ? (
+            {devices.length > 0 ? (
               devices.map((device) => (
                 <tr key={device.id}>
                   <td>
@@ -102,11 +142,7 @@ export default function GroupForm({ onGroupCreated }) {
                   <td>{device.device_name}</td>
                   <td>{device.ip_address}</td>
                   <td>{device.os}</td>
-                  <td
-                    style={{
-                      color: device.status === "online" ? "green" : "red",
-                    }}
-                  >
+                  <td style={{ color: device.status === "online" ? "green" : "red" }}>
                     {device.status}
                   </td>
                   <td>{device.connection_type}</td>
@@ -116,7 +152,7 @@ export default function GroupForm({ onGroupCreated }) {
               ))
             ) : (
               <tr>
-                <td colSpan="9" style={{ textAlign: "center" }}>
+                <td colSpan="8" style={{ textAlign: "center" }}>
                   No devices found
                 </td>
               </tr>
@@ -131,97 +167,77 @@ export default function GroupForm({ onGroupCreated }) {
 const styles = {
   container: {
     display: "flex",
-    gap: "2rem",
-    alignItems: "flex-start",
-    width: "95%",
-    maxWidth: "1600px",
+    gap: "1rem",
+    width: "1200px",
     margin: "0 auto",
-    padding: "2rem",
-    height: "calc(100vh - 60px)",
+    height: "100vh",
+    padding: "1rem",
     boxSizing: "border-box",
-    overflow: "hidden",
   },
-
-  // Form styles
-  form: {
-    flex: "0 0 400px",
+  leftPanel: {
+    flex: "0 0 350px",
     display: "flex",
     flexDirection: "column",
-    gap: "1.5rem",
+    gap: "1rem",
+  },
+  rightPanel: {
+    flex: 1,
+    overflowX: "auto",
     backgroundColor: "#fff",
-    padding: "2rem",
-    borderRadius: "16px",
-    boxShadow: "0 8px 30px rgba(0,0,0,0.12)",
-    height: "fit-content",
+    padding: "1rem",
+    borderRadius: "12px",
+    boxShadow: "0 5px 20px rgba(0,0,0,0.1)",
+  },
+  form: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1rem",
+    backgroundColor: "#fff",
+    padding: "1rem",
+    borderRadius: "12px",
+    boxShadow: "0 5px 20px rgba(0,0,0,0.1)",
   },
   input: {
     width: "100%",
-    padding: "1rem 1.25rem",
-    borderRadius: "12px",
+    padding: "0.75rem 1rem",
+    borderRadius: "8px",
     border: "1px solid #ccc",
-    fontSize: "1.1rem",
   },
   colorWrapper: {
     display: "flex",
     alignItems: "center",
-    gap: "0.75rem",
+    gap: "0.5rem",
   },
   colorLabel: {
     fontWeight: "600",
-    fontSize: "1rem",
-    color: "#555",
   },
   colorInput: {
-    width: "60px",
-    height: "45px",
+    width: "50px",
+    height: "40px",
     border: "none",
     borderRadius: "8px",
     cursor: "pointer",
   },
   button: {
-    padding: "1rem 2rem",
+    padding: "0.75rem",
     border: "none",
-    borderRadius: "12px",
+    borderRadius: "8px",
     background: "linear-gradient(135deg, #6c63ff, #a29bfe)",
     color: "#fff",
-    fontWeight: "700",
-    fontSize: "1rem",
+    fontWeight: "600",
     cursor: "pointer",
   },
-
-  // Table container styles
-  tableContainer: {
-    flex: 1,
+  selectedTableContainer: {
     backgroundColor: "#fff",
-    padding: "1.5rem",
-    borderRadius: "16px",
-    boxShadow: "0 8px 30px rgba(0,0,0,0.12)",
-    overflowX: "hidden", // no horizontal scroll
+    padding: "0.5rem",
+    borderRadius: "8px",
+    boxShadow: "0 5px 20px rgba(0,0,0,0.05)",
+    flex: 1,
     overflowY: "auto",
-    maxHeight: "100%",
   },
-
-  // Table styles
   table: {
     width: "100%",
     borderCollapse: "collapse",
-    tableLayout: "fixed", // columns fit container width
-    fontSize: "1rem",
-  },
-  th: {
-    textAlign: "left",
-    padding: "0.75rem",
-    borderBottom: "2px solid #ddd",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  td: {
-    padding: "0.75rem",
-    borderBottom: "1px solid #eee",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    wordWrap: "break-word",
+    fontSize: "0.95rem",
   },
 };
