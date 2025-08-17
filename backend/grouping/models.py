@@ -1,6 +1,8 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from auth.database import Base  # assuming you have a common Base
+from sqlalchemy.dialects.postgresql import INET
+from sqlalchemy.sql import func  # <-- import func for default timestamp
 
 class DeviceGroup(Base):
     __tablename__ = "device_groups"
@@ -22,3 +24,18 @@ class DeviceGroupMap(Base):
     group_id = Column(Integer, ForeignKey("device_groups.id", ondelete="CASCADE"))
 
     group = relationship("DeviceGroup", back_populates="devices")
+
+class Device(Base):
+    __tablename__ = "devices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    device_name = Column(String(100))
+    ip_address = Column(INET, nullable=False)  # <-- use INET (all caps)
+    mac_address = Column(String(17))
+    os = Column(String(50))
+    status = Column(String(20))
+    connection_type = Column(String(10))
+    last_seen = Column(DateTime, default=func.now())
+    group_id = Column(Integer, ForeignKey("device_groups.id", ondelete="SET NULL"))
+
+    group = relationship("DeviceGroup", foreign_keys=[group_id])

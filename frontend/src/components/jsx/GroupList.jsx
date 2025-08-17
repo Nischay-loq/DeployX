@@ -2,16 +2,42 @@ import React, { useEffect, useState } from "react";
 import { fetchGroups, deleteGroup } from "./GroupingApi.js";
 import GroupForm from "./GroupForm.jsx";
 import GroupDeviceManager from "./GroupDeviceManager.jsx";
-import { FaTrash, FaPencilAlt, FaCogs, FaPlus, FaUsers, FaDesktop, FaExclamationTriangle } from "react-icons/fa";
+import {
+  FaTrash,
+  FaPencilAlt,
+  FaCogs,
+  FaPlus,
+  FaUsers,
+  FaDesktop,
+  FaExclamationTriangle,
+} from "react-icons/fa";
 
 export default function GroupList() {
   const [groups, setGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [editingGroup, setEditingGroup] = useState(null); // track edit vs create
+
+  // Normalize groups response to a plain array
+  const normalizeGroups = (res) => {
+    if (!res) return [];
+    if (Array.isArray(res)) return res;
+    if (Array.isArray(res.data)) return res.data;
+    if (Array.isArray(res.groups)) return res.groups;
+    if (Array.isArray(res?.data?.groups)) return res.data.groups;
+    if (Array.isArray(res?.data?.results)) return res.data.results;
+    return [];
+  };
 
   const loadGroups = async () => {
-    const res = await fetchGroups();
-    setGroups(res.data);
+    try {
+      const res = await fetchGroups();
+      const list = normalizeGroups(res);
+      setGroups(list);
+    } catch (err) {
+      console.error("Error fetching groups:", err);
+      setGroups([]);
+    }
   };
 
   useEffect(() => {
@@ -19,105 +45,158 @@ export default function GroupList() {
   }, []);
 
   const handleDelete = async (id) => {
-    await deleteGroup(id);
-    loadGroups();
+    try {
+      await deleteGroup(id);
+    } finally {
+      loadGroups();
+    }
+  };
+
+  // Safely get device count on a group (supports multiple API shapes)
+  const getDeviceCount = (g) => {
+    if (Array.isArray(g?.devices)) return g.devices.length;
+    if (Array.isArray(g?.device_ids)) return g.device_ids.length;
+    if (typeof g?.device_count === "number") return g.device_count;
+    return 0;
   };
 
   const totalGroups = groups.length;
-  const totalDevices = groups.reduce((acc, g) => acc + g.devices.length, 0);
-
-  // Count of groups with at least one deployment error
-  const groupsWithErrors = groups.filter(g => g.deploymentErrors && g.deploymentErrors.length > 0).length;
+  const totalDevices = groups.reduce((acc, g) => acc + getDeviceCount(g), 0);
+  const groupsWithErrors = groups.filter(
+    (g) => Array.isArray(g?.deploymentErrors) && g.deploymentErrors.length > 0
+  ).length;
 
   return (
     <div style={styles.container}>
-      {/* Top bar with stats */}
+      {/* Top bar */}
       <div style={styles.topBar}>
-        <button style={styles.addButton} onClick={() => setShowModal(true)}>
-          <FaPlus style={{ marginRight: "5px" }} /> Add Group
+        <button
+          style={styles.addButton}
+          onClick={() => {
+            setEditingGroup(null); // create mode
+            setShowModal(true);
+          }}
+        >
+          <FaPlus style={{ marginRight: "6px" }} /> Add Group
+        </button>
+
+        {/* Refresh button */}
+        <button
+          style={{ ...styles.addButton, marginLeft: "10px", backgroundColor: "#10B981" }}
+          onClick={loadGroups}
+        >
+          Refresh
         </button>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats */}
       <div style={styles.statsGrid}>
-        <div style={{ ...styles.statCard, background: "linear-gradient(135deg, #6c63ff, #8e7dff)" }}>
+        <div
+          style={{
+            ...styles.statCard,
+            background: "linear-gradient(135deg, #6366F1, #8b5cf6)",
+          }}
+        >
           <FaUsers style={styles.statIcon} />
           <div>
             <h3 style={styles.statValue}>{totalGroups}</h3>
             <p style={styles.statLabel}>Total Groups</p>
           </div>
         </div>
-        <div style={{ ...styles.statCard, background: "linear-gradient(135deg, #ff4d4f, #ff7875)" }}>
+        <div
+          style={{
+            ...styles.statCard,
+            background: "linear-gradient(135deg, #ef4444, #f97316)",
+          }}
+        >
           <FaDesktop style={styles.statIcon} />
           <div>
             <h3 style={styles.statValue}>{totalDevices}</h3>
             <p style={styles.statLabel}>Total Devices</p>
           </div>
         </div>
-        <div style={{ ...styles.statCard, background: "linear-gradient(135deg, #ff9900, #ffc14d)" }}>
+        <div
+          style={{
+            ...styles.statCard,
+            background: "linear-gradient(135deg, #f59e0b, #fbbf24)",
+          }}
+        >
           <FaExclamationTriangle style={styles.statIcon} />
           <div>
             <h3 style={styles.statValue}>{groupsWithErrors}</h3>
-            <p style={styles.statLabel}>Groups with Deployment Errors</p>
+            <p style={styles.statLabel}>Groups with Errors</p>
           </div>
         </div>
       </div>
 
-      {/* Modal for creating group */}
+      {/* Modal */}
       {showModal && (
-        <div style={styles.modalOverlay} onClick={() => setShowModal(false)}>
-          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+        <div
+          style={styles.modalOverlay}
+          onClick={() => {
+            setShowModal(false);
+            setEditingGroup(null);
+          }}
+        >
+          <div
+            style={styles.modalContent}
+            onClick={(e) => e.stopPropagation()}
+          >
             <GroupForm
+              initialData={editingGroup} // pass when editing
               onGroupCreated={() => {
                 loadGroups();
                 setShowModal(false);
+                setEditingGroup(null);
               }}
             />
           </div>
         </div>
       )}
 
-      {/* Groups Table */}
-      <table style={styles.table}>
-        <thead>
-          <tr>
-            <th style={styles.th}>Group Name</th>
-            <th style={styles.th}>Description</th>
-            <th style={styles.th}>Color</th>
-            <th style={styles.th}>Devices</th>
-            <th style={styles.th}>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {groups.map((g) => (
-            <tr key={g.id} style={styles.tr}>
-              <td style={styles.td}>{g.group_name}</td>
-              <td style={styles.td}>{g.description}</td>
-              <td style={styles.td}>
-                <div style={{ ...styles.colorBox, backgroundColor: g.color }} />
-              </td>
-              <td style={styles.td}>{g.devices.length}</td>
-              <td style={styles.td}>
+      {/* Groups List */}
+      <div style={styles.groupList}>
+        {groups.map((g) => (
+          <div
+            key={g.id}
+            style={{
+              ...styles.groupCard,
+              border: `2.5px solid ${g.color || "#6366F1"}`,
+            }}
+          >
+            <div style={styles.groupHeader}>
+              <h3 style={styles.groupName}>{g.group_name}</h3>
+              <div style={styles.groupActions}>
                 <FaCogs
-                  style={{ ...styles.icon, color: "#6c63ff" }}
+                  style={{ ...styles.icon, color: "#6366F1" }}
                   title="Manage Devices"
                   onClick={() => setSelectedGroup(g)}
                 />
                 <FaPencilAlt
-                  style={{ ...styles.icon, color: "#ffa500" }}
+                  style={{ ...styles.icon, color: "#f59e0b" }}
                   title="Update Group"
-                  onClick={() => setShowModal(true)}
+                  onClick={() => {
+                    setEditingGroup(g); // edit mode
+                    setShowModal(true);
+                  }}
                 />
                 <FaTrash
-                  style={{ ...styles.icon, color: "#ff4d4f" }}
+                  style={{ ...styles.icon, color: "#ef4444" }}
                   title="Delete Group"
                   onClick={() => handleDelete(g.id)}
                 />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              </div>
+            </div>
+            {g.description && (
+              <p style={styles.groupDescription}>{g.description}</p>
+            )}
+            <div style={styles.groupMeta}>
+              <FaDesktop style={{ marginRight: "6px", color: "#4b5563" }} />
+              {getDeviceCount(g)} Devices
+            </div>
+          </div>
+        ))}
+      </div>
 
       {/* Device Manager */}
       {selectedGroup && (
@@ -133,9 +212,10 @@ export default function GroupList() {
 const styles = {
   container: {
     padding: "2rem",
-    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-    backgroundColor: "#f5f7fa",
+    fontFamily: "'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    backgroundColor: "#f9fafb",
     minHeight: "100vh",
+    color: "#111827",
   },
   topBar: {
     display: "flex",
@@ -143,8 +223,8 @@ const styles = {
     marginBottom: "1.5rem",
   },
   addButton: {
-    padding: "0.5rem 1rem",
-    backgroundColor: "#6c63ff",
+    padding: "0.6rem 1.2rem",
+    backgroundColor: "#6366F1",
     color: "#fff",
     border: "none",
     borderRadius: "8px",
@@ -158,65 +238,78 @@ const styles = {
   statsGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: "1.5rem",
+    gap: "1.2rem",
     marginBottom: "2rem",
   },
   statCard: {
     display: "flex",
     alignItems: "center",
-    padding: "1rem",
+    padding: "1rem 1.2rem",
     borderRadius: "12px",
     color: "#fff",
-    boxShadow: "0 6px 15px rgba(0,0,0,0.1)",
-    transition: "transform 0.3s ease, box-shadow 0.3s ease",
-    cursor: "pointer",
+    boxShadow: "0 6px 12px rgba(0,0,0,0.08)",
   },
   statIcon: {
-    fontSize: "2.5rem",
-    marginRight: "1rem",
+    fontSize: "2.2rem",
+    marginRight: "0.8rem",
+    opacity: 0.9,
   },
   statValue: {
     margin: 0,
-    fontSize: "1.8rem",
+    fontSize: "1.6rem",
     fontWeight: "700",
   },
   statLabel: {
     margin: 0,
-    fontSize: "0.9rem",
+    fontSize: "0.85rem",
     opacity: 0.9,
   },
-  table: {
+  groupList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "1rem",
+  },
+  groupCard: {
+    background: "#fff",
+    borderRadius: "10px",
+    padding: "1.2rem",
+    boxShadow: "0 4px 10px rgba(0,0,0,0.06)",
+    display: "flex",
+    flexDirection: "column",
     width: "100%",
-    borderCollapse: "collapse",
-    backgroundColor: "#fff",
-    borderRadius: "12px",
-    overflow: "hidden",
-    boxShadow: "0 8px 20px rgba(0,0,0,0.1)",
+    transition: "transform 0.2s, box-shadow 0.2s",
   },
-  th: {
-    padding: "1rem",
-    backgroundColor: "#6c63ff",
-    color: "#fff",
-    textAlign: "left",
+  groupHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: "0.5rem",
   },
-  tr: {
-    borderBottom: "1px solid #eee",
-    transition: "background 0.3s",
+  groupName: {
+    margin: 0,
+    fontSize: "1.1rem",
+    fontWeight: "600",
+    color: "#111827",
   },
-  td: {
-    padding: "0.75rem 1rem",
-    verticalAlign: "middle",
+  groupDescription: {
+    fontSize: "0.9rem",
+    color: "#4b5563",
+    marginBottom: "0.75rem",
   },
-  colorBox: {
-    width: "30px",
-    height: "30px",
-    borderRadius: "6px",
-    border: "1px solid #ccc",
+  groupMeta: {
+    fontSize: "0.9rem",
+    color: "#374151",
+    display: "flex",
+    alignItems: "center",
+    fontWeight: "500",
+  },
+  groupActions: {
+    display: "flex",
+    gap: "0.8rem",
   },
   icon: {
     cursor: "pointer",
-    fontSize: "1.2rem",
-    marginRight: "0.7rem",
+    fontSize: "1.15rem",
     transition: "transform 0.2s",
   },
   modalOverlay: {

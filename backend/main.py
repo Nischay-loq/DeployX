@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import socketio
 import os
 from grouping.route import router as groups_router
+from Devices.routes import router as devices_router
 
 from command_executor import RealCMDExecutor
 from auth import routes, models
@@ -13,10 +14,11 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
 app.include_router(routes.router)
 app.include_router(groups_router)
+app.include_router(devices_router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:8000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
