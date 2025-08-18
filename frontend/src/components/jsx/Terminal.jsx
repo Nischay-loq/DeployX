@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Terminal } from 'xterm';
-import { FitAddon } from 'xterm-addon-fit';
-import { WebLinksAddon } from 'xterm-addon-web-links';
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import io from 'socket.io-client';
-import 'xterm/css/xterm.css';
+import "@xterm/xterm/css/xterm.css";
 import '../css/Terminal.css';
+
+
 
 const TerminalComponent = () => {
   const terminalRef = useRef(null);
