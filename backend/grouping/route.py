@@ -2,11 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from auth.database import get_db
 from . import crud, schemas
-<<<<<<< HEAD
-=======
-from auth.database import database
-from sqlalchemy import text
->>>>>>> 0d1549a1e7dbb3db74d0e45a7ff9fafc74ff5223
 
 router = APIRouter(prefix="/groups", tags=["Groups"])
 
@@ -39,17 +34,3 @@ def assign_device(group_id: int, device_id: int, db: Session = Depends(get_db)):
 @router.delete("/{group_id}/remove/{device_id}")
 def remove_device(group_id: int, device_id: int, db: Session = Depends(get_db)):
     return crud.remove_device_from_group(db, device_id, group_id)
-<<<<<<< HEAD
-=======
-
-@router.get("/devices")
-async def get_devices():
-    query = text("""
-        SELECT d.id, d.device_name, d.ip_address, d.status, g.group_name
-        FROM devices d
-        LEFT JOIN device_groups g ON d.group_id = g.id
-        ORDER BY d.id
-    """)
-    rows = await database.fetch_all(query)
-    return [dict(row) for row in rows]
->>>>>>> 0d1549a1e7dbb3db74d0e45a7ff9fafc74ff5223
