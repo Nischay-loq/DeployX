@@ -1,42 +1,57 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import '../css/login.css';
+import Signup from './signup';
 
 function Login({ onLoginSuccess }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+  const navigate = useNavigate();
+ 
+   const API_URL = import.meta.env.VITE_API_URL; // This points to backend
 
-  // Auto-login if token exists in localStorage
+
+  // Auto-login if token exists in localStorage or sessionStorage
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
     if (token) {
-      onLoginSuccess(); // User stays logged in
+      onLoginSuccess();
+      navigate('/dashboard'); // Auto-redirect if already logged in
     }
-  }, [onLoginSuccess]);
+  }, [onLoginSuccess, navigate]);
 
-  const handleLogin = async (e) => {
+ const handleLogin = async (e) => {
     e.preventDefault();
 
-    const res = await fetch('http://localhost:8000/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    });
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (res.ok) {
-      if (rememberMe) {
-        localStorage.setItem('token', data.access_token);
+      if (res.ok) {
+        if (rememberMe) {
+          localStorage.setItem("token", data.access_token);
+          localStorage.setItem("username", username);
+        } else {
+          sessionStorage.setItem("token", data.access_token);
+          sessionStorage.setItem("username", username);
+        }
+
+        alert("Login successful");
+        onLoginSuccess(username);
+        navigate("/dashboard");
       } else {
-        sessionStorage.setItem('token', data.access_token); // Optional: shorter session
+        console.error("Login error:", data);
+        alert(typeof data.detail === "string" ? data.detail : JSON.stringify(data));
       }
-
-      alert('Login successful');
-      onLoginSuccess();
-    } else {
-      console.error('Login error:', data);
-      alert(typeof data.detail === 'string' ? data.detail : JSON.stringify(data));
+    } catch (error) {
+      console.error("Network error:", error);
+      alert("Unable to connect to the server. Please try again later.");
     }
   };
 
@@ -71,6 +86,24 @@ function Login({ onLoginSuccess }) {
         </label>
 
         <button type="submit">Login</button>
+
+       <button
+      type="button"
+    onClick={() => {
+    console.log('Signup button clicked!');
+    navigate('/signup');
+    }}
+    style={{ 
+    background: 'none', 
+    border: 'none', 
+    color: 'blue', 
+    cursor: 'pointer', 
+    padding: 0,
+    textDecoration: 'underline' 
+    }}
+  >
+  Signup
+</button>
       </form>
     </div>
   );

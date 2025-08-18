@@ -1,52 +1,94 @@
-import { useState, useEffect } from 'react';
-import Login from './components/jsx/login';
-import Signup from './components/jsx/signup';
-import Terminal from './components/jsx/Terminal';
-import './App.css';
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import Login from "./components/jsx/login";
+import Signup from "./components/jsx/signup";
+import Dashboard from "./components/jsx/dashboard";
+import Terminal from "./components/jsx/Terminal";
+import Navbar from "./components/jsx/Navbar";
+import DeploymentPage from "./components/jsx/DeploymentPage";
+
+// Groups feature import
+import GroupsPage from "./components/jsx/GroupList.jsx"; // Our GroupsPage is the GroupList component
+
+import "./App.css";
+
+function PrivateLayout({ onLogout, username }) {
+  return (
+    <div style={{ display: "flex", height: "100vh" }}>
+      {/* Navbar full height */}
+      <div style={{ width: "220px", backgroundColor: "#333", color: "#fff" }}>
+        <Navbar onLogout={onLogout} />
+      </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard username={username} />} />
+          <Route path="/terminal" element={<Terminal />} />
+          <Route path="/groups" element={<GroupsPage />} /> {/* Groups route */}
+           <Route path="/deployments" element={<DeploymentPage />} />
+          <Route path="*" element={<Navigate to="/dashboard" />} />
+        </Routes>
+      </div>
+    </div>
+  );
+}
 
 function App() {
-  const [view, setView] = useState('login');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [username, setUsername] = useState("");
 
-  // This runs once on page load to check for token
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+    const storedUsername = localStorage.getItem("username") || sessionStorage.getItem("username");
     if (token) {
-      setIsLoggedIn(true); // Auto-login if token exists (i.e. Remember Me was checked)
+      setIsLoggedIn(true);
+      if (storedUsername) setUsername(storedUsername);
     }
   }, []);
 
-  const handleLoginSuccess = () => {
+  const handleLoginSuccess = (usernameFromLogin) => {
     setIsLoggedIn(true);
+    setUsername(usernameFromLogin);
+    localStorage.setItem("username", usernameFromLogin);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    sessionStorage.removeItem("token");
+    localStorage.removeItem("username");
+    sessionStorage.removeItem("username");
+    setIsLoggedIn(false);
+    setUsername("");
   };
 
   return (
-    <div className="App">
-      <header className="App-header">
-        <h1>Remote Terminal</h1>
-      </header>
-      <main>
+    <Router>
+      <Routes>
+        {/* Public Routes */}
+        <Route
+          path="/login"
+          element={
+            isLoggedIn ? (
+              <Navigate to="/dashboard" />
+            ) : (
+              <Login onLoginSuccess={handleLoginSuccess} />
+            )
+          }
+        />
+        <Route path="/signup" element={<Signup onSignupSuccess={() => {}} />} />
+
+        {/* Private Routes */}
         {isLoggedIn ? (
-          <Terminal />
-        ) : view === 'signup' ? (
-          <>
-            <Signup onSignupSuccess={() => setView('login')} />
-            <p>
-              Already have an account?{' '}
-              <button onClick={() => setView('login')}>Login</button>
-            </p>
-          </>
+          <Route
+            path="/*"
+            element={<PrivateLayout onLogout={handleLogout} username={username} />}
+          />
         ) : (
-          <>
-            <Login onLoginSuccess={handleLoginSuccess} />
-            <p>
-              Don't have an account?{' '}
-              <button onClick={() => setView('signup')}>Signup</button>
-            </p>
-          </>
+          <Route path="/*" element={<Navigate to="/login" />} />
         )}
-      </main>
-    </div>
+      </Routes>
+    </Router>
   );
 }
 

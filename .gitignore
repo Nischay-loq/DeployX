@@ -39,3 +39,4 @@ coverage/
 .dist
 
 frontend/.vite
+agent/AgentTesting
