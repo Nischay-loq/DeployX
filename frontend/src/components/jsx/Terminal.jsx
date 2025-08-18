@@ -84,7 +84,7 @@ const TerminalComponent = () => {
     fitAddon.current.fit();
 
     // Initialize Socket.IO connection with better configuration
-    socket.current = io('http://localhost:8000', { 
+    socket.current = io('https://deployx-server.onrender.com/', { 
       transports: ['websocket'],
       reconnection: true,
       reconnectionDelay: 1000,

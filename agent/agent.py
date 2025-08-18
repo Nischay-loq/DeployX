@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 class RemoteAgent:
-    def __init__(self, server_url: str = "http://localhost:8000", agent_id: str = None):
+    def __init__(self, server_url: str = "https://deployx-server.onrender.com/", agent_id: str = None):
         self.server_url = server_url
         self.agent_id = agent_id or f"agent_{platform.node()}_{int(time.time())}"
         self.sio = socketio.AsyncClient(
@@ -387,8 +387,8 @@ async def main():
     parser = argparse.ArgumentParser(description="Remote Command Execution Agent")
     parser.add_argument(
         "--server", 
-        default="http://localhost:8000", 
-        help="Backend server URL (default: http://localhost:8000)"
+        default="https://deployx-server.onrender.com/", 
+        help="Backend server URL (default: https://deployx-server.onrender.com/)"
     )
     parser.add_argument(
         "--agent-id", 
