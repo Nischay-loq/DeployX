@@ -5,6 +5,7 @@ import Signup from "./components/jsx/signup";
 import Dashboard from "./components/jsx/dashboard";
 import Terminal from "./components/jsx/Terminal";
 import Navbar from "./components/jsx/Navbar";
+import DeploymentPage from "./components/jsx/DeploymentPage";
 
 // Groups feature import
 import GroupsPage from "./components/jsx/GroupList.jsx"; // Our GroupsPage is the GroupList component
@@ -25,6 +26,7 @@ function PrivateLayout({ onLogout, username }) {
           <Route path="/dashboard" element={<Dashboard username={username} />} />
           <Route path="/terminal" element={<Terminal />} />
           <Route path="/groups" element={<GroupsPage />} /> {/* Groups route */}
+           <Route path="/deployments" element={<DeploymentPage />} />
           <Route path="*" element={<Navigate to="/dashboard" />} />
         </Routes>
       </div>

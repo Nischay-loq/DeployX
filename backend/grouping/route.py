@@ -5,6 +5,7 @@ from . import crud, schemas
 
 router = APIRouter(prefix="/groups", tags=["Groups"])
 
+# --- CRUD routes for Groups ---
 @router.get("/", response_model=list[schemas.GroupResponse])
 def list_groups(db: Session = Depends(get_db)):
     return crud.get_groups(db)
@@ -34,3 +35,28 @@ def assign_device(group_id: int, device_id: int, db: Session = Depends(get_db)):
 @router.delete("/{group_id}/remove/{device_id}")
 def remove_device(group_id: int, device_id: int, db: Session = Depends(get_db)):
     return crud.remove_device_from_group(db, device_id, group_id)
+
+# --- Get all devices with group info ---
+@router.get("/devices")
+def get_devices(db: Session = Depends(get_db)):
+    query = """
+        SELECT d.id, d.device_name, d.ip_address, d.os, d.status, d.connection_type, d.last_seen, g.group_name
+        FROM devices d
+        LEFT JOIN device_groups g ON d.group_id = g.id
+        ORDER BY d.id
+    """
+    result = db.execute(query)
+    devices = [
+        {
+            "id": row.id,
+            "device_name": row.device_name,
+            "ip_address": row.ip_address,
+            "os": row.os,
+            "status": row.status,
+            "connection_type": row.connection_type,
+            "last_seen": row.last_seen.isoformat() if row.last_seen else None,
+            "group_name": row.group_name,
+        }
+        for row in result
+    ]
+    return devices

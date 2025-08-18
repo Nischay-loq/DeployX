@@ -17,6 +17,6 @@ export const removeDevice = (groupId, deviceId) =>
 // Devices API
 export const getDevices = async () => {
   // Use axios so you keep a consistent API style
-  const res = await axios.get(`${import.meta.env.VITE_API_URL}/devices`);
+  const res = await axios.get("/devices");
   return res.data;
 };
