@@ -7,6 +7,11 @@ from typing import Dict, List, Set
 import uuid
 from datetime import datetime
 import uvicorn
+import os
+from grouping.route import router as groups_router
+from Devices.routes import router as devices_router
+from auth import routes, models
+from auth.database import engine
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -22,16 +27,17 @@ sio = socketio.AsyncServer(
     ping_interval=25
 )
 
+models.Base.metadata.create_all(bind=engine)
+
 # Create FastAPI app
 app = FastAPI(title="Remote Command Execution Backend")
+app.include_router(routes.router)
+app.include_router(groups_router)
+app.include_router(devices_router)
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost",
-        "http://127.0.0.1"
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],  # You can also restrict headers if needed
@@ -315,6 +321,15 @@ async def get_agents_rest():
             "connected_at": info["connected_at"].isoformat()
         }
     return {"agents": agents_info}
+
+
+@app.get("/")
+async def root():
+    return {"message": "Remote Terminal Server with Real CMD Running (Socket.IO)"}
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "cwd": os.getcwd()}
 
 # Mount Socket.IO app
 socket_app = socketio.ASGIApp(sio, app)
