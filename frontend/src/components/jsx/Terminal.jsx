@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Terminal } from 'xterm';
-import { FitAddon } from 'xterm-addon-fit';
-import { WebLinksAddon } from 'xterm-addon-web-links';
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import io from 'socket.io-client';
-import 'xterm/css/xterm.css';
+import "@xterm/xterm/css/xterm.css";
 import '../css/Terminal.css';
+
+
 
 const TerminalComponent = () => {
   const terminalRef = useRef(null);
@@ -82,7 +84,7 @@ const TerminalComponent = () => {
     fitAddon.current.fit();
 
     // Initialize Socket.IO connection with better configuration
-    socket.current = io('http://localhost:8000', { 
+    socket.current = io('https://deployx-server.onrender.com', { 
       transports: ['websocket'],
       reconnection: true,
       reconnectionDelay: 1000,
@@ -360,15 +362,6 @@ terminal.current.onData((data) => {
       <div className="terminal-wrapper">
         <div ref={terminalRef} className="terminal"></div>
       </div>
-      <button
-      className="logout-button"
-       onClick={() => {
-      localStorage.removeItem('token');
-      window.location.reload();
-      }}
-      >
-        Logout
-      </button>
     </div>
   );
 };

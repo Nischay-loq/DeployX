@@ -12,20 +12,20 @@ import time
 from typing import Optional, List
 import queue
 
-# Configure logging
+# Logs messages in specific pattern:
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 class RemoteAgent:
-    def __init__(self, server_url: str = "http://localhost:8000", agent_id: str = None):
+    def __init__(self, server_url: str = "https://deployx-server.onrender.com/", agent_id: str = None):
         self.server_url = server_url
         self.agent_id = agent_id or f"agent_{platform.node()}_{int(time.time())}"
         self.sio = socketio.AsyncClient(
-            logger=True, 
-            engineio_logger=True,
+            logger=True, # logs events, connections, disconnections, and errors
+            engineio_logger=True, # ping, pong and connection details
             reconnection=True,
             reconnection_attempts=5,
-            reconnection_delay=1
+            reconnection_delay=10 # waits 10s 
         )
         self.current_process: Optional[subprocess.Popen] = None
         self.current_shell = None
@@ -40,39 +40,29 @@ class RemoteAgent:
         self.available_shells = self.detect_shells()
         logger.info(f"Agent {self.agent_id} detected shells: {self.available_shells}")
     
-    def detect_shells(self) -> List[str]:
-        """Detect available shells on the system"""
-        shells = []
+    def detect_shells(self) -> dict:
+        """Detect available shells and their paths (Windows, Linux, macOS)"""
+        shells = {}
         system = platform.system().lower()
-        
+
         if system == "windows":
-            # Check for Windows shells
-            if shutil.which("cmd"):
-                shells.append("cmd")
-            if shutil.which("powershell"):
-                shells.append("powershell")
-            if shutil.which("pwsh"):  # PowerShell Core
-                shells.append("pwsh")
-        else:
-            # Unix-like systems
-            if shutil.which("bash"):
-                shells.append("bash")
-            if shutil.which("sh"):
-                shells.append("sh")
-            if shutil.which("zsh"):
-                shells.append("zsh")
-            if shutil.which("fish"):
-                shells.append("fish")
-        
-        # Ensure we have at least one shell
+            possible_shells = ["cmd", "powershell", "pwsh", "bash"]
+        elif system == "darwin":  # macOS
+            possible_shells = ["bash", "zsh", "sh", "ksh", "tcsh", "fish"]
+        else:  # Linux / Unix
+            possible_shells = ["bash", "zsh", "sh", "fish", "ksh", "tcsh"]
+
+        for shell in possible_shells:
+            path = shutil.which(shell)
+            if path:
+                shells[shell] = path
+
+        # Fallback: at least one shell
         if not shells:
-            if system == "windows":
-                shells.append("cmd")  # Default on Windows
-            else:
-                shells.append("sh")   # Default on Unix
-        
+            shells["cmd" if system == "windows" else "sh"] = shutil.which("cmd" if system == "windows" else "sh")
+
         return shells
-    
+
     def setup_handlers(self):
         """Setup Socket.IO event handlers"""
         
@@ -122,40 +112,44 @@ class RemoteAgent:
         except Exception as e:
             logger.error(f"Failed to register agent: {e}")
     
-    async def start_shell(self, shell: str):
-        """Start a shell subprocess"""
+    async def start_shell(self, shell_name: str):
+        """Start a shell subprocess using stored path"""
         try:
             self.cleanup_process()
-            
-            # Configure shell commands for better interactivity
-            if shell == "cmd":
-                cmd = ["cmd.exe", "/Q"]  # /Q disables echo
-            elif shell == "powershell":
-                cmd = ["powershell.exe", "-NoLogo", "-NoProfile"]
-            elif shell == "pwsh":
-                cmd = ["pwsh.exe", "-NoLogo", "-NoProfile"]
-            elif shell == "bash":
-                cmd = ["bash", "--login", "-i"]  # Interactive login shell
-            elif shell == "sh":
-                cmd = ["sh", "-i"]
-            elif shell == "zsh":
-                cmd = ["zsh", "-i"]
-            elif shell == "fish":
-                cmd = ["fish", "-i"]
+
+            path = self.available_shells.get(shell_name)
+            if not path:
+                logger.warning(f"Requested shell {shell_name} not found. Using default shell.")
+                path = list(self.available_shells.values())[0]  # pick first available shell
+                shell_name = list(self.available_shells.keys())[0]
+
+            # Configure shell arguments for interactivity
+            if shell_name == "cmd":
+                cmd = [path, "/Q"]
+            elif shell_name in ["powershell", "pwsh"]:
+                cmd = [path, "-NoLogo", "-NoProfile"]
+            elif shell_name == "bash":
+                print("Detected bash path:", path)
+
+                if "system32" in path.lower() or "windowsapps" in path.lower():
+                    git_bash = r"C:\Program Files\Git\bin\bash.exe"
+                    if os.path.exists(git_bash):
+                        path = git_bash
+
+                # Just launch bash, no winpty
+                cmd = [path, "--login", "-i"]
+
             else:
-                if platform.system().lower() == "windows":
-                    cmd = ["cmd.exe", "/Q"]
-                else:
-                    cmd = ["bash", "-i"]
-            
+                cmd = [path, "-i"]  # interactive for Unix shells
+
             logger.info(f"Starting shell process: {' '.join(cmd)}")
-            
-            # Set environment for better output
+
             env = os.environ.copy()
-            env['PYTHONUNBUFFERED'] = '1'
-            env['TERM'] = 'xterm-256color'
-            
-            if platform.system().lower() == "windows":
+            env["PYTHONUNBUFFERED"] = "1"
+            env["TERM"] = "xterm-256color"
+
+            system = platform.system().lower()
+            if system == "windows":
                 self.current_process = subprocess.Popen(
                     cmd,
                     stdin=subprocess.PIPE,
@@ -177,23 +171,24 @@ class RemoteAgent:
                     env=env,
                     preexec_fn=os.setsid
                 )
-            
-            self.current_shell = shell
+
+            self.current_shell = shell_name
             self.running = True
-            
-            # Start output monitoring
+
+            # Start output thread
             self.output_thread = threading.Thread(target=self.monitor_output, daemon=True)
             self.output_thread.start()
-            
-            await self.sio.emit('shell_started', {'shell': shell})
-            logger.info(f"Shell {shell} started successfully")
-            
-        except Exception as e:
-            logger.error(f"Failed to start shell {shell}: {e}")
+
             if self.connected:
-                await self.sio.emit('command_output', {
-                    'output': f"\r\nError starting shell {shell}: {str(e)}\r\n"
-                })
+                await self.sio.emit("shell_started", {"shell": shell_name})
+
+            logger.info(f"Shell {shell_name} started successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to start shell {shell_name}: {e}")
+            if self.connected:
+                await self.sio.emit("command_output", {"output": f"\r\nError starting shell {shell_name}: {e}\r\n"})
+
     
     def monitor_output(self):
         """Monitor subprocess output in a separate thread"""
@@ -306,45 +301,48 @@ class RemoteAgent:
                 })
     
     def cleanup_process(self):
-        """Cleanup current subprocess"""
+        """Cleanup current subprocess and its output thread"""
         self.running = False
-        
-        if self.current_process:
+
+        system = platform.system().lower()
+        process = self.current_process
+
+        if process:
             try:
                 logger.info("Terminating current shell process")
-                
-                if platform.system().lower() == "windows":
-                    # Terminate Windows process group
-                    self.current_process.terminate()
-                else:
-                    # Terminate Unix process group
+
+                # Terminate process group (Unix/macOS) or process (Windows)
+                if system == "windows":
+                    process.terminate()
+                else:  # Linux/macOS
                     try:
-                        os.killpg(os.getpgid(self.current_process.pid), signal.SIGTERM)
-                    except:
-                        self.current_process.terminate()
-                
-                # Wait for process to terminate
+                        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+                    except Exception:
+                        process.terminate()
+
+                # Wait for graceful termination
                 try:
-                    self.current_process.wait(timeout=5)
+                    process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     logger.warning("Process didn't terminate gracefully, forcing kill")
-                    if platform.system().lower() == "windows":
-                        self.current_process.kill()
+                    if system == "windows":
+                        process.kill()
                     else:
                         try:
-                            os.killpg(os.getpgid(self.current_process.pid), signal.SIGKILL)
-                        except:
-                            self.current_process.kill()
-                
+                            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                        except Exception:
+                            process.kill()
+
             except Exception as e:
                 logger.error(f"Error cleaning up process: {e}")
             finally:
                 self.current_process = None
                 self.current_shell = None
-        
+
         # Wait for output thread to finish
-        if self.output_thread and self.output_thread.is_alive():
-            self.output_thread.join(timeout=2)
+        thread = self.output_thread
+        if thread and thread.is_alive():
+            thread.join(timeout=2)
     
     async def connect(self):
         """Connect to the backend server"""
@@ -389,8 +387,8 @@ async def main():
     parser = argparse.ArgumentParser(description="Remote Command Execution Agent")
     parser.add_argument(
         "--server", 
-        default="http://localhost:8000", 
-        help="Backend server URL (default: http://localhost:8000)"
+        default="https://deployx-server.onrender.com/", 
+        help="Backend server URL (default: https://deployx-server.onrender.com/)"
     )
     parser.add_argument(
         "--agent-id", 
@@ -410,8 +408,17 @@ async def main():
 
 
 if __name__ == "__main__":
+    
     if platform.system().lower() == "windows":
         # Set up Windows event loop policy
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-    
+    else:
+        try:
+            import uvloop # will show warning as it cannot be installed in windows
+        except ImportError:
+            uvloop = None
+        # Linux/macOS: use uvloop if installed for better performance
+        if uvloop:
+            asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+
     asyncio.run(main())

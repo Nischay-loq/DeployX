@@ -7,11 +7,11 @@ from typing import Dict, List, Set
 import uuid
 from datetime import datetime
 import uvicorn
+import os
 from grouping.route import router as groups_router
 from Devices.routes import router as devices_router
-
-
-
+from auth import routes, models
+from auth.database import engine
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -27,16 +27,20 @@ sio = socketio.AsyncServer(
     ping_interval=25
 )
 
+models.Base.metadata.create_all(bind=engine)
+
 # Create FastAPI app
 app = FastAPI(title="Remote Command Execution Backend")
+app.include_router(routes.router)
+app.include_router(groups_router)
+app.include_router(devices_router)
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["*"],  # You can also restrict headers if needed
 )
 
 
@@ -163,7 +167,7 @@ async def get_shells(sid, agent_id):
             
         logger.info(f"Shell list request for agent {agent_id} from {sid}")
         shells = conn_manager.get_agent_shells(agent_id)
-        await sio.emit('shells_list', shells, room=sid)
+        await sio.emit('shells_list', list(shells.keys()), room=sid)
         logger.info(f"Sent shell list to {sid}: {shells}")
     except Exception as e:
         logger.error(f"Error getting shells for agent {agent_id}: {e}")
@@ -323,13 +327,22 @@ async def get_agents_rest():
         }
     return {"agents": agents_info}
 
+
+@app.get("/")
+async def root():
+    return {"message": "Remote Terminal Server with Real CMD Running (Socket.IO)"}
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "cwd": os.getcwd()}
+
 # Mount Socket.IO app
 socket_app = socketio.ASGIApp(sio, app)
 
 if __name__ == "__main__":
     logger.info("Starting Remote Command Execution Backend...")
-    logger.info("Backend will be available at: http://localhost:8000")
-    logger.info("Socket.IO endpoint: ws://localhost:8000/socket.io/")
+    logger.info("Backend will be available at: https://deployx-server.onrender.com")
+    logger.info("Socket.IO endpoint: wss://deployx-server.onrender.com/socket.io/")
     
     uvicorn.run(
         socket_app,
