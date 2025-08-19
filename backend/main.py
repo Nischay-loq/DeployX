@@ -336,8 +336,8 @@ socket_app = socketio.ASGIApp(sio, app)
 
 if __name__ == "__main__":
     logger.info("Starting Remote Command Execution Backend...")
-    logger.info("Backend will be available at: http://localhost:8000")
-    logger.info("Socket.IO endpoint: ws://localhost:8000/socket.io/")
+    logger.info("Backend will be available at: https://deployx-server.onrender.com")
+    logger.info("Socket.IO endpoint: wss://deployx-server.onrender.com/socket.io/")
     
     uvicorn.run(
         socket_app,
