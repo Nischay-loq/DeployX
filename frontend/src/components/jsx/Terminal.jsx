@@ -322,29 +322,6 @@ terminal.current.onData((data) => {
               onChange={(e) => handleAgentChange(e.target.value)}
               disabled={connectedAgents.length === 0 || !isConnected}
             >
-<<<<<<< HEAD
-                <div className="terminal-content" ref={terminalRef}>
-                    {renderOutput()}
-                    {isConnected && renderCurrentLine()}
-                </div>
-
-                <input
-                    ref={hiddenInputRef}
-                    className="hidden-input"
-                    value="" // Value is empty as input is managed by state and key presses
-                    onChange={() => { }} // No-op, as value is controlled
-                    onKeyDown={handleKeyPress}
-                    autoFocus
-                    disabled={!isConnected}
-                />
-            </div>
-
-            <div className="terminal-footer">
-                <span>Use Ctrl+C to interrupt, Ctrl+L to clear, ↑↓ for history, Home/End to navigate</span>
-            </div>
-        </div>
-    );
-=======
               <option value="">Select Agent ({connectedAgents.length} available)</option>
               {connectedAgents.map(agent => (
                 <option key={agent} value={agent}>{agent}</option>
@@ -394,7 +371,6 @@ terminal.current.onData((data) => {
       </button>
     </div>
   );
->>>>>>> origin/main
 };
 
 export default TerminalComponent;
