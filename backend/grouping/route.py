@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from auth.database import get_db
 from . import crud, schemas
 
@@ -39,12 +40,12 @@ def remove_device(group_id: int, device_id: int, db: Session = Depends(get_db)):
 # --- Get all devices with group info ---
 @router.get("/devices")
 def get_devices(db: Session = Depends(get_db)):
-    query = """
+    query = text("""
         SELECT d.id, d.device_name, d.ip_address, d.os, d.status, d.connection_type, d.last_seen, g.group_name
         FROM devices d
         LEFT JOIN device_groups g ON d.group_id = g.id
         ORDER BY d.id
-    """
+    """)
     result = db.execute(query)
     devices = [
         {

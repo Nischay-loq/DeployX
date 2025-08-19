@@ -7,6 +7,11 @@ from typing import Dict, List, Set
 import uuid
 from datetime import datetime
 import uvicorn
+from grouping.route import router as groups_router
+from Devices.routes import router as devices_router
+
+
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -33,6 +38,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+#including all routes in main 
+app.include_router(groups_router)
+app.include_router(devices_router)
 
 # Store connected agents and frontends
 class ConnectionManager:
