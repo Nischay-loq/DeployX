@@ -327,10 +327,6 @@ async def get_agents_rest():
 async def root():
     return {"message": "Remote Terminal Server with Real CMD Running (Socket.IO)"}
 
-@app.get("/health")
-async def health():
-    return {"status": "healthy", "cwd": os.getcwd()}
-
 # Mount Socket.IO app
 socket_app = socketio.ASGIApp(sio, app)
 
