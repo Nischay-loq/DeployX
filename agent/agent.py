@@ -11,6 +11,7 @@ import signal
 import time
 from typing import Optional, List
 import queue
+from device_runner import main
 
 # Logs messages in specific pattern:
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -408,6 +409,7 @@ async def main():
 
 
 if __name__ == "__main__":
+    main()
     
     if platform.system().lower() == "windows":
         # Set up Windows event loop policy

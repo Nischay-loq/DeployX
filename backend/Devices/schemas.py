@@ -1,6 +1,14 @@
 from pydantic import BaseModel
 from typing import Optional
 
+class DeviceCreate(BaseModel):
+    device_name: str
+    ip_address: str
+    mac_address: str
+    os: str
+    status: str
+    connection_type: str
+
 class DeviceResponse(BaseModel):
     id: int
     device_name: Optional[str] = None

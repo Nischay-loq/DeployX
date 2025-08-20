@@ -21,7 +21,10 @@ export default function Navbar({ onLogout }) {
         <Link to="/reports"><FaChartBar /> Reports</Link>
       </nav>
       <div className="logout">
-        <button onClick={onLogout}><FaSignOutAlt /> Logout</button>
+        <button className="logout-btn" onClick={onLogout}>
+          <FaSignOutAlt size={22} style={{ marginRight: "8px" }} />
+          Logout
+        </button>
       </div>
     </aside>
   );
