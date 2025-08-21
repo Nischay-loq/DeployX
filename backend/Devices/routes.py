@@ -94,3 +94,4 @@ def handle_device_online(device: Device, db: Session):
     except Exception as e:
         print(f"Error in handle_device_online: {e}")
         # Don't raise the exception
+        # Just log it
