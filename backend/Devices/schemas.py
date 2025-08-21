@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 
 class DeviceCreate(BaseModel):
     device_name: str
@@ -17,7 +18,7 @@ class DeviceResponse(BaseModel):
     os: Optional[str] = None
     status: Optional[str] = None
     connection_type: Optional[str] = None
-    last_seen: Optional[str] = None
+    last_seen: Optional[datetime] = None
     group_id: Optional[int] = None
     group_name: Optional[str] = None
 
