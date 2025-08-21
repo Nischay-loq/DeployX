@@ -23,7 +23,7 @@ def get_device_info():
         "connection_type": connection_type
     }
 
-def main():
+def Device_Registration():
     info = get_device_info()
     print("Sending device info:", info)
     api_url = "https://deployx-server.onrender.com/devices/"
@@ -33,4 +33,4 @@ def main():
     except Exception as e:
         print("Error:", e)
 
-main()
+Device_Registration()
