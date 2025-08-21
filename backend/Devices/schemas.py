@@ -8,7 +8,8 @@ class DeviceCreate(BaseModel):
     mac_address: str
     os: str
     status: str
-    connection_type: str
+    connection_type: Optional[str] = None  # This allows None values
+    last_seen: str
 
 class DeviceResponse(BaseModel):
     id: int
@@ -17,7 +18,7 @@ class DeviceResponse(BaseModel):
     mac_address: Optional[str] = None
     os: Optional[str] = None
     status: Optional[str] = None
-    connection_type: Optional[str] = None
+    connection_type: Optional[str] = None  # This allows None values
     last_seen: Optional[datetime] = None
     group_id: Optional[int] = None
     group_name: Optional[str] = None

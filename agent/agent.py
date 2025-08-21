@@ -10,10 +10,38 @@ import os
 import signal
 import time
 from typing import Optional, List
-import queue
-from device_runner import main
+import atexit
+from device_runner import send_online_status, send_offline_status
 
-# Logs messages in specific pattern:
+# Global flag to prevent duplicate offline calls
+offline_sent = False
+
+def handle_offline():
+    """Handle sending offline status"""
+    global offline_sent
+    if offline_sent:
+        return
+    
+    print("=== SENDING OFFLINE STATUS ===")
+    try:
+        result = send_offline_status()
+        print(f"Offline status sent: {result}")
+        offline_sent = True
+    except Exception as e:
+        print(f"Error sending offline status: {e}")
+
+def signal_handler(signum, frame):
+    """Handle interrupt signals"""
+    print(f"Received signal {signum}, shutting down...")
+    handle_offline()
+    sys.exit(0)
+
+# Register exit handlers
+atexit.register(handle_offline)
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+
+# Logging setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -22,11 +50,11 @@ class RemoteAgent:
         self.server_url = server_url
         self.agent_id = agent_id or f"agent_{platform.node()}_{int(time.time())}"
         self.sio = socketio.AsyncClient(
-            logger=True, # logs events, connections, disconnections, and errors
-            engineio_logger=True, # ping, pong and connection details
+            logger=True,
+            engineio_logger=True,
             reconnection=True,
             reconnection_attempts=5,
-            reconnection_delay=10 # waits 10s 
+            reconnection_delay=10
         )
         self.current_process: Optional[subprocess.Popen] = None
         self.current_shell = None
@@ -40,17 +68,29 @@ class RemoteAgent:
         # Detect available shells
         self.available_shells = self.detect_shells()
         logger.info(f"Agent {self.agent_id} detected shells: {self.available_shells}")
+        
+        # Send online status when agent starts
+        self.send_device_online()
+    
+    def send_device_online(self):
+        """Send online status when agent starts"""
+        print("=== SENDING ONLINE STATUS ===")
+        try:
+            result = send_online_status()
+            print(f"Online status sent: {result}")
+        except Exception as e:
+            print(f"Error sending online status: {e}")
     
     def detect_shells(self) -> dict:
-        """Detect available shells and their paths (Windows, Linux, macOS)"""
+        """Detect available shells and their paths"""
         shells = {}
         system = platform.system().lower()
 
         if system == "windows":
             possible_shells = ["cmd", "powershell", "pwsh", "bash"]
-        elif system == "darwin":  # macOS
+        elif system == "darwin":
             possible_shells = ["bash", "zsh", "sh", "ksh", "tcsh", "fish"]
-        else:  # Linux / Unix
+        else:
             possible_shells = ["bash", "zsh", "sh", "fish", "ksh", "tcsh"]
 
         for shell in possible_shells:
@@ -58,7 +98,6 @@ class RemoteAgent:
             if path:
                 shells[shell] = path
 
-        # Fallback: at least one shell
         if not shells:
             shells["cmd" if system == "windows" else "sh"] = shutil.which("cmd" if system == "windows" else "sh")
 
@@ -71,7 +110,6 @@ class RemoteAgent:
         async def connect():
             logger.info(f"Connected to backend server at {self.server_url}")
             self.connected = True
-            # Register with the backend
             await self.register_agent()
         
         @self.sio.event
@@ -121,7 +159,7 @@ class RemoteAgent:
             path = self.available_shells.get(shell_name)
             if not path:
                 logger.warning(f"Requested shell {shell_name} not found. Using default shell.")
-                path = list(self.available_shells.values())[0]  # pick first available shell
+                path = list(self.available_shells.values())[0]
                 shell_name = list(self.available_shells.keys())[0]
 
             # Configure shell arguments for interactivity
@@ -131,17 +169,13 @@ class RemoteAgent:
                 cmd = [path, "-NoLogo", "-NoProfile"]
             elif shell_name == "bash":
                 print("Detected bash path:", path)
-
                 if "system32" in path.lower() or "windowsapps" in path.lower():
                     git_bash = r"C:\Program Files\Git\bin\bash.exe"
                     if os.path.exists(git_bash):
                         path = git_bash
-
-                # Just launch bash, no winpty
                 cmd = [path, "--login", "-i"]
-
             else:
-                cmd = [path, "-i"]  # interactive for Unix shells
+                cmd = [path, "-i"]
 
             logger.info(f"Starting shell process: {' '.join(cmd)}")
 
@@ -190,18 +224,15 @@ class RemoteAgent:
             if self.connected:
                 await self.sio.emit("command_output", {"output": f"\r\nError starting shell {shell_name}: {e}\r\n"})
 
-    
     def monitor_output(self):
         """Monitor subprocess output in a separate thread"""
         try:
             while self.running and self.current_process and self.current_process.poll() is None:
                 try:
-                    # Read larger chunks instead of single characters
                     if platform.system().lower() != "windows":
                         import select
                         ready, _, _ = select.select([self.current_process.stdout], [], [], 0.1)
                         if ready:
-                            # Read available data in chunks
                             data = self.current_process.stdout.read(4096)
                             if not data:
                                 continue
@@ -209,7 +240,6 @@ class RemoteAgent:
                             time.sleep(0.01)
                             continue
                     else:
-                        # Windows - read in chunks with timeout
                         try:
                             data = os.read(self.current_process.stdout.fileno(), 4096)
                             if isinstance(data, bytes):
@@ -219,7 +249,6 @@ class RemoteAgent:
                             continue
                     
                     if data:
-                        # Send complete chunks to maintain formatting
                         if self.connected:
                             try:
                                 loop = asyncio.new_event_loop()
@@ -256,7 +285,6 @@ class RemoteAgent:
                     except Exception as e:
                         logger.error(f"Failed to send exit message: {e}")
 
-    # Also update the execute_command method:
     async def execute_command(self, command: str):
         """Execute command in the current shell"""
         if not self.current_process or self.current_process.poll() is not None:
@@ -267,7 +295,6 @@ class RemoteAgent:
             return
 
         try:
-            # Handle Ctrl+C (interrupt signal)
             if command == '\u0003':
                 logger.info("Received Ctrl+C signal")
                 if platform.system().lower() == "windows":
@@ -282,7 +309,6 @@ class RemoteAgent:
                         self.current_process.terminate()
                 return
 
-            # Write command to subprocess stdin
             if self.current_process.stdin:
                 self.current_process.stdin.write(command)
                 self.current_process.stdin.flush()
@@ -312,16 +338,14 @@ class RemoteAgent:
             try:
                 logger.info("Terminating current shell process")
 
-                # Terminate process group (Unix/macOS) or process (Windows)
                 if system == "windows":
                     process.terminate()
-                else:  # Linux/macOS
+                else:
                     try:
                         os.killpg(os.getpgid(process.pid), signal.SIGTERM)
                     except Exception:
                         process.terminate()
 
-                # Wait for graceful termination
                 try:
                     process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
@@ -340,7 +364,6 @@ class RemoteAgent:
                 self.current_process = None
                 self.current_shell = None
 
-        # Wait for output thread to finish
         thread = self.output_thread
         if thread and thread.is_alive():
             thread.join(timeout=2)
@@ -359,6 +382,8 @@ class RemoteAgent:
         """Disconnect from the backend server"""
         try:
             self.cleanup_process()
+            # Call the global function directly
+            handle_offline()
             await self.sio.disconnect()
             logger.info("Disconnected from backend")
         except Exception as e:
@@ -386,15 +411,8 @@ async def main():
     import argparse
     
     parser = argparse.ArgumentParser(description="Remote Command Execution Agent")
-    parser.add_argument(
-        "--server", 
-        default="https://deployx-server.onrender.com/", 
-        help="Backend server URL (default: https://deployx-server.onrender.com/)"
-    )
-    parser.add_argument(
-        "--agent-id", 
-        help="Custom agent ID (default: auto-generated)"
-    )
+    parser.add_argument("--server", default="https://deployx-server.onrender.com/", help="Backend server URL")
+    parser.add_argument("--agent-id", help="Custom agent ID")
     
     args = parser.parse_args()
     
@@ -407,20 +425,8 @@ async def main():
         logger.error(f"Failed to run agent: {e}")
         sys.exit(1)
 
-
 if __name__ == "__main__":
-    main()
-    
     if platform.system().lower() == "windows":
-        # Set up Windows event loop policy
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-    else:
-        try:
-            import uvloop # will show warning as it cannot be installed in windows
-        except ImportError:
-            uvloop = None
-        # Linux/macOS: use uvloop if installed for better performance
-        if uvloop:
-            asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
-
+    
     asyncio.run(main())
