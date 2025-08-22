@@ -103,40 +103,38 @@ export default function GroupForm({ initialData, onGroupCreated }) {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const payload = {
-        group_name: name,
-        description: desc,
-        color,
-        devices: selectedDevices.map((d) => d.id),
-      };
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  try {
+    const payload = {
+      group_name: name,
+      description: desc,
+      color,
+      device_ids: selectedDevices.map((d) => d.id), // <-- FIXED FIELD NAME
+    };
 
-      if (initialData?.id) {
-        // Update flow
-        const url = API_URL ? `${API_URL}/groups/${initialData.id}` : `/groups/${initialData.id}`;
-        // prefer API wrapper if provided
-        if (typeof updateGroupApi === "function") {
-          await updateGroupApi(initialData.id, payload);
-        } else {
-          await axios.put(url, payload);
-        }
+    if (initialData?.id) {
+      // Update flow
+      const url = API_URL ? `${API_URL}/groups/${initialData.id}` : `/groups/${initialData.id}`;
+      if (typeof updateGroupApi === "function") {
+        await updateGroupApi(initialData.id, payload);
       } else {
-        // Create flow
-        await createGroup(payload);
-        // reset only in create mode
-        setName("");
-        setDesc("");
-        setColor("#6c63ff");
-        setSelectedDevices([]);
+        await axios.put(url, payload);
       }
-
-      onGroupCreated();
-    } catch (err) {
-      console.error(initialData?.id ? "Error updating group:" : "Error creating group:", err);
+    } else {
+      // Create flow
+      await createGroup(payload);
+      setName("");
+      setDesc("");
+      setColor("#6c63ff");
+      setSelectedDevices([]);
     }
-  };
+
+    onGroupCreated();
+  } catch (err) {
+    console.error(initialData?.id ? "Error updating group:" : "Error creating group:", err);
+  }
+};
 
   const formatLastSeen = (v) => {
     if (!v) return "-";
