@@ -2,7 +2,34 @@ from sqlalchemy.orm import Session
 from . import models, schemas
 
 def get_groups(db: Session):
-    return db.query(models.DeviceGroup).all()
+    groups = db.query(models.DeviceGroup).all()
+    result = []
+    for group in groups:
+        # Get all device mappings for this group
+        device_maps = db.query(models.DeviceGroupMap).filter_by(group_id=group.id).all()
+        devices = []
+        for dm in device_maps:
+            # Get the actual device object for each mapping
+            device = db.query(models.Device).filter_by(id=dm.device_id).first()
+            if device:
+                devices.append({
+                    "id": device.id,
+                    "device_name": device.device_name,
+                    "ip_address": device.ip_address,
+                    "mac_address": device.mac_address,
+                    "os": device.os,
+                    "status": device.status,
+                    "connection_type": device.connection_type,
+                    "last_seen": device.last_seen.isoformat() if device.last_seen else None,
+                })
+        result.append({
+            "id": group.id,
+            "group_name": group.group_name,
+            "description": group.description,
+            "color": group.color,
+            "devices": devices
+        })
+    return result
 
 def create_group(db: Session, group: schemas.GroupCreate):
     new_group = models.DeviceGroup(**group.dict())
