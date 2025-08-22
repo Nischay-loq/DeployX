@@ -44,12 +44,21 @@ const TerminalComponent = () => {
   const TERMINAL_CONFIG = {
     cursorBlink: true,
     cursorStyle: 'block',
-    fontSize: 14,
-    fontFamily: 'Consolas, "Courier New", monospace',
+    fontSize: 15,
+    lineHeight: 1.2,
+    fontFamily: 'Consolas, "Cascadia Code", "Source Code Pro", "Courier New", monospace',
+    fontWeight: 500,
+    letterSpacing: 0,
+    rows: 24,
+    cols: 80,
+    scrollback: 1000,
+    rendererType: 'canvas',
+    allowTransparency: true,
     theme: {
-      background: '#1e1e1e',
-      foreground: '#d4d4d4',
+      background: '#1a1a1a',
+      foreground: '#e0e0e0',
       cursor: '#ffffff',
+      cursorAccent: '#000000',
       selection: '#264f78',
       black: '#000000',
       red: '#cd3131',
@@ -77,14 +86,28 @@ const TerminalComponent = () => {
     if (!terminalRef.current || terminalInstanceRef.current) return;
 
     try {
+      // Create terminal with initial dimensions
       terminalInstanceRef.current = new Terminal(TERMINAL_CONFIG);
       fitAddonRef.current = new FitAddon();
       
+      // Load addons
       terminalInstanceRef.current.loadAddon(fitAddonRef.current);
       terminalInstanceRef.current.loadAddon(new WebLinksAddon());
       
+      // Open terminal
       terminalInstanceRef.current.open(terminalRef.current);
-      fitAddonRef.current.fit();
+      
+      // Initial welcome message
+      terminalInstanceRef.current.writeln('\x1b[34m=== DeployX Terminal ===\x1b[0m');
+      terminalInstanceRef.current.writeln('\x1b[90mConnecting to backend...\x1b[0m');
+      
+      // Ensure proper sizing
+      setTimeout(() => {
+        if (fitAddonRef.current) {
+          fitAddonRef.current.fit();
+          terminalInstanceRef.current.scrollToBottom();
+        }
+      }, 100);
 
       console.log('Terminal initialized successfully');
       return terminalInstanceRef.current;
@@ -408,16 +431,32 @@ const TerminalComponent = () => {
     });
   }, [selectedAgent, selectedShell, shellStarted]);
 
-  // Window resize handler
+  // Window and container resize handler
   const handleResize = useCallback(() => {
     if (fitAddonRef.current && terminalInstanceRef.current) {
       try {
         fitAddonRef.current.fit();
+        terminalInstanceRef.current.scrollToBottom();
       } catch (error) {
         console.warn('Error fitting terminal:', error);
       }
     }
   }, []);
+
+  // Setup resize observer
+  useEffect(() => {
+    if (!terminalRef.current) return;
+    
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+    
+    resizeObserver.observe(terminalRef.current);
+    
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [handleResize]);
 
   // Main effect
   useEffect(() => {

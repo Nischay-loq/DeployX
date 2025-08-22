@@ -162,10 +162,17 @@ async def get_shells(sid, agent_id):
             
         logger.info(f"Shell list request for agent {agent_id} from {sid}")
         shells = conn_manager.get_agent_shells(agent_id)
-        await sio.emit('shells_list', list(shells.keys()), room=sid)
+        
+        if not shells:
+            logger.warning(f"No shells found for agent {agent_id}")
+            await sio.emit('shells_list', [], room=sid)
+            return
+            
+        await sio.emit('shells_list', shells, room=sid)
         logger.info(f"Sent shell list to {sid}: {shells}")
     except Exception as e:
         logger.error(f"Error getting shells for agent {agent_id}: {e}")
+        await sio.emit('error', {'message': f'Error getting shells: {str(e)}'}, room=sid)
 
 @sio.event
 async def agent_register(sid, data):
