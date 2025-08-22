@@ -25,12 +25,22 @@ class GroupCreate(GroupBase):
 class GroupUpdate(GroupBase):
     pass
 
-class GroupResponse(GroupBase):
+class DeviceResponse(BaseModel):
     id: int
-    devices: List[DeviceBase] = []
+    device_name: str
+    ip_address: str
+    mac_address: str
+    os: str
+    status: str
+    connection_type: str
+    last_seen: Optional[str]
 
-    class Config:
-        orm_mode = True
+class GroupResponse(BaseModel):
+    id: int
+    group_name: str
+    description: Optional[str]
+    color: Optional[str]
+    devices: List[DeviceResponse]
 
 class DeviceGroupMapBase(BaseModel):
     device_id: int
