@@ -31,6 +31,8 @@ export default function DeploymentPage() {
   const [retryIds, setRetryIds] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  const API_BASE = import.meta.env.VITE_API_URL.replace(/\/$/, "");
+
   useEffect(() => {
     let mounted = true;
 
@@ -38,7 +40,7 @@ export default function DeploymentPage() {
       setGroupsLoading(true);
       setGroupsError(null);
       try {
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/groups`);
+        const res = await axios.get(`${API_BASE}/groups`);
         if (!mounted) return;
         if (Array.isArray(res.data)) setGroups(res.data);
         else if (Array.isArray(res.data.groups)) setGroups(res.data.groups);
@@ -57,7 +59,7 @@ export default function DeploymentPage() {
       setDevicesLoading(true);
       setDevicesError(null);
       try {
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/groups/devices`);
+        const res = await axios.get(`${API_BASE}/groups/devices`);
         if (!mounted) return;
         if (Array.isArray(res.data)) setDevices(res.data);
         else if (Array.isArray(res.data.devices)) setDevices(res.data.devices);
@@ -106,7 +108,7 @@ export default function DeploymentPage() {
     setLoading(true);
     setShowModal(true);
     try {
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}/deployments/install`, {
+      const res = await axios.post(`${API_BASE}/deployments/install`, {
         group_ids: selectedGroups,
         device_ids: selectedDevices,
         software_ids: selectedSoftwares
@@ -125,7 +127,7 @@ export default function DeploymentPage() {
   const pollProgress = (deploymentId) => {
     const interval = setInterval(async () => {
       try {
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/deployments/${deploymentId}/progress`);
+        const res = await axios.get(`${API_BASE}/deployments/${deploymentId}/progress`);
         setProgress(res.data.devices || []);
         if (res.data.completed) clearInterval(interval);
       } catch (err) {
@@ -142,7 +144,7 @@ export default function DeploymentPage() {
   const handleRetry = async (deviceIds = retryIds) => {
     if (!deviceIds || deviceIds.length === 0) return;
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/deployments/retry`, { device_ids: deviceIds });
+      await axios.post(`${API_BASE}/deployments/retry`, { device_ids: deviceIds });
       alert("Retry request submitted.");
     } catch (err) {
       console.error("retry error:", err);
