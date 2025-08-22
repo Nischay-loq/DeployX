@@ -61,3 +61,4 @@ def get_devices(db: Session = Depends(get_db)):
         for row in result
     ]
     return devices
+#some changes done for checking my contribution count
