@@ -8,7 +8,7 @@ class DeviceBase(BaseModel):
     mac_address: Optional[str]
     os: Optional[str]
     status: Optional[str]
-    connection_type: Optional[str]
+    connection_type: Optional[str] = None
     last_seen: Optional[str]
 
     class Config:

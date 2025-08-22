@@ -34,7 +34,7 @@ class Device(Base):
     mac_address = Column(String(17))
     os = Column(String(50))
     status = Column(String(20))
-    connection_type = Column(String(10))
+    connection_type = Column(String(10), nullable=True)
     last_seen = Column(DateTime, default=func.now())
     group_id = Column(Integer, ForeignKey("device_groups.id", ondelete="SET NULL"))
 

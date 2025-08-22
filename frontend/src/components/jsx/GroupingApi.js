@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API_BASE = `${import.meta.env.VITE_API_URL}/groups/`; // <-- add trailing slash
-
+const BACKEND_URL="https://deployx-server.onrender.com/ "
 // Groups API
 export const fetchGroups = () => axios.get(API_BASE);
 export const createGroup = (data) => axios.post(API_BASE, data);
