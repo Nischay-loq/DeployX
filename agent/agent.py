@@ -46,7 +46,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 class RemoteAgent:
-    def __init__(self, server_url: str = "https://deployx-server.onrender.com/", agent_id: str = None):
+    def __init__(self, server_url: str = "http://localhost:8000/", agent_id: str = None):
         self.server_url = server_url
         self.agent_id = agent_id or f"agent_{platform.node()}_{int(time.time())}"
         self.sio = socketio.AsyncClient(
@@ -64,6 +64,7 @@ class RemoteAgent:
         
         # Setup event handlers
         self.setup_handlers()
+        self.setup_signal_handlers()
         
         # Detect available shells
         self.available_shells = self.detect_shells()
@@ -140,6 +141,12 @@ class RemoteAgent:
         async def command_input(data):
             command = data.get('command', '')
             await self.execute_command(command)
+
+        @self.sio.event
+        async def interrupt_signal(data):
+            """Handle interrupt signal from frontend"""
+            logger.info("Received interrupt signal from frontend")
+            await self.send_interrupt_signal()
     
     async def register_agent(self):
         """Register this agent with the backend"""
@@ -164,9 +171,9 @@ class RemoteAgent:
 
             # Configure shell arguments for interactivity
             if shell_name == "cmd":
-                cmd = [path, "/Q"]
+                cmd = [path, "/Q", "/K", "prompt $P$G"]
             elif shell_name in ["powershell", "pwsh"]:
-                cmd = [path, "-NoLogo", "-NoProfile"]
+                cmd = [path, "-NoLogo", "-NoProfile", "-NoExit"]
             elif shell_name == "bash":
                 print("Detected bash path:", path)
                 if "system32" in path.lower() or "windowsapps" in path.lower():
@@ -224,6 +231,72 @@ class RemoteAgent:
             if self.connected:
                 await self.sio.emit("command_output", {"output": f"\r\nError starting shell {shell_name}: {e}\r\n"})
 
+    async def send_interrupt_signal(self):
+        """Send interrupt signal to the current process"""
+        if not self.current_process or self.current_process.poll() is not None:
+            return
+
+        system = platform.system().lower()
+        logger.info(f"Attempting to send interrupt signal to {self.current_shell} on {system}")
+
+        try:
+            if system == "windows":
+                try:
+                    # First attempt: CTRL_BREAK_EVENT (more reliable)
+                    self.current_process.send_signal(signal.CTRL_BREAK_EVENT)
+                    logger.info("Sent CTRL_BREAK_EVENT to process")
+                    time.sleep(1) 
+                    if self.current_process.poll() is not None:
+                        logger.info("Subprocess terminated after interrupt. Restarting shell...")
+                        await self.restart_shell()
+                except Exception as e:
+                    logger.warning(f"Failed to send CTRL_BREAK_EVENT: {e}")
+                    await self.restart_shell()
+                    # Fallback (less reliable, but might work for some processes)
+                    try:
+                        if self.current_process.stdin:
+                            self.current_process.stdin.write('\u0003')
+                            self.current_process.stdin.flush()
+                            logger.info("Sent Ctrl+C to process via stdin (fallback)")
+                    except Exception as e:
+                        logger.error(f"Failed to send Ctrl+C via stdin fallback: {e}")
+                        await self.restart_shell()
+
+            else:  # Linux / macOS
+                try:
+                    os.killpg(os.getpgid(self.current_process.pid), signal.SIGINT)
+                    logger.info("Sent SIGINT to process group")
+                    
+                    # Wait briefly to see if it exits
+                    time.sleep(1)
+                    if self.current_process.poll() is not None:
+                        logger.info("Subprocess terminated after SIGINT. Restarting shell...")
+                        await self.restart_shell()
+                except ProcessLookupError:
+                    logger.info("Process already terminated")
+                except Exception as e:
+                    logger.warning(f"Failed to send SIGINT: {e}")
+                    # Fallback to stdin write if needed, but it's less reliable
+                    await self.restart_shell()
+
+        except Exception as e:
+            logger.error(f"Error sending interrupt signal: {e}")
+            if self.connected:
+                await self.sio.emit('command_output', {
+                    'output': f"\r\nInterrupt failed: {str(e)}\r\n"
+                })
+
+    async def restart_shell(self):
+        """Restart the current shell after an interrupt"""
+        current_shell = self.current_shell
+        if current_shell:
+            logger.info(f"Restarting {current_shell} shell after interrupt")
+            if self.connected:
+                await self.sio.emit('command_output', {
+                    'output': f"\r\n[Restarting {current_shell} shell...]\r\n"
+                })
+            await self.start_shell(current_shell)
+    
     def monitor_output(self):
         """Monitor subprocess output in a separate thread"""
         try:
@@ -326,6 +399,17 @@ class RemoteAgent:
                 await self.sio.emit('command_output', {
                     'output': f"\r\nError executing command: {str(e)}\r\n"
                 })
+                
+    def setup_signal_handlers(self):
+        """Setup signal handlers to prevent unwanted termination"""
+        def signal_handler(signum, frame):
+            logger.info(f"Received signal {signum}, but ignoring to keep agent alive")
+            # Don't exit - just log the signal
+            
+        # Handle common termination signals
+        if platform.system().lower() != "windows":
+            signal.signal(signal.SIGINT, signal_handler)
+            signal.signal(signal.SIGTERM, signal_handler)
     
     def cleanup_process(self):
         """Cleanup current subprocess and its output thread"""
@@ -405,14 +489,86 @@ class RemoteAgent:
         finally:
             await self.disconnect()
 
+    
+    # Also update the execute_command method:
+    async def execute_command(self, command: str):
+        """Execute command in the current shell"""
+        if not self.current_process or self.current_process.poll() is not None:
+            if self.connected:
+                await self.sio.emit('command_output', {
+                    'output': "\r\nNo active shell. Please start a shell first.\r\n"
+                })
+            return
+
+        try:
+            # Handle various interrupt signals
+            if command in ['\u0003', '^C', '\x03']:  # Different ways Ctrl+C might come through
+                logger.info("Received Ctrl+C interrupt signal")
+                await self.send_interrupt_signal()
+                
+                if self.current_process.stdin:
+                    self.current_process.stdin.write('\r\n')
+                    self.current_process.stdin.flush()
+                return
+            
+            elif command in ['\u001A', '^Z', '\x1A']:
+                logger.info("Received Ctrl+Z signal")
+                # This is primarily for Unix-like systems to suspend a process.
+                system = platform.system().lower()
+                if system != "windows":
+                    # For Linux/macOS, send SIGTSTP to the process group to suspend it
+                    try:
+                        os.killpg(os.getpgid(self.current_process.pid), signal.SIGTSTP)
+                        logger.info("Sent SIGTSTP to process group")
+                    except ProcessLookupError:
+                        logger.info("Process already terminated")
+                    except Exception as e:
+                        logger.warning(f"Failed to send SIGTSTP: {e}")
+                else:
+                    # On Windows, Ctrl+Z is usually an EOF character and doesn't suspend
+                    # a process in the same way. The best approach is to just send a newline
+                    # to clear the buffer.
+                    logger.info("Ignoring Ctrl+Z on Windows as it's not a standard suspend signal.")
+                
+                # Write newline to get a new prompt, as the shell is waiting for a command
+                if self.current_process.stdin:
+                    self.current_process.stdin.write('\r\n')
+                    self.current_process.stdin.flush()
+                return
+
+            # Write command to subprocess stdin
+            if self.current_process.stdin:
+                self.current_process.stdin.write(command)
+                self.current_process.stdin.flush()
+                logger.debug(f"Sent command to shell: {repr(command)}")
+
+        except BrokenPipeError:
+            logger.error("Shell process has terminated")
+            if self.connected:
+                await self.sio.emit('command_output', {
+                    'output': "\r\nShell process has terminated. Please start a new shell.\r\n"
+                })
+        except Exception as e:
+            logger.error(f"Error executing command: {e}")
+            if self.connected:
+                await self.sio.emit('command_output', {
+                    'output': f"\r\nError executing command: {str(e)}\r\n"
+                })
 
 async def main():
     """Main entry point"""
     import argparse
     
     parser = argparse.ArgumentParser(description="Remote Command Execution Agent")
-    parser.add_argument("--server", default="https://deployx-server.onrender.com/", help="Backend server URL")
-    parser.add_argument("--agent-id", help="Custom agent ID")
+    parser.add_argument(
+        "--server", 
+        default="https://deployx-server.onrender.com/", 
+        help="Backend server URL (default: https://deployx-server.onrender.com/)"
+    )
+    parser.add_argument(
+        "--agent-id", 
+        help="Custom agent ID (default: auto-generated)"
+    )
     
     args = parser.parse_args()
     
