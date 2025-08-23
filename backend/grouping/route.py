@@ -19,7 +19,29 @@ def create_group(group: schemas.GroupCreate, db: Session = Depends(get_db)):
     if group.device_ids:
         for device_id in group.device_ids:
             crud.assign_device_to_group(db, device_id, new_group.id)
-    return new_group
+    # Return group with device details
+    device_maps = db.query(models.DeviceGroupMap).filter_by(group_id=new_group.id).all()
+    devices = []
+    for dm in device_maps:
+        device = db.query(models.Device).filter_by(id=dm.device_id).first()
+        if device:
+            devices.append({
+                "id": device.id,
+                "device_name": device.device_name,
+                "ip_address": device.ip_address,
+                "mac_address": device.mac_address,
+                "os": device.os,
+                "status": device.status,
+                "connection_type": device.connection_type,
+                "last_seen": device.last_seen.isoformat() if device.last_seen else None,
+            })
+    return {
+        "id": new_group.id,
+        "group_name": new_group.group_name,
+        "description": new_group.description,
+        "color": new_group.color,
+        "devices": devices
+    }
 
 @router.put("/{group_id}", response_model=schemas.GroupResponse)
 def update_group(group_id: int, group: schemas.GroupUpdate, db: Session = Depends(get_db)):
