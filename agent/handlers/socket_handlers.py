@@ -58,7 +58,12 @@ class SocketEventHandler:
     async def handle_command_input(self, data: Dict[str, Any]):
         """Handle incoming command input."""
         command = data.get('command', '')
-        await self.shell_manager.execute_command(command)
+        if command in ['\u0003', '^C', '\x03']:  # Ctrl+C variants
+            await self.shell_manager.send_interrupt()
+        elif command in ['\u001A', '^Z', '\x1A']:  # Ctrl+Z variants
+            await self.shell_manager.send_suspend()
+        else:
+            await self.shell_manager.execute_command(command)
 
     async def handle_interrupt_signal(self, data: Dict[str, Any]):
         """Handle interrupt signal request."""

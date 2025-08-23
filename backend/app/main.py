@@ -8,10 +8,10 @@ import uuid
 from datetime import datetime
 import uvicorn
 import os
-from grouping.route import router as groups_router
-from Devices.routes import router as devices_router
-from auth import routes, models
-from auth.database import engine
+from app.grouping.route import router as groups_router
+from app.Devices.routes import router as devices_router
+from app.auth import routes, models
+from app.auth.database import engine
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -44,9 +44,7 @@ app.add_middleware(
 )
 
 
-#including all routes in main 
-app.include_router(groups_router)
-app.include_router(devices_router)
+# Routes are already included above
 
 # Store connected agents and frontends
 class ConnectionManager:
@@ -342,15 +340,10 @@ async def root():
 # Mount Socket.IO app
 socket_app = socketio.ASGIApp(sio, app)
 
-if __name__ == "__main__":
+app.mount("/", socket_app)  # Mount Socket.IO app at the root
+
+def start():
+    """Start the backend server."""
     logger.info("Starting Remote Command Execution Backend...")
-    logger.info("Backend will be available at: https://deployx-server.onrender.com")
-    logger.info("Socket.IO endpoint: wss://deployx-server.onrender.com/socket.io/")
-    
-    uvicorn.run(
-        socket_app,
-        host="0.0.0.0",
-        port=8000,
-        log_level="warning",  # Reduce uvicorn logging noise
-        access_log=False  # Disable access logs
-    )
+    logger.info("Backend will be available at: http://localhost:8000")
+    logger.info("Socket.IO endpoint: ws://localhost:8000/socket.io/")

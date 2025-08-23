@@ -8,3 +8,5 @@ class LogResponse(BaseModel):
     log_type: str
     message: str
     timestamp: str
+    
+    model_config = {"from_attributes": True}

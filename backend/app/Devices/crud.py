@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from grouping.models import Device, DeviceGroup
+from app.grouping.models import Device, DeviceGroup
 
 def get_devices(db: Session):
     """

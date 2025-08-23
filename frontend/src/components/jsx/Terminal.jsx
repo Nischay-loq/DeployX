@@ -5,6 +5,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import io from 'socket.io-client';
 import "@xterm/xterm/css/xterm.css";
 import '../css/Terminal.css';
+import Notification from './Notification';
 
 const TerminalComponent = () => {
   const terminalRef = useRef(null);
@@ -28,6 +29,35 @@ const TerminalComponent = () => {
   const [selectedAgent, setSelectedAgent] = useState('');
   const [shellStarted, setShellStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [notifications, setNotifications] = useState([]);
+
+  // Notification handler
+  const addNotification = useCallback((message, type = 'info') => {
+    const id = Date.now();
+    // Different durations for different notification types
+    const durations = {
+      error: 8000,    // Errors stay longer
+      warning: 6000,  // Warnings stay a bit longer
+      success: 3000,  // Success messages are shorter
+      info: 2000      // Info messages are shortest
+    };
+
+    // Remove any existing notifications with the same message to prevent duplicates
+    setNotifications(prev => {
+      const filtered = prev.filter(n => n.message !== message);
+      return [...filtered, { 
+        id, 
+        message, 
+        type,
+        duration: durations[type] || 5000
+      }];
+    });
+    return id;
+  }, []);
+
+  const removeNotification = useCallback((id) => {
+    setNotifications(prev => prev.filter(notification => notification.id !== id));
+  }, []);
 
   // Update refs whenever state changes
   useEffect(() => {
@@ -210,8 +240,7 @@ const TerminalComponent = () => {
     console.log('Attempting to connect to backend...');
     
     try {
-      // socketRef.current = io('https://deployx-server.onrender.com', {
-      socketRef.current = io('https://deployx-server.onrender.com/', {
+      socketRef.current = io('http://localhost:8000', {
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionDelay: 1000,
@@ -230,20 +259,26 @@ const TerminalComponent = () => {
         setIsLoading(false);
         setConnectionError(null);
         
-        if (terminalInstanceRef.current) {
-          terminalInstanceRef.current.writeln('\x1b[32m✓ Connected to backend server\x1b[0m');
-          terminalInstanceRef.current.writeln('\x1b[33mFetching available agents...\x1b[0m');
-        }
+        const connectMsg = addNotification('Connected to backend server', 'success');
+        
+        // Wait for the connection message to be shown before showing the next one
+        setTimeout(() => {
+          if (isMountedRef.current) {
+            removeNotification(connectMsg);
+            addNotification('Fetching available agents...', 'info');
+          }
+        }, 2000);
 
         // Register frontend and get agents
         socketRef.current.emit('frontend_register', {});
         
+        // Reduce the delay for getting agents
         setTimeout(() => {
           if (socketRef.current && socketRef.current.connected) {
             console.log('Requesting agents list...');
             socketRef.current.emit('get_agents');
           }
-        }, 500);
+        }, 200);
       });
 
       // Connection failed
@@ -288,33 +323,31 @@ const TerminalComponent = () => {
         console.log('Received agents list:', agents);
         
         if (Array.isArray(agents)) {
-          setConnectedAgents(agents);
-          
-          if (terminalInstanceRef.current) {
+          // Check if the agents list has actually changed
+          const agentsString = agents.join(',');
+          if (agentsString !== connectedAgents.join(',')) {
+            setConnectedAgents(agents);
+            
             if (agents.length > 0) {
-              terminalInstanceRef.current.writeln(`\x1b[32m✓ Found ${agents.length} agent(s): ${agents.join(', ')}\x1b[0m`);
-              terminalInstanceRef.current.writeln('\x1b[33mPlease select an agent to continue.\x1b[0m');
+              // Only show notification if it's a new agent list
+              addNotification(`Found ${agents.length} agent(s): ${agents.join(', ')}`, 'success');
               
-              // Auto-select first agent
+              // Auto-select first agent only if no agent is selected
               if (!selectedAgentRef.current) {
                 const firstAgent = agents[0];
                 setSelectedAgent(firstAgent);
                 console.log('Auto-selecting first agent:', firstAgent);
                 
-                setTimeout(() => {
-                  if (socketRef.current && socketRef.current.connected) {
-                    socketRef.current.emit('get_shells', firstAgent);
-                  }
-                }, 100);
+                socketRef.current.emit('get_shells', firstAgent);
               }
             } else {
-              terminalInstanceRef.current.writeln('\x1b[31m⚠ No agents available\x1b[0m');
-              terminalInstanceRef.current.writeln('\x1b[33mPlease ensure at least one agent is running and connected.\x1b[0m');
+              addNotification('No agents available. Please ensure at least one agent is running and connected.', 'warning');
             }
           }
         } else {
           console.error('Invalid agents list received:', agents);
           setConnectionError('Invalid agents list received from server');
+          addNotification('Invalid agents list received from server', 'error');
         }
       });
 
@@ -327,20 +360,17 @@ const TerminalComponent = () => {
         if (Array.isArray(shells)) {
           setAvailableShells(shells);
           
-          if (terminalInstanceRef.current) {
-            if (shells.length > 0) {
-              terminalInstanceRef.current.writeln(`\x1b[32m✓ Found ${shells.length} shell(s): ${shells.join(', ')}\x1b[0m`);
-              terminalInstanceRef.current.writeln('\x1b[33mSelect a shell and click "Start Shell" to begin.\x1b[0m');
-              
-              // Auto-select default shell
-              if (!selectedShell) {
-                const defaultShell = shells.includes('cmd') ? 'cmd' : 
-                                   shells.includes('bash') ? 'bash' : shells[0];
-                setSelectedShell(defaultShell);
-              }
-            } else {
-              terminalInstanceRef.current.writeln('\x1b[31m⚠ No shells available for this agent\x1b[0m');
+          if (shells.length > 0) {
+            addNotification(`Found ${shells.length} shell(s): ${shells.join(', ')}`, 'success');
+            
+            // Auto-select default shell
+            if (!selectedShell) {
+              const defaultShell = shells.includes('cmd') ? 'cmd' : 
+                               shells.includes('bash') ? 'bash' : shells[0];
+              setSelectedShell(defaultShell);
             }
+          } else {
+            addNotification('No shells available for this agent', 'warning');
           }
         }
       });
@@ -358,13 +388,7 @@ const TerminalComponent = () => {
         console.log('Shell started successfully:', shell);
         setShellStarted(true); // This will update shellStartedRef.current
         
-        if (terminalInstanceRef.current) {
-          terminalInstanceRef.current.writeln(`\x1b[32m✓ Shell '${shell}' started successfully\x1b[0m`);
-          terminalInstanceRef.current.writeln('\x1b[33mYou can now enter commands. Current state:\x1b[0m');
-          terminalInstanceRef.current.writeln(`\x1b[36mAgent: ${selectedAgentRef.current}\x1b[0m`);
-          terminalInstanceRef.current.writeln(`\x1b[36mShell: ${shell}\x1b[0m`);
-          terminalInstanceRef.current.writeln(`\x1b[36mShell Status: ${shellStartedRef.current ? 'Started' : 'Not Started'}\x1b[0m`);
-        }
+        addNotification(`Shell '${shell}' started successfully on ${selectedAgentRef.current}`, 'success');
       });
 
       // Error messages
@@ -492,6 +516,17 @@ const TerminalComponent = () => {
 
   return (
     <div className="terminal-container">
+      <div className="notification-container">
+        {notifications.map(({ id, message, type, duration }) => (
+          <Notification
+            key={id}
+            message={message}
+            type={type}
+            duration={duration}
+            onClose={() => removeNotification(id)}
+          />
+        ))}
+      </div>
       <div className="terminal-header">
         <div className="terminal-controls">
           <div className="control-group">

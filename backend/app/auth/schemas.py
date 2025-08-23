@@ -20,7 +20,5 @@ class UserOut(BaseModel):
     username: str
     email: EmailStr
     created_at: datetime
-
-class Config:
-    from_attributes = True
-    orm_mode = True
+    
+    model_config = {"from_attributes": True}

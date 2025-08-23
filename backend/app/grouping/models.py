@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
-from auth.database import Base  # assuming you have a common Base
+from app.auth.database import Base  # assuming you have a common Base
 from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.sql import func  # <-- import func for default timestamp
 

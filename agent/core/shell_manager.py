@@ -40,8 +40,7 @@ class ShellManager:
                 # Minimal PowerShell configuration
                 cmd = [
                     shell_path,
-                    "-NoLogo",
-                    "-NoProfile",
+                    "-NoExit",
                     "-Command",
                     "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue';"
                 ]
@@ -67,6 +66,10 @@ class ShellManager:
 
             system = platform.system().lower()
             if system == "windows":
+                startup_info = subprocess.STARTUPINFO()
+                startup_info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startup_info.wShowWindow = subprocess.SW_HIDE
+                
                 self.current_process = subprocess.Popen(
                     cmd,
                     stdin=subprocess.PIPE,
@@ -75,7 +78,8 @@ class ShellManager:
                     text=True,
                     bufsize=0,
                     env=env,
-                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                    startupinfo=startup_info
                 )
             else:
                 self.current_process = subprocess.Popen(
@@ -103,17 +107,8 @@ class ShellManager:
                 
             # Give the shell a moment to initialize
             await asyncio.sleep(0.5)
-            
-            # Send test command based on shell type
-            test_cmd = "echo Shell test\n"
-            if shell_name in ["powershell", "pwsh"]:
-                test_cmd = "Write-Host 'Shell test'\n"
                 
-            if not await self.execute_command(test_cmd):
-                logger.error("Failed to verify shell responsiveness")
-                return False
-                
-            logger.info(f"Shell {shell_name} started and verified successfully")
+            logger.info(f"Shell {shell_name} started successfully")
             return True
 
         except Exception as e:
@@ -232,12 +227,71 @@ class ShellManager:
 
         try:
             if system == "windows":
-                os.kill(self.current_process.pid, signal.CTRL_BREAK_EVENT)
+                try:
+                    # Try CTRL_BREAK_EVENT first (more reliable for subprocesses)
+                    self.current_process.send_signal(signal.CTRL_BREAK_EVENT)
+                    logger.info("Sent CTRL_BREAK_EVENT to process")
+                    
+                    # If process terminated, we'll handle that in the output monitoring
+                    await asyncio.sleep(0.5)
+                    if self.current_process.poll() is not None:
+                        logger.info("Process terminated after interrupt")
+                except Exception as e:
+                    logger.error(f"Failed to send CTRL_BREAK_EVENT: {e}")
+                    # Fallback to termination
+                    self.current_process.terminate()
             else:
-                os.killpg(os.getpgid(self.current_process.pid), signal.SIGINT)
+                try:
+                    # Send SIGINT to the process group
+                    os.killpg(os.getpgid(self.current_process.pid), signal.SIGINT)
+                    logger.info("Sent SIGINT to process group")
+                    await asyncio.sleep(0.5)
+                except Exception as e:
+                    logger.error(f"Failed to send SIGINT: {e}")
+                    self.current_process.terminate()
+
+            # Write a newline to get fresh prompt
+            if self.current_process and self.current_process.stdin:
+                self.current_process.stdin.write('\r\n')
+                self.current_process.stdin.flush()
             return True
+
         except Exception as e:
             logger.error(f"Failed to send interrupt signal: {e}")
+            return False
+            
+    async def send_suspend(self):
+        """Send suspend signal (Ctrl+Z) to the current process."""
+        if not self.current_process or self.current_process.poll() is not None:
+            return False
+
+        system = platform.system().lower()
+        logger.info(f"Attempting to send suspend signal to {self.current_shell} on {system}")
+
+        try:
+            if system == "windows":
+                # Windows doesn't support real process suspension
+                # Just write ^Z and a new line for visual feedback
+                if self.current_process.stdin:
+                    self.current_process.stdin.write('^Z\r\n')
+                    self.current_process.stdin.flush()
+                    logger.info("Wrote ^Z on Windows (no real suspension)")
+            else:
+                try:
+                    # Send SIGTSTP to process group on Unix
+                    os.killpg(os.getpgid(self.current_process.pid), signal.SIGTSTP)
+                    logger.info("Sent SIGTSTP to process group")
+                except Exception as e:
+                    logger.error(f"Failed to send SIGTSTP: {e}")
+                    # Write a new line to get a fresh prompt
+                    if self.current_process.stdin:
+                        self.current_process.stdin.write('\r\n')
+                        self.current_process.stdin.flush()
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send suspend signal: {e}")
             return False
 
     def cleanup_process(self):

@@ -17,3 +17,5 @@ class DeploymentProgress(BaseModel):
 class DeploymentProgressResponse(BaseModel):
     devices: List[DeploymentProgress]
     completed: bool
+    
+    model_config = {"from_attributes": True}
