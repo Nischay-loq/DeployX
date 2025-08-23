@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from auth.database import get_db
 from . import crud, schemas
+from . import models
 
 router = APIRouter(prefix="/groups", tags=["Groups"])
 
@@ -22,10 +23,47 @@ def create_group(group: schemas.GroupCreate, db: Session = Depends(get_db)):
 
 @router.put("/{group_id}", response_model=schemas.GroupResponse)
 def update_group(group_id: int, group: schemas.GroupUpdate, db: Session = Depends(get_db)):
-    updated = crud.update_group(db, group_id, group)
-    if not updated:
+    db_group = db.query(models.DeviceGroup).filter(models.DeviceGroup.id == group_id).first()
+    if not db_group:
         raise HTTPException(status_code=404, detail="Group not found")
-    return updated
+    for key, value in group.dict(exclude_unset=True, exclude={"device_ids"}).items():
+        setattr(db_group, key, value)
+    db.commit()
+    db.refresh(db_group)
+
+    # Update device assignments if provided
+    if hasattr(group, "device_ids") and group.device_ids is not None:
+        # Remove all current device mappings for this group
+        db.query(models.DeviceGroupMap).filter_by(group_id=group_id).delete()
+        db.commit()
+        # Add new device mappings
+        for device_id in group.device_ids:
+            db.add(models.DeviceGroupMap(device_id=device_id, group_id=group_id))
+        db.commit()
+
+    # Return the updated group with device details
+    device_maps = db.query(models.DeviceGroupMap).filter_by(group_id=db_group.id).all()
+    devices = []
+    for dm in device_maps:
+        device = db.query(models.Device).filter_by(id=dm.device_id).first()
+        if device:
+            devices.append({
+                "id": device.id,
+                "device_name": device.device_name,
+                "ip_address": device.ip_address,
+                "mac_address": device.mac_address,
+                "os": device.os,
+                "status": device.status,
+                "connection_type": device.connection_type,
+                "last_seen": device.last_seen.isoformat() if device.last_seen else None,
+            })
+    return {
+        "id": db_group.id,
+        "group_name": db_group.group_name,
+        "description": db_group.description,
+        "color": db_group.color,
+        "devices": devices
+    }
 
 @router.delete("/{group_id}")
 def delete_group(group_id: int, db: Session = Depends(get_db)):
