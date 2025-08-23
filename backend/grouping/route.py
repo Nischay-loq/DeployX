@@ -15,7 +15,6 @@ def list_groups(db: Session = Depends(get_db)):
 @router.post("/", response_model=schemas.GroupResponse)
 def create_group(group: schemas.GroupCreate, db: Session = Depends(get_db)):
     new_group = crud.create_group(db, group)
-    # Assign devices if provided
     if group.device_ids:
         for device_id in group.device_ids:
             crud.assign_device_to_group(db, device_id, new_group.id)

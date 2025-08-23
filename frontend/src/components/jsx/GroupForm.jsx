@@ -124,6 +124,7 @@ const handleSubmit = async (e) => {
     } else {
       // Create flow
       await createGroup(payload);
+      await fetchGroups();
       setName("");
       setDesc("");
       setColor("#6c63ff");
