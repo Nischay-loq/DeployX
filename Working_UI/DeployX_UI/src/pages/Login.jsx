@@ -1,6 +1,8 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, Shield, X } from "lucide-react";
+import { auth, googleProvider } from "../firebase";  // ✅ correct import
+import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 
 export default function Login() {
   const location = useLocation();
@@ -23,44 +25,63 @@ export default function Login() {
     setIsLoading(true);
     setNotification(null);
 
-    // Get stored user data from localStorage
-    const storedUsers = JSON.parse(localStorage.getItem('deployx_users') || '[]');
-    const user = storedUsers.find(u => u.email === email && u.password === password);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      setNotification({
+        type: "success",
+        message: "Redirecting to dashboard… Email verified",
+      });
 
-    // Simulate API call
-    setTimeout(() => {
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 2000);
+    } catch (error) {
+      setNotification({
+        type: "error",
+        message: error.message,
+      });
+    } finally {
       setIsLoading(false);
-      
-      if (user) {
-        setNotification({
-          type: "success",
-          message: "Redirecting to dashboard… Email verified"
-        });
-        
-        // Redirect to dashboard after 2 seconds
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 2000);
-      } else {
-        setNotification({
-          type: "error",
-          message: "Invalid Credentials. Don't have an account? Create one"
-        });
-      }
-    }, 1000);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+      setNotification({
+        type: "success",
+        message: "Signed in with Google! Redirecting…",
+      });
+
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 2000);
+    } catch (error) {
+      setNotification({
+        type: "error",
+        message: error.message,
+      });
+    }
   };
 
   const handleClose = () => {
-    navigate('/');
+    navigate("/");
   };
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(0,255,247,0.12),transparent_35%),radial-gradient(circle_at_80%_80%,rgba(0,168,255,0.12),transparent_35%)]">
       {/* motion particles via CSS circles */}
       <div className="particles-background">
-        {Array.from({length: 20}).map((_,i)=>(
-          <div key={i} className="absolute w-2 h-2 rounded-full bg-neonAqua blur-[1px] opacity-70"
-            style={{ top: `${Math.random()*100}%`, left: `${Math.random()*100}%`, animation: `float ${6+Math.random()*6}s infinite alternate`}}/>
+        {Array.from({ length: 20 }).map((_, i) => (
+          <div
+            key={i}
+            className="absolute w-2 h-2 rounded-full bg-neonAqua blur-[1px] opacity-70"
+            style={{
+              top: `${Math.random() * 100}%`,
+              left: `${Math.random() * 100}%`,
+              animation: `float ${6 + Math.random() * 6}s infinite alternate`,
+            }}
+          />
         ))}
       </div>
       <style>{`@keyframes float{from{transform:translateY(0)}to{transform:translateY(-20px)}}`}</style>
@@ -82,22 +103,26 @@ export default function Login() {
             <h1 className="text-3xl font-bold text-electricBlue mb-2">
               DeployX
             </h1>
-            <p className="text-gray-300 text-sm">
-              Access your command center
-            </p>
+            <p className="text-gray-300 text-sm">Access your command center</p>
           </div>
 
           {/* Notification */}
           {notification && (
-            <div className={`mb-6 p-4 rounded-lg border ${
-              notification.type === "success" 
-                ? "bg-green-100/20 border-green-300/30 text-green-300" 
-                : "bg-red-100/20 border-red-300/30 text-red-300"
-            }`}>
+            <div
+              className={`mb-6 p-4 rounded-lg border ${
+                notification.type === "success"
+                  ? "bg-green-100/20 border-green-300/30 text-green-300"
+                  : "bg-red-100/20 border-red-300/30 text-red-300"
+              }`}
+            >
               <div className="flex items-center gap-3">
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                  notification.type === "success" ? "bg-green-500" : "bg-red-500"
-                }`}>
+                <div
+                  className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                    notification.type === "success"
+                      ? "bg-green-500"
+                      : "bg-red-500"
+                  }`}
+                >
                   <span className="text-white text-xs font-bold">
                     {notification.type === "success" ? "✓" : "!"}
                   </span>
@@ -151,50 +176,56 @@ export default function Login() {
                 />
                 Remember me
               </label>
-              <Link to="/forgot-password" className="text-electricBlue hover:underline cursor-pointer">
-              Forgot Password?
+              <Link
+                to="/forgot-password"
+                className="text-electricBlue hover:underline cursor-pointer"
+              >
+                Forgot Password?
               </Link>
             </div>
 
             {/* Sign In Button */}
             <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full mt-2 relative overflow-hidden px-6 py-3 rounded-xl bg-electricBlue text-cyberBlue font-semibold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  <span className="relative z-10">{isLoading ? "Signing In..." : "Sign In"}</span>
-                  <span className="absolute inset-0 rounded-xl blur-xl opacity-70 btn-pulse bg-neonAqua"></span>
-
-                </button>
+              type="submit"
+              disabled={isLoading}
+              className="w-full mt-2 relative overflow-hidden px-6 py-3 rounded-xl bg-electricBlue text-cyberBlue font-semibold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <span className="relative z-10">
+                {isLoading ? "Signing In..." : "Sign In"}
+              </span>
+              <span className="absolute inset-0 rounded-xl blur-xl opacity-70 btn-pulse bg-neonAqua"></span>
+            </button>
 
             {/* Divider */}
             <div className="flex items-center my-4">
-            <hr className="flex-grow border-gray-600" />
-            <span className="px-3 text-gray-400 text-sm">OR</span>
-            <hr className="flex-grow border-gray-600" />
+              <hr className="flex-grow border-gray-600" />
+              <span className="px-3 text-gray-400 text-sm">OR</span>
+              <hr className="flex-grow border-gray-600" />
             </div>
 
-           {/* Google Button */}
-           <button
-            type="button"
-            onClick={() => console.log("Google Login")}
-            className="w-full px-6 py-3 rounded-xl bg-white text-gray-800 font-semibold flex items-center justify-center gap-3
+            {/* Google Button */}
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              className="w-full px-6 py-3 rounded-xl bg-white text-gray-800 font-semibold flex items-center justify-center gap-3
                       hover:shadow-lg transition-all cursor-pointer"
-           >
-           <img
-            src="https://www.svgrepo.com/show/355037/google.svg"
-            alt="Google"
-            className="w-5 h-5"
-           />
-            Continue with Google
-           </button>
+            >
+              <img
+                src="https://www.svgrepo.com/show/355037/google.svg"
+                alt="Google"
+                className="w-5 h-5"
+              />
+              Continue with Google
+            </button>
 
             {/* Links */}
             <div className="text-center space-y-2">
-              
               <p className="text-gray-400 text-sm">
                 Don't have an account?{" "}
-                <Link to="/signup" className="text-electricBlue hover:underline cursor-pointer">
+                <Link
+                  to="/signup"
+                  className="text-electricBlue hover:underline cursor-pointer"
+                >
                   Sign Up
                 </Link>
               </p>
