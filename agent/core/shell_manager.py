@@ -7,6 +7,7 @@ import signal
 import logging
 import asyncio
 import time
+import psutil
 
 logger = logging.getLogger(__name__)
 
@@ -57,12 +58,6 @@ class ShellManager:
                 cmd = [shell_path, "-i"]
             
             logger.info(f"Prepared command: {cmd}")
-
-            logger.info(f"Starting shell process: {' '.join(cmd)}")
-
-            env = os.environ.copy()
-            env["PYTHONUNBUFFERED"] = "1"
-            env["TERM"] = "xterm-256color"
 
             system = platform.system().lower()
             if system == "windows":
@@ -176,6 +171,20 @@ class ShellManager:
                 except Exception as e:
                     logger.error(f"Failed to send exit message: {e}")
 
+    def _get_all_child_processes(self, parent_pid):
+        """Get all child processes recursively."""
+        try:
+            parent = psutil.Process(parent_pid)
+            children = []
+            
+            # Get direct children
+            for child in parent.children(recursive=True):
+                children.append(child)
+            
+            return children
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return []
+
     async def execute_command(self, command: str):
         """Execute command in the current shell."""
         if not self.current_process:
@@ -187,22 +196,18 @@ class ShellManager:
             return False
 
         try:
-            if command == '\u0003':  # Ctrl+C
+            # Handle special control characters
+            if command == '\u0003' or command.strip() == '^C':  # Ctrl+C
                 logger.info("Received Ctrl+C signal")
-                if platform.system().lower() == "windows":
-                    try:
-                        self.current_process.send_signal(signal.CTRL_C_EVENT)
-                    except:
-                        self.current_process.terminate()
-                else:
-                    try:
-                        os.killpg(os.getpgid(self.current_process.pid), signal.SIGINT)
-                    except:
-                        self.current_process.terminate()
-                return True
+                return await self.send_interrupt()
+            elif command == '\u001a' or command.strip() == '^Z':  # Ctrl+Z
+                logger.info("Received Ctrl+Z signal")
+                return await self.send_suspend()
 
-            # Handle standard input
+            # Handle standard input - don't add extra newline if command already ends with one
             if self.current_process.stdin:
+                if not command.endswith('\n') and not command.endswith('\r\n'):
+                    command += '\n'
                 self.current_process.stdin.write(command)
                 self.current_process.stdin.flush()
                 logger.debug(f"Sent command to shell: {repr(command)}")
@@ -218,7 +223,7 @@ class ShellManager:
             return False
 
     async def send_interrupt(self):
-        """Send interrupt signal to the current process."""
+        """Send interrupt signal to the current process and all its children."""
         if not self.current_process or self.current_process.poll() is not None:
             return False
 
@@ -227,33 +232,76 @@ class ShellManager:
 
         try:
             if system == "windows":
+                # Get all child processes first
+                child_processes = self._get_all_child_processes(self.current_process.pid)
+                logger.info(f"Found {len(child_processes)} child processes")
+                
+                # Kill child processes first (like ping.exe)
+                for child in child_processes:
+                    try:
+                        logger.info(f"Terminating child process: {child.name()} (PID: {child.pid})")
+                        child.terminate()
+                        # Give it a moment to terminate gracefully
+                        try:
+                            child.wait(timeout=1)
+                        except psutil.TimeoutExpired:
+                            logger.info(f"Force killing child process: {child.name()} (PID: {child.pid})")
+                            child.kill()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                        logger.warning(f"Could not terminate child process {child.pid}: {e}")
+                
+                # Now try to interrupt the shell itself
                 try:
-                    # Try CTRL_BREAK_EVENT first (more reliable for subprocesses)
-                    self.current_process.send_signal(signal.CTRL_BREAK_EVENT)
-                    logger.info("Sent CTRL_BREAK_EVENT to process")
+                    # Try CTRL_C_EVENT first
+                    self.current_process.send_signal(signal.CTRL_C_EVENT)
+                    logger.info("Sent CTRL_C_EVENT to shell process")
+                    await asyncio.sleep(0.2)
                     
-                    # If process terminated, we'll handle that in the output monitoring
-                    await asyncio.sleep(0.5)
-                    if self.current_process.poll() is not None:
-                        logger.info("Process terminated after interrupt")
+                    # If shell is still running, try CTRL_BREAK_EVENT
+                    if self.current_process.poll() is None:
+                        self.current_process.send_signal(signal.CTRL_BREAK_EVENT)
+                        logger.info("Sent CTRL_BREAK_EVENT to shell process")
+                        await asyncio.sleep(0.3)
+                    
                 except Exception as e:
-                    logger.error(f"Failed to send CTRL_BREAK_EVENT: {e}")
-                    # Fallback to termination
-                    self.current_process.terminate()
+                    logger.error(f"Failed to send interrupt signals to shell: {e}")
+                    # Last resort - write Ctrl+C directly to stdin
+                    try:
+                        if self.current_process.stdin:
+                            self.current_process.stdin.write('\x03')
+                            self.current_process.stdin.flush()
+                            logger.info("Wrote Ctrl+C character to shell stdin")
+                    except:
+                        pass
             else:
+                # Unix/Linux handling
                 try:
+                    # Get all child processes
+                    child_processes = self._get_all_child_processes(self.current_process.pid)
+                    logger.info(f"Found {len(child_processes)} child processes")
+                    
+                    # Send SIGINT to all child processes
+                    for child in child_processes:
+                        try:
+                            logger.info(f"Sending SIGINT to child process: {child.name()} (PID: {child.pid})")
+                            child.send_signal(signal.SIGINT)
+                        except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                            logger.warning(f"Could not send SIGINT to child process {child.pid}: {e}")
+                    
                     # Send SIGINT to the process group
                     os.killpg(os.getpgid(self.current_process.pid), signal.SIGINT)
                     logger.info("Sent SIGINT to process group")
                     await asyncio.sleep(0.5)
                 except Exception as e:
                     logger.error(f"Failed to send SIGINT: {e}")
-                    self.current_process.terminate()
+                    # Fallback to writing Ctrl+C to stdin
+                    try:
+                        if self.current_process.stdin:
+                            self.current_process.stdin.write('\x03')
+                            self.current_process.stdin.flush()
+                    except:
+                        pass
 
-            # Write a newline to get fresh prompt
-            if self.current_process and self.current_process.stdin:
-                self.current_process.stdin.write('\r\n')
-                self.current_process.stdin.flush()
             return True
 
         except Exception as e:
@@ -271,11 +319,11 @@ class ShellManager:
         try:
             if system == "windows":
                 # Windows doesn't support real process suspension
-                # Just write ^Z and a new line for visual feedback
+                # Write Ctrl+Z character to stdin
                 if self.current_process.stdin:
-                    self.current_process.stdin.write('^Z\r\n')
+                    self.current_process.stdin.write('\x1a')
                     self.current_process.stdin.flush()
-                    logger.info("Wrote ^Z on Windows (no real suspension)")
+                    logger.info("Wrote Ctrl+Z character to stdin on Windows")
             else:
                 try:
                     # Send SIGTSTP to process group on Unix
@@ -283,9 +331,9 @@ class ShellManager:
                     logger.info("Sent SIGTSTP to process group")
                 except Exception as e:
                     logger.error(f"Failed to send SIGTSTP: {e}")
-                    # Write a new line to get a fresh prompt
+                    # Fallback to writing Ctrl+Z to stdin
                     if self.current_process.stdin:
-                        self.current_process.stdin.write('\r\n')
+                        self.current_process.stdin.write('\x1a')
                         self.current_process.stdin.flush()
 
             return True
@@ -301,6 +349,19 @@ class ShellManager:
 
         if process:
             try:
+                # Kill all child processes first
+                child_processes = self._get_all_child_processes(process.pid)
+                for child in child_processes:
+                    try:
+                        child.terminate()
+                        try:
+                            child.wait(timeout=2)
+                        except psutil.TimeoutExpired:
+                            child.kill()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+
+                # Now terminate the main process
                 system = platform.system().lower()
                 if system == "windows":
                     process.terminate()

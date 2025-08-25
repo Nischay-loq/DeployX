@@ -1,1 +1,0 @@
-offsetlocal enabledelayedexpansionfor /l %%i in (5,-1,1) do (    cls    echo Remaining time: %%i seconds...    timeout /t 1  Countdown finished!
