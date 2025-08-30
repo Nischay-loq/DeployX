@@ -22,11 +22,13 @@ class ConnectionManager:
             agent_id = f"agent_{hostname}_{timestamp}"
         self.agent_id = agent_id
         self.sio = socketio.AsyncClient(
-            logger=True,
-            engineio_logger=True,
+            logger=False,  # Reduce logging noise
+            engineio_logger=False,
             reconnection=True,
-            reconnection_attempts=5,
-            reconnection_delay=10
+            reconnection_attempts=10,
+            reconnection_delay=5,
+            reconnection_delay_max=30,
+            randomization_factor=0.5
         )
         self.connected = False
         self._event_handlers: Dict[str, Callable] = {}

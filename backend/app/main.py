@@ -17,14 +17,17 @@ from app.auth.database import engine
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Create Socket.IO server with better configuration
+# Create Socket.IO server with better configuration for multiple clients
 sio = socketio.AsyncServer(
     cors_allowed_origins="*",
     logger=False,  # Disable verbose socket.io logging
     engineio_logger=False,  # Disable verbose engine.io logging
     async_mode='asgi',
     ping_timeout=60,
-    ping_interval=25
+    ping_interval=25,
+    max_http_buffer_size=10**8,  # 100MB for large outputs
+    allow_upgrades=True,
+    transports=['websocket', 'polling']  # Allow both transports
 )
 
 models.Base.metadata.create_all(bind=engine)
@@ -49,18 +52,20 @@ app.add_middleware(
 # Store connected agents and frontends
 class ConnectionManager:
     def __init__(self):
-        self.agents: Dict[str, dict] = {}  # agent_id -> {sid, shells, connected_at}
+        self.agents: Dict[str, dict] = {}  # agent_id -> {sid, shells, connected_at, shell_sessions}
         self.frontends: Set[str] = set()  # Set of frontend session IDs
         self.agent_frontend_mapping: Dict[str, str] = {}  # agent_id -> frontend_sid
         self.sid_to_agent: Dict[str, str] = {}  # sid -> agent_id for reverse lookup
         self.sid_to_type: Dict[str, str] = {}  # sid -> 'agent' or 'frontend'
+        self.shell_sessions: Dict[str, dict] = {}  # session_id -> {agent_id, shell, frontend_sid, status}
     
     def add_agent(self, agent_id: str, sid: str, shells: List[str]):
         """Add a new agent connection"""
         self.agents[agent_id] = {
             'sid': sid,
             'shells': shells,
-            'connected_at': datetime.now()
+            'connected_at': datetime.now(),
+            'shell_sessions': {}  # session_id -> session_info
         }
         self.sid_to_agent[sid] = agent_id
         self.sid_to_type[sid] = 'agent'
@@ -79,6 +84,15 @@ class ConnectionManager:
         if connection_type == 'agent':
             agent_id = self.sid_to_agent.get(sid)
             if agent_id:
+                # Clean up all shell sessions for this agent
+                sessions_to_remove = []
+                for session_id, session_info in self.shell_sessions.items():
+                    if session_info['agent_id'] == agent_id:
+                        sessions_to_remove.append(session_id)
+                
+                for session_id in sessions_to_remove:
+                    self.remove_shell_session(session_id)
+                
                 # Clean up agent
                 if sid in self.sid_to_agent:
                     del self.sid_to_agent[sid]
@@ -129,6 +143,65 @@ class ConnectionManager:
     def get_frontend_for_agent(self, agent_id: str) -> str:
         """Get the frontend SID mapped to an agent"""
         return self.agent_frontend_mapping.get(agent_id)
+    
+    def add_shell_session(self, session_id: str, agent_id: str, shell: str, frontend_sid: str):
+        """Add a new shell session"""
+        self.shell_sessions[session_id] = {
+            'agent_id': agent_id,
+            'shell': shell,
+            'frontend_sid': frontend_sid,
+            'status': 'starting',
+            'created_at': datetime.now()
+        }
+        
+        # Also track in agent's shell_sessions
+        if agent_id in self.agents:
+            self.agents[agent_id]['shell_sessions'][session_id] = {
+                'shell': shell,
+                'status': 'starting',
+                'created_at': datetime.now()
+            }
+        
+        logger.info(f"Added shell session {session_id}: agent={agent_id}, shell={shell}")
+    
+    def update_shell_session_status(self, session_id: str, status: str):
+        """Update shell session status"""
+        if session_id in self.shell_sessions:
+            self.shell_sessions[session_id]['status'] = status
+            
+            # Update in agent's tracking too
+            agent_id = self.shell_sessions[session_id]['agent_id']
+            if agent_id in self.agents and session_id in self.agents[agent_id]['shell_sessions']:
+                self.agents[agent_id]['shell_sessions'][session_id]['status'] = status
+            
+            logger.info(f"Updated shell session {session_id} status to {status}")
+    
+    def remove_shell_session(self, session_id: str):
+        """Remove a shell session"""
+        if session_id in self.shell_sessions:
+            session_info = self.shell_sessions[session_id]
+            agent_id = session_info['agent_id']
+            
+            # Remove from main tracking
+            del self.shell_sessions[session_id]
+            
+            # Remove from agent's tracking
+            if agent_id in self.agents and session_id in self.agents[agent_id]['shell_sessions']:
+                del self.agents[agent_id]['shell_sessions'][session_id]
+            
+            logger.info(f"Removed shell session {session_id}")
+            return session_info
+        return None
+    
+    def get_shell_session(self, session_id: str) -> dict:
+        """Get shell session info"""
+        return self.shell_sessions.get(session_id)
+    
+    def get_agent_shell_sessions(self, agent_id: str) -> Dict[str, dict]:
+        """Get all shell sessions for an agent"""
+        if agent_id in self.agents:
+            return self.agents[agent_id]['shell_sessions']
+        return {}
 
 # Initialize connection manager
 conn_manager = ConnectionManager()
@@ -137,33 +210,52 @@ conn_manager = ConnectionManager()
 async def connect(sid, environ, auth):
     """Handle new socket connections"""
     client_origin = environ.get('HTTP_ORIGIN', 'unknown')
-    logger.info(f"Client {sid} connected from {client_origin}")
+    user_agent = environ.get('HTTP_USER_AGENT', 'unknown')
+    logger.info(f"New connection: {sid} from {client_origin} (User-Agent: {user_agent[:50]}...)")
+    logger.info(f"Current connections: {len(conn_manager.agents)} agents, {len(conn_manager.frontends)} frontends")
 
 @sio.event
 async def disconnect(sid):
     """Handle socket disconnections"""
     try:
+        logger.info(f"Client {sid} disconnecting...")
         connection_type, agent_id = conn_manager.remove_connection(sid)
         
         if connection_type == 'agent':
+            logger.info(f"Agent {agent_id} disconnected")
             # Notify all frontends about agent disconnection with a small delay
             await asyncio.sleep(0.1)  # Small delay to prevent race conditions
             await sio.emit('agents_list', conn_manager.get_agent_list())
         elif connection_type == 'frontend':
             logger.info(f"Frontend {sid} disconnected")
+        else:
+            logger.info(f"Unknown connection type disconnected: {sid}")
+            
+        logger.info(f"Remaining connections: {len(conn_manager.agents)} agents, {len(conn_manager.frontends)} frontends")
     except Exception as e:
-        logger.error(f"Error handling disconnect: {e}")
+        logger.error(f"Error handling disconnect for {sid}: {e}")
 
 @sio.event
-async def get_shells(sid, agent_id):
+async def get_shells(sid, data):
     """Get available shells for a specific agent"""
     try:
-        # Check if the requesting client is still connected
+        # Register this connection as a frontend if not already registered
+        if sid not in conn_manager.sid_to_type:
+            conn_manager.add_frontend(sid)
+            logger.info(f"Frontend {sid} registered via get_shells request")
+        
+        # Check if the requesting client is a frontend
         if sid not in conn_manager.frontends:
-            logger.warning(f"Ignoring shells request from disconnected frontend {sid}")
+            logger.warning(f"Ignoring shells request from non-frontend {sid}")
             return
+        
+        # Handle both formats: direct agent_id string or {agent_id: string}
+        if isinstance(data, dict):
+            agent_id = data.get('agent_id')
+        else:
+            agent_id = data
             
-        logger.info(f"Shell list request for agent {agent_id} from {sid}")
+        logger.info(f"Shell list request for agent {agent_id} from frontend {sid}")
         shells = conn_manager.get_agent_shells(agent_id)
         
         if not shells:
@@ -176,6 +268,23 @@ async def get_shells(sid, agent_id):
     except Exception as e:
         logger.error(f"Error getting shells for agent {agent_id}: {e}")
         await sio.emit('error', {'message': f'Error getting shells: {str(e)}'}, room=sid)
+
+@sio.event
+async def frontend_register(sid, data):
+    """Handle frontend registration"""
+    try:
+        logger.info(f"Frontend registration request from {sid}: {data}")
+        
+        # Register this connection as a frontend
+        conn_manager.add_frontend(sid)
+        
+        # Confirm registration to the frontend
+        await sio.emit('registration_success', {'client_type': 'frontend'}, room=sid)
+        logger.info(f"Frontend {sid} registered successfully")
+        
+    except Exception as e:
+        logger.error(f"Error registering frontend: {e}")
+        await sio.emit('registration_error', {'error': str(e)}, room=sid)
 
 @sio.event
 async def agent_register(sid, data):
@@ -218,30 +327,45 @@ async def frontend_register(sid, data):
 async def get_agents(sid):
     """Get list of connected agents"""
     try:
+        # Register this connection as a frontend if not already registered
+        if sid not in conn_manager.sid_to_type:
+            conn_manager.add_frontend(sid)
+            logger.info(f"Frontend {sid} registered via get_agents request")
+        
         agent_list = conn_manager.get_agent_list()
         await sio.emit('agents_list', agent_list, room=sid)
-        logger.info(f"Sent agent list to {sid}: {agent_list}")
+        logger.info(f"Sent agent list to frontend {sid}: {agent_list}")
     except Exception as e:
         logger.error(f"Error getting agents: {e}")
 
 
 @sio.event
 async def start_shell(sid, data):
-    """Request agent to start a specific shell"""
+    """Request agent to start a specific shell with session ID"""
     try:
         agent_id = data.get('agent_id')
         shell = data.get('shell', 'cmd')
+        session_id = data.get('session_id')
         
-        logger.info(f"Shell start request: agent={agent_id}, shell={shell}, frontend={sid}")
+        if not session_id:
+            session_id = f"{agent_id}_{shell}_{int(datetime.now().timestamp() * 1000)}"
+        
+        logger.info(f"Shell start request: agent={agent_id}, shell={shell}, session={session_id}, frontend={sid}")
         
         agent_sid = conn_manager.get_agent_sid(agent_id)
         if agent_sid:
+            # Add shell session tracking
+            conn_manager.add_shell_session(session_id, agent_id, shell, sid)
+            
             # Map this agent to this frontend for future communications
             conn_manager.map_agent_to_frontend(agent_id, sid)
             
-            # Forward request to agent
-            await sio.emit('start_shell_request', {'shell': shell}, room=agent_sid)
-            logger.info(f"Forwarded start_shell request to agent {agent_id} (sid: {agent_sid})")
+            # Forward request to agent with session ID
+            await sio.emit('start_shell_request', {
+                'shell': shell, 
+                'session_id': session_id
+            }, room=agent_sid)
+            logger.info(f"Forwarded start_shell request to agent {agent_id} (sid: {agent_sid}) with session {session_id}")
         else:
             error_msg = f'Agent {agent_id} not found or not connected'
             logger.error(error_msg)
@@ -251,18 +375,65 @@ async def start_shell(sid, data):
         await sio.emit('error', {'message': f'Error starting shell: {str(e)}'}, room=sid)
 
 @sio.event
-async def command_input(sid, data):
-    """Forward command input from frontend to agent"""
+async def stop_shell(sid, data):
+    """Request agent to stop a specific shell session"""
     try:
         agent_id = data.get('agent_id')
-        command = data.get('command')
+        session_id = data.get('session_id')
         
-        logger.debug(f"Command input: agent={agent_id}, command={repr(command)}, frontend={sid}")
+        logger.info(f"Shell stop request: agent={agent_id}, session={session_id}, frontend={sid}")
+        
+        # Get session info
+        session_info = conn_manager.get_shell_session(session_id)
+        if not session_info:
+            error_msg = f'Shell session {session_id} not found'
+            logger.error(error_msg)
+            await sio.emit('error', {'message': error_msg}, room=sid)
+            return
         
         agent_sid = conn_manager.get_agent_sid(agent_id)
         if agent_sid:
-            await sio.emit('command_input', {'command': command}, room=agent_sid)
-            logger.debug(f"Forwarded command to agent {agent_id}")
+            # Forward request to agent
+            await sio.emit('stop_shell_request', {
+                'session_id': session_id
+            }, room=agent_sid)
+            logger.info(f"Forwarded stop_shell request to agent {agent_id} for session {session_id}")
+            
+            # Remove session tracking
+            conn_manager.remove_shell_session(session_id)
+        else:
+            error_msg = f'Agent {agent_id} not found or not connected'
+            logger.error(error_msg)
+            await sio.emit('error', {'message': error_msg}, room=sid)
+    except Exception as e:
+        logger.error(f"Error stopping shell: {e}")
+        await sio.emit('error', {'message': f'Error stopping shell: {str(e)}'}, room=sid)
+
+@sio.event
+async def command_input(sid, data):
+    """Forward command input from frontend to agent with session ID"""
+    try:
+        agent_id = data.get('agent_id')
+        session_id = data.get('session_id')
+        command = data.get('command')
+        
+        logger.debug(f"Command input: agent={agent_id}, session={session_id}, command={repr(command)}, frontend={sid}")
+        
+        # Verify session exists
+        session_info = conn_manager.get_shell_session(session_id)
+        if not session_info:
+            error_msg = f'Shell session {session_id} not found'
+            logger.error(error_msg)
+            await sio.emit('error', {'message': error_msg}, room=sid)
+            return
+        
+        agent_sid = conn_manager.get_agent_sid(agent_id)
+        if agent_sid:
+            await sio.emit('command_input', {
+                'command': command,
+                'session_id': session_id
+            }, room=agent_sid)
+            logger.debug(f"Forwarded command to agent {agent_id} session {session_id}")
         else:
             error_msg = f'Agent {agent_id} not found or not connected'
             logger.error(error_msg)
@@ -272,22 +443,28 @@ async def command_input(sid, data):
 
 @sio.event
 async def command_output(sid, data):
-    """Forward command output from agent to frontend"""
+    """Forward command output from agent to frontend with session ID"""
     try:
         # Find which agent this is from
         agent_id = conn_manager.get_agent_by_sid(sid)
+        session_id = data.get('session_id')
         
-        if agent_id:
-            frontend_sid = conn_manager.get_frontend_for_agent(agent_id)
-            if frontend_sid:
+        if agent_id and session_id:
+            # Get session info to find the correct frontend
+            session_info = conn_manager.get_shell_session(session_id)
+            if session_info:
+                frontend_sid = session_info['frontend_sid']
                 output = data.get('output', '')
-                await sio.emit('command_output', output, room=frontend_sid)
+                await sio.emit('command_output', {
+                    'output': output,
+                    'session_id': session_id
+                }, room=frontend_sid)
                 # Don't log every character, too verbose
-                # logger.debug(f"Forwarded output from agent {agent_id} to frontend {frontend_sid}")
+                # logger.debug(f"Forwarded output from agent {agent_id} session {session_id} to frontend {frontend_sid}")
             else:
-                logger.warning(f"No frontend mapped for agent {agent_id}")
+                logger.warning(f"Shell session {session_id} not found")
         else:
-            logger.warning(f"Received output from unknown agent (sid: {sid})")
+            logger.warning(f"Received output from unknown agent (sid: {sid}) or missing session_id")
     except Exception as e:
         logger.error(f"Error forwarding output: {e}")
 
@@ -297,17 +474,26 @@ async def shell_started(sid, data):
     try:
         # Find which agent this is from
         agent_id = conn_manager.get_agent_by_sid(sid)
+        session_id = data.get('session_id')
+        shell = data.get('shell')
         
-        if agent_id:
-            frontend_sid = conn_manager.get_frontend_for_agent(agent_id)
-            if frontend_sid:
-                shell = data.get('shell')
-                await sio.emit('shell_started', shell, room=frontend_sid)
-                logger.info(f"Shell {shell} started on agent {agent_id}, notified frontend {frontend_sid}")
+        if agent_id and session_id:
+            # Update session status
+            conn_manager.update_shell_session_status(session_id, 'running')
+            
+            # Get session info to find the correct frontend
+            session_info = conn_manager.get_shell_session(session_id)
+            if session_info:
+                frontend_sid = session_info['frontend_sid']
+                await sio.emit('shell_started', {
+                    'shell': shell,
+                    'session_id': session_id
+                }, room=frontend_sid)
+                logger.info(f"Shell {shell} started on agent {agent_id} session {session_id}, notified frontend {frontend_sid}")
             else:
-                logger.warning(f"No frontend mapped for agent {agent_id}")
+                logger.warning(f"Shell session {session_id} not found")
         else:
-            logger.warning(f"Received shell_started from unknown agent (sid: {sid})")
+            logger.warning(f"Received shell_started from unknown agent (sid: {sid}) or missing session_id")
     except Exception as e:
         logger.error(f"Error handling shell started: {e}")
 
