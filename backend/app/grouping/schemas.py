@@ -11,8 +11,7 @@ class DeviceBase(BaseModel):
     connection_type: Optional[str] = None
     last_seen: Optional[str]
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}
 
 class GroupBase(BaseModel):
     group_name: str
@@ -41,6 +40,8 @@ class GroupResponse(BaseModel):
     description: Optional[str]
     color: Optional[str]
     devices: List[DeviceResponse]
+    
+    model_config = {"from_attributes": True}
 
 class DeviceGroupMapBase(BaseModel):
     device_id: int

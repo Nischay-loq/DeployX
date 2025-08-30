@@ -245,19 +245,13 @@ const TerminalComponent = () => {
     commandHistoryRef.current[sessionId] = [];
     historyIndexRef.current[sessionId] = -1;
 
-    console.log('=== Starting new shell session ===');
-    console.log('Generated session ID:', sessionId);
-    console.log('Agent ID:', agentId);
-    console.log('Shell type:', shell);
-    console.log('Current shell sessions before:', shellSessions);
+    console.log('Starting new shell session:', sessionId, agentId, shell);
     
     socketRef.current.emit('start_shell', {
       agent_id: agentId,
       shell: shell,
       session_id: sessionId
     });
-
-    console.log('start_shell event emitted for session:', sessionId);
 
     setShowNewShellModal(false);
   }, [generateSessionId]);
@@ -598,17 +592,6 @@ const TerminalComponent = () => {
         setIsLoading(false);
         setConnectionError(null);
         
-        // Register as frontend immediately on connection
-        console.log('Registering as frontend...');
-        socketRef.current.emit('frontend_register', { 
-          client_type: 'frontend',
-          timestamp: Date.now()
-        });
-        
-        // Request current shell list on connection
-        console.log('Requesting shells list...');
-        socketRef.current.emit('get_shells', { agent_id: agentId });
-        
         const connectMsg = addNotification('Connected to backend server', 'success');
         
         setTimeout(() => {
@@ -716,35 +699,14 @@ const TerminalComponent = () => {
         
         const { shell, session_id } = data;
         console.log('Shell started successfully:', shell, 'Session:', session_id);
-        console.log('Current shell sessions:', shellSessions);
         
-        setShellSessions(prev => {
-          const existingSession = prev[session_id];
-          console.log('Existing session for', session_id, ':', existingSession);
-          
-          if (existingSession) {
-            // Update existing session
-            return {
-              ...prev,
-              [session_id]: {
-                ...existingSession,
-                status: 'running'
-              }
-            };
-          } else {
-            // Create new session if it doesn't exist (shouldn't happen normally)
-            console.warn('Creating new session from shell_started event - this should not happen normally');
-            return {
-              ...prev,
-              [session_id]: {
-                agentId: data.agent_id || 'unknown',
-                shell: shell,
-                status: 'running',
-                lastActivity: new Date().toISOString()
-              }
-            };
+        setShellSessions(prev => ({
+          ...prev,
+          [session_id]: {
+            ...prev[session_id],
+            status: 'running'
           }
-        });
+        }));
 
         // Switch to the new session
         setActiveShellSession(session_id);
@@ -752,37 +714,14 @@ const TerminalComponent = () => {
         addNotification(`Shell '${shell}' started successfully`, 'success');
       });
 
-      // Handle registration confirmation
-      socketRef.current.on('registration_success', (data) => {
-        console.log('Registration successful:', data);
-        if (data.client_type === 'frontend') {
-          console.log('✓ Frontend registered successfully');
-        }
-      });
-
-      // Handle shell list updates
-      socketRef.current.on('shells_list', (shells) => {
-        console.log('Received shells list:', shells);
-        setShellSessions(shells || []);
-        
-        // If we don't have an active session but there are shells available, activate the first one
-        if (!activeShellSessionRef.current && shells && shells.length > 0) {
-          console.log('No active session, setting first shell as active:', shells[0].session_id);
-          setActiveShellSession(shells[0].session_id);
-          activeShellSessionRef.current = shells[0].session_id;
-        }
-      });
-
       // Session-aware command output
       socketRef.current.on('command_output', (data) => {
         if (!isMountedRef.current || !terminalInstanceRef.current) return;
         
         const { output, session_id } = data;
-        console.log('Received command output for session:', session_id, 'active session:', activeShellSessionRef.current);
         
         // Only show output if it's for the active session
         if (session_id === activeShellSessionRef.current) {
-          console.log('Writing output to terminal:', output);
           terminalInstanceRef.current.write(output);
           
           cursorPositionRef.current = 0;
@@ -797,8 +736,6 @@ const TerminalComponent = () => {
               (lastLine.includes('>') || lastLine.includes('$') || lastLine.includes('#'))) {
             currentPromptRef.current = lastLine;
           }
-        } else {
-          console.log('Ignoring output for inactive session:', session_id);
         }
       });
 
