@@ -1,8 +1,8 @@
 """Socket.IO event handlers for DeployX agent."""
 import logging
-import time
 from typing import Any, Callable, Dict
 from agent.core.shell_manager import ShellManager
+import platform
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class SocketEventHandler:
     async def handle_disconnect(self):
         """Handle socket disconnection event."""
         logger.info("Disconnected from backend server")
-        await self.shell_manager.cleanup_all_sessions()
+        await self.shell_manager.cleanup_process()
 
     async def handle_connect_error(self, data: Dict[str, Any]):
         """Handle connection error event."""
@@ -39,20 +39,14 @@ class SocketEventHandler:
         logger.error(f"Registration failed: {data.get('error', 'Unknown error')}")
 
     async def handle_start_shell_request(self, data: Dict[str, Any]):
-        """Handle request to start a shell with session ID."""
+        """Handle request to start a shell."""
         try:
             logger.info(f"Handling start shell request with data: {data}")
             shell_name = data.get('shell', 'cmd')
-            session_id = data.get('session_id')
-            
-            if not session_id:
-                session_id = f"{shell_name}_{int(time.time() * 1000)}"
-                logger.warning(f"No session_id provided, generated: {session_id}")
-            
-            success = await self.start_shell_with_response(shell_name, session_id)
+            success = await self.start_shell_with_response(shell_name)
             
             if not success:
-                error_msg = f"Failed to start shell {shell_name} for session {session_id}"
+                error_msg = f"Failed to start shell {shell_name}"
                 logger.error(error_msg)
                 if self._connection and self._connection.connected:
                     await self._connection.emit('error', {'message': error_msg})
@@ -63,47 +57,47 @@ class SocketEventHandler:
                 await self._connection.emit('error', {'message': error_msg})
 
     async def handle_command_input(self, data: Dict[str, Any]):
-        """Handle incoming command input with session ID."""
-        session_id = data.get('session_id')
+        """Handle incoming command input."""
         command = data.get('command', '')
         
-        if not session_id:
-            logger.error("No session_id provided for command input")
-            return
+        # Check if this is a ping command (but don't show note)
+        is_ping_command = command and "ping" in command.lower() and ("-t" in command or "-w" in command)
         
+        # Special handling for control sequences
         if command in ['\u0003', '^C', '\x03']:  # Ctrl+C variants
-            await self.shell_manager.send_interrupt(session_id)
+            logger.info("Received interrupt signal request")
+            await self.shell_manager.send_interrupt(force=True)
         elif command in ['\u001A', '^Z', '\x1A']:  # Ctrl+Z variants
-            await self.shell_manager.send_suspend(session_id)
-        else:
-            await self.shell_manager.execute_command(session_id, command)
-
-    async def handle_stop_shell_request(self, data: Dict[str, Any]):
-        """Handle request to stop a shell session."""
-        try:
-            session_id = data.get('session_id')
-            logger.info(f"Handling stop shell request for session: {session_id}")
-            
-            if not session_id:
-                logger.error("No session_id provided for stop shell request")
-                return
-            
-            success = await self.shell_manager.stop_shell(session_id)
-            
-            if success:
-                logger.info(f"Shell session {session_id} stopped successfully")
-                if self._connection and self._connection.connected:
-                    await self._connection.emit('shell_stopped', {'session_id': session_id})
+            logger.info("Received suspend signal request")
+            if platform.system().lower() == "windows":
+                # Removed message about Windows not supporting Ctrl+Z
+                await self.shell_manager.send_interrupt(force=True)
             else:
-                error_msg = f"Failed to stop shell session {session_id}"
-                logger.error(error_msg)
+                await self.shell_manager.send_suspend(force=True)
+        elif command in ['\u0004', '^D', '\x04']:  # Ctrl+D variants
+            logger.info("Received EOF signal request")
+            await self.shell_manager.execute_command('\u0004')
+        elif is_ping_command and platform.system().lower() == "windows":
+            # No longer show the note about using Ctrl+C
+            await self.shell_manager.execute_command(command)
+        elif command in ['cls', 'clear']:
+            logger.info("Received clear screen request")
+            result = await self.shell_manager.clear_terminal()
+            if result and result.get('type') == 'clear':
                 if self._connection and self._connection.connected:
-                    await self._connection.emit('error', {'message': error_msg})
-        except Exception as e:
-            error_msg = f"Error handling stop shell request: {str(e)}"
-            logger.exception(error_msg)
-            if self._connection and self._connection.connected:
-                await self._connection.emit('error', {'message': error_msg})
+                    await self._connection.emit('clear_terminal')
+        elif command == '\u001b[A':  # Up arrow
+            logger.info("Received get previous command request")
+            await self.shell_manager.get_previous_command()
+        elif command == '\u001b[B':  # Down arrow
+            logger.info("Received get next command request")
+            await self.shell_manager.get_next_command()
+        else:
+            await self.shell_manager.execute_command(command)
+
+    async def handle_interrupt_signal(self, data: Dict[str, Any]):
+        """Handle interrupt signal request."""
+        await self.shell_manager.send_interrupt()
 
     async def handle_get_shells(self, data: Dict[str, Any]):
         """Handle request for available shells."""
@@ -112,9 +106,9 @@ class SocketEventHandler:
         shells = detect_shells()
         return list(shells.keys())
 
-    async def start_shell_with_response(self, shell_name: str, session_id: str) -> bool:
-        """Start a shell with session ID and handle response."""
-        logger.info(f"Starting shell {shell_name} for session {session_id}")
+    async def start_shell_with_response(self, shell_name: str) -> bool:
+        """Start a shell and handle response."""
+        logger.info(f"Starting shell {shell_name}")
         
         # Get available shells
         from agent.utils.shell_detector import detect_shells
@@ -128,28 +122,22 @@ class SocketEventHandler:
         logger.info(f"Found shell path: {shell_path}")
         
         # Define callback for shell output
-        async def output_callback(output: str, session_id: str):
-            logger.debug(f"Shell output for session {session_id}: {output}")
+        async def output_callback(output: str):
+            logger.debug(f"Shell output: {output}")
             if self._connection and self._connection.connected:
-                await self._connection.emit('command_output', {
-                    'output': output,
-                    'session_id': session_id
-                })
+                await self._connection.emit('command_output', {'output': output})
         
         # Start the shell
-        success = await self.shell_manager.start_shell(session_id, shell_name, shell_path, output_callback)
+        success = await self.shell_manager.start_shell(shell_name, shell_path, output_callback)
         
         if success:
-            logger.info(f"Shell {shell_name} started successfully for session {session_id}")
+            logger.info(f"Shell {shell_name} started successfully")
             if self._connection and self._connection.connected:
-                await self._connection.emit('shell_started', {
-                    'shell': shell_name,
-                    'session_id': session_id
-                })
-                logger.info(f"Sent shell_started event to frontend for session {session_id}")
+                await self._connection.emit('shell_started', {'shell': shell_name})
+                logger.info("Sent shell_started event to frontend")
             return True
         else:
-            logger.error(f"Failed to start shell {shell_name} for session {session_id}")
+            logger.error(f"Failed to start shell {shell_name}")
             return False
 
     def get_handlers(self) -> Dict[str, Callable]:
@@ -165,7 +153,7 @@ class SocketEventHandler:
             'registration_success': self.handle_registration_success,
             'registration_error': self.handle_registration_error,
             'start_shell_request': self.handle_start_shell_request,
-            'stop_shell_request': self.handle_stop_shell_request,
             'command_input': self.handle_command_input,
+            'interrupt_signal': self.handle_interrupt_signal,
             'get_shells': self.handle_get_shells
         }

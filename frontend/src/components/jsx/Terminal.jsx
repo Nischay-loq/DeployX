@@ -14,51 +14,41 @@ const TerminalComponent = () => {
   const socketRef = useRef(null);
   const currentLineRef = useRef('');
   const cursorPositionRef = useRef(0);
+  const commandHistoryRef = useRef([]);
+  const historyIndexRef = useRef(-1);
+  const currentPromptRef = useRef('');
+  const currentPathRef = useRef('');
+  const suppressPromptOnceRef = useRef(false);
   const isMountedRef = useRef(true);
   const connectionAttemptedRef = useRef(false);
 
-  // Command history - now per shell session
-  const commandHistoryRef = useRef({});
-  const historyIndexRef = useRef({});
-  const currentPromptRef = useRef('');
-
   // Use refs to store current state values for terminal input handler
   const selectedAgentRef = useRef('');
-  const activeShellSessionRef = useRef('');
+  const shellStartedRef = useRef(false);
 
-  // Enhanced state for multi-shell management
+  // State
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
   const [availableShells, setAvailableShells] = useState([]);
+  const [selectedShell, setSelectedShell] = useState('');
   const [connectedAgents, setConnectedAgents] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState('');
+  const [shellStarted, setShellStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [notifications, setNotifications] = useState([]);
-
-  // New state for multi-shell sessions
-  const [shellSessions, setShellSessions] = useState({}); // sessionId -> { agentId, shell, status, lastActivity }
-  const [activeShellSession, setActiveShellSession] = useState(''); // Currently active session ID
-  const [showNewShellModal, setShowNewShellModal] = useState(false);
-
-  // Helper functions for shell session management
-  const generateSessionId = useCallback((agentId, shell) => {
-    return `${agentId}_${shell}_${Date.now()}`;
-  }, []);
-
-  const getSessionDisplayName = useCallback((session) => {
-    return `${session.agentId} - ${session.shell}`;
-  }, []);
 
   // Notification handler
   const addNotification = useCallback((message, type = 'info') => {
     const id = Date.now();
+    // Different durations for different notification types
     const durations = {
-      error: 8000,
-      warning: 6000,
-      success: 3000,
-      info: 2000
+      error: 8000,    // Errors stay longer
+      warning: 6000,  // Warnings stay a bit longer
+      success: 3000,  // Success messages are shorter
+      info: 2000      // Info messages are shortest
     };
 
+    // Remove any existing notifications with the same message to prevent duplicates
     setNotifications(prev => {
       const filtered = prev.filter(n => n.message !== message);
       return [...filtered, { 
@@ -75,263 +65,16 @@ const TerminalComponent = () => {
     setNotifications(prev => prev.filter(notification => notification.id !== id));
   }, []);
 
-  // Clear screen command handler
-  const handleClearScreen = useCallback(() => {
-    if (terminalInstanceRef.current) {
-      terminalInstanceRef.current.clear();
-      if (currentPromptRef.current) {
-        terminalInstanceRef.current.write(currentPromptRef.current);
-      }
-      currentLineRef.current = '';
-      cursorPositionRef.current = 0;
-    }
-  }, []);
-
-  // Redraw the current line with cursor at the correct position
-  const redrawLine = useCallback(() => {
-    if (!terminalInstanceRef.current) return;
-    
-    const line = currentLineRef.current;
-    const cursorPos = cursorPositionRef.current;
-    
-    terminalInstanceRef.current.write('\r');
-    terminalInstanceRef.current.write('\x1b[K');
-    terminalInstanceRef.current.write(currentPromptRef.current);
-    terminalInstanceRef.current.write(line);
-    
-    const moveBack = line.length - cursorPos;
-    if (moveBack > 0) {
-      terminalInstanceRef.current.write('\x1b[' + moveBack + 'D');
-    }
-  }, []);
-
-  // Command history functions - now session-aware
-  const addToHistory = useCallback((command, sessionId) => {
-    const trimmedCommand = command.trim();
-    if (!trimmedCommand) return;
-    
-    if (!commandHistoryRef.current[sessionId]) {
-      commandHistoryRef.current[sessionId] = [];
-    }
-    
-    if (trimmedCommand !== commandHistoryRef.current[sessionId][commandHistoryRef.current[sessionId].length - 1]) {
-      commandHistoryRef.current[sessionId].push(trimmedCommand);
-      if (commandHistoryRef.current[sessionId].length > 100) {
-        commandHistoryRef.current[sessionId] = commandHistoryRef.current[sessionId].slice(-100);
-      }
-    }
-    historyIndexRef.current[sessionId] = -1;
-  }, []);
-
-  const navigateHistory = useCallback((direction) => {
-    const sessionId = activeShellSessionRef.current;
-    if (!sessionId || !commandHistoryRef.current[sessionId] || commandHistoryRef.current[sessionId].length === 0) return;
-
-    let newIndex = historyIndexRef.current[sessionId] || -1;
-    
-    if (direction === 'up') {
-      if (newIndex === -1) {
-        newIndex = commandHistoryRef.current[sessionId].length - 1;
-      } else if (newIndex > 0) {
-        newIndex--;
-      }
-    } else if (direction === 'down') {
-      if (newIndex === -1) return;
-      if (newIndex < commandHistoryRef.current[sessionId].length - 1) {
-        newIndex++;
-      } else {
-        newIndex = -1;
-      }
-    }
-
-    historyIndexRef.current[sessionId] = newIndex;
-    const command = newIndex === -1 ? '' : commandHistoryRef.current[sessionId][newIndex];
-    currentLineRef.current = command;
-    cursorPositionRef.current = command.length;
-    redrawLine();
-  }, [redrawLine]);
-
-  // Cursor movement functions
-  const moveCursorLeft = useCallback(() => {
-    if (cursorPositionRef.current > 0) {
-      cursorPositionRef.current--;
-      terminalInstanceRef.current.write('\x1b[D');
-    }
-  }, []);
-
-  const moveCursorRight = useCallback(() => {
-    if (cursorPositionRef.current < currentLineRef.current.length) {
-      cursorPositionRef.current++;
-      terminalInstanceRef.current.write('\x1b[C');
-    }
-  }, []);
-
-  const moveCursorToHome = useCallback(() => {
-    const moveBack = cursorPositionRef.current;
-    if (moveBack > 0) {
-      cursorPositionRef.current = 0;
-      terminalInstanceRef.current.write('\x1b[' + moveBack + 'D');
-    }
-  }, []);
-
-  const moveCursorToEnd = useCallback(() => {
-    const moveForward = currentLineRef.current.length - cursorPositionRef.current;
-    if (moveForward > 0) {
-      cursorPositionRef.current = currentLineRef.current.length;
-      terminalInstanceRef.current.write('\x1b[' + moveForward + 'C');
-    }
-  }, []);
-
-  const insertCharacterAtCursor = useCallback((char) => {
-    const line = currentLineRef.current;
-    const cursorPos = cursorPositionRef.current;
-    
-    const newLine = line.slice(0, cursorPos) + char + line.slice(cursorPos);
-    currentLineRef.current = newLine;
-    cursorPositionRef.current = cursorPos + 1;
-    redrawLine();
-  }, [redrawLine]);
-
-  const deleteCharacterAtCursor = useCallback(() => {
-    if (cursorPositionRef.current === 0) return;
-    
-    const line = currentLineRef.current;
-    const cursorPos = cursorPositionRef.current;
-    
-    const newLine = line.slice(0, cursorPos - 1) + line.slice(cursorPos);
-    currentLineRef.current = newLine;
-    cursorPositionRef.current = cursorPos - 1;
-    redrawLine();
-  }, [redrawLine]);
-
-  const deleteCharacterForward = useCallback(() => {
-    const line = currentLineRef.current;
-    const cursorPos = cursorPositionRef.current;
-    
-    if (cursorPos >= line.length) return;
-    
-    const newLine = line.slice(0, cursorPos) + line.slice(cursorPos + 1);
-    currentLineRef.current = newLine;
-    redrawLine();
-  }, [redrawLine]);
-
   // Update refs whenever state changes
   useEffect(() => {
     selectedAgentRef.current = selectedAgent;
+    console.log('selectedAgent updated to:', selectedAgent);
   }, [selectedAgent]);
 
   useEffect(() => {
-    activeShellSessionRef.current = activeShellSession;
-  }, [activeShellSession]);
-
-  // Shell session management functions
-  const startNewShell = useCallback((agentId, shell) => {
-    if (!socketRef.current?.connected) return;
-
-    const sessionId = generateSessionId(agentId, shell);
-    
-    // Add new session
-    setShellSessions(prev => ({
-      ...prev,
-      [sessionId]: {
-        agentId,
-        shell,
-        status: 'starting',
-        lastActivity: new Date().toISOString()
-      }
-    }));
-
-    // Initialize history for this session
-    commandHistoryRef.current[sessionId] = [];
-    historyIndexRef.current[sessionId] = -1;
-
-    console.log('=== Starting new shell session ===');
-    console.log('Generated session ID:', sessionId);
-    console.log('Agent ID:', agentId);
-    console.log('Shell type:', shell);
-    console.log('Current shell sessions before:', shellSessions);
-    
-    socketRef.current.emit('start_shell', {
-      agent_id: agentId,
-      shell: shell,
-      session_id: sessionId
-    });
-
-    console.log('start_shell event emitted for session:', sessionId);
-
-    setShowNewShellModal(false);
-  }, [generateSessionId]);
-
-  const stopShell = useCallback((sessionId) => {
-    if (!socketRef.current?.connected || !sessionId) return;
-
-    const session = shellSessions[sessionId];
-    if (!session) return;
-
-    console.log('Stopping shell session:', sessionId);
-    
-    socketRef.current.emit('stop_shell', {
-      agent_id: session.agentId,
-      session_id: sessionId
-    });
-
-    // Remove session
-    setShellSessions(prev => {
-      const newSessions = { ...prev };
-      delete newSessions[sessionId];
-      return newSessions;
-    });
-
-    // Clean up history
-    delete commandHistoryRef.current[sessionId];
-    delete historyIndexRef.current[sessionId];
-
-    // Switch to another session if this was active
-    if (activeShellSession === sessionId) {
-      const remainingSessions = Object.keys(shellSessions).filter(id => id !== sessionId);
-      if (remainingSessions.length > 0) {
-        switchToShellSession(remainingSessions[0]);
-      } else {
-        setActiveShellSession('');
-        if (terminalInstanceRef.current) {
-          terminalInstanceRef.current.clear();
-          terminalInstanceRef.current.writeln('\x1b[33mNo active shell sessions. Start a new shell to continue.\x1b[0m');
-        }
-      }
-    }
-
-    addNotification(`Shell session stopped: ${getSessionDisplayName(session)}`, 'info');
-  }, [shellSessions, activeShellSession, getSessionDisplayName, addNotification]);
-
-  const switchToShellSession = useCallback((sessionId) => {
-    if (!sessionId || !shellSessions[sessionId]) return;
-
-    setActiveShellSession(sessionId);
-    
-    // Update last activity
-    setShellSessions(prev => ({
-      ...prev,
-      [sessionId]: {
-        ...prev[sessionId],
-        lastActivity: new Date().toISOString()
-      }
-    }));
-
-    // Clear terminal and show switch message
-    if (terminalInstanceRef.current) {
-      terminalInstanceRef.current.clear();
-      const session = shellSessions[sessionId];
-      terminalInstanceRef.current.writeln(`\x1b[36mSwitched to shell session: ${getSessionDisplayName(session)}\x1b[0m`);
-      terminalInstanceRef.current.writeln('\x1b[90mUse Ctrl+L or "clear" to clear, ↑↓ for history\x1b[0m');
-      
-      // Reset input state
-      currentLineRef.current = '';
-      cursorPositionRef.current = 0;
-      currentPromptRef.current = '';
-    }
-
-    console.log('Switched to shell session:', sessionId);
-  }, [shellSessions, getSessionDisplayName]);
+    shellStartedRef.current = shellStarted;
+    console.log('shellStarted updated to:', shellStarted);
+  }, [shellStarted]);
 
   // Terminal configuration
   const TERMINAL_CONFIG = {
@@ -344,8 +87,7 @@ const TerminalComponent = () => {
     letterSpacing: 0,
     rows: 24,
     cols: 80,
-    scrollback: 1000,
-    rendererType: 'canvas',
+  scrollback: 1000,
     allowTransparency: true,
     theme: {
       background: '#1a1a1a',
@@ -379,17 +121,22 @@ const TerminalComponent = () => {
     if (!terminalRef.current || terminalInstanceRef.current) return;
 
     try {
+      // Create terminal with initial dimensions
       terminalInstanceRef.current = new Terminal(TERMINAL_CONFIG);
       fitAddonRef.current = new FitAddon();
       
+      // Load addons
       terminalInstanceRef.current.loadAddon(fitAddonRef.current);
       terminalInstanceRef.current.loadAddon(new WebLinksAddon());
+      
+      // Open terminal
       terminalInstanceRef.current.open(terminalRef.current);
       
+      // Initial welcome message
       terminalInstanceRef.current.writeln('\x1b[34m=== DeployX Terminal ===\x1b[0m');
       terminalInstanceRef.current.writeln('\x1b[90mConnecting to backend...\x1b[0m');
-      terminalInstanceRef.current.writeln('\x1b[36mTip: Use tabs to manage multiple shells, Ctrl+L to clear, ↑↓ for history\x1b[0m');
       
+      // Ensure proper sizing
       setTimeout(() => {
         if (fitAddonRef.current) {
           fitAddonRef.current.fit();
@@ -405,21 +152,150 @@ const TerminalComponent = () => {
     }
   }, []);
 
-  // Terminal input handler - updated for session awareness
+  // Helpers for local line editing and history
+  const handleClearScreen = useCallback((writePrompt = true) => {
+    if (!terminalInstanceRef.current) return;
+    terminalInstanceRef.current.clear();
+    currentLineRef.current = '';
+    cursorPositionRef.current = 0;
+    
+    if (writePrompt) {
+      // Avoid double prompt if backend echoes prompt right after
+      suppressPromptOnceRef.current = true;
+      // Show Windows-style: <path> > if known; else full prompt; else just "> "
+      const prompt = currentPathRef.current
+        ? `${currentPathRef.current}> `
+        : (currentPromptRef.current || '> ');
+      terminalInstanceRef.current.write(prompt);
+    } else {
+      // When not writing prompt immediately, still set suppression flag
+      suppressPromptOnceRef.current = true;
+    }
+  }, []);
+
+  // Try to extract working directory from common prompts
+  const extractPathFromPrompt = useCallback((text) => {
+    const t = (text || '').trimEnd();
+    // CMD: C:\path>
+    const cmdMatch = t.match(/^([A-Za-z]:\\[^>]*?)>$/);
+    if (cmdMatch) return cmdMatch[1];
+    // PowerShell: PS C:\path>
+    const psMatch = t.match(/^PS\s+(.+?)>$/);
+    if (psMatch) return psMatch[1];
+    return '';
+  }, []);
+
+  const moveCursorLeft = useCallback(() => {
+    if (cursorPositionRef.current > 0 && terminalInstanceRef.current) {
+      cursorPositionRef.current -= 1;
+      terminalInstanceRef.current.write('\x1b[D');
+    }
+  }, []);
+
+  const moveCursorRight = useCallback(() => {
+    const len = currentLineRef.current.length;
+    if (cursorPositionRef.current < len && terminalInstanceRef.current) {
+      cursorPositionRef.current += 1;
+      terminalInstanceRef.current.write('\x1b[C');
+    }
+  }, []);
+
+  const insertCharacterAtCursor = useCallback((ch) => {
+    const line = currentLineRef.current;
+    const pos = cursorPositionRef.current;
+    const before = line.slice(0, pos);
+    const after = line.slice(pos);
+    currentLineRef.current = before + ch + after;
+    cursorPositionRef.current = pos + ch.length;
+    if (terminalInstanceRef.current) {
+      terminalInstanceRef.current.write(ch);
+      if (after) {
+        terminalInstanceRef.current.write(after);
+        terminalInstanceRef.current.write(`\x1b[${after.length}D`);
+      }
+    }
+  }, []);
+
+  const deleteCharacterBackward = useCallback(() => {
+    if (cursorPositionRef.current === 0 || !terminalInstanceRef.current) return;
+    const line = currentLineRef.current;
+    const pos = cursorPositionRef.current;
+    const before = line.slice(0, pos - 1);
+    const after = line.slice(pos);
+    currentLineRef.current = before + after;
+    cursorPositionRef.current = pos - 1;
+    // Move left, overwrite remainder and trailing char with space, move back
+    terminalInstanceRef.current.write('\x1b[D');
+    if (after) terminalInstanceRef.current.write(after);
+    terminalInstanceRef.current.write(' ');
+    const moveBack = (after ? after.length : 0) + 1;
+    terminalInstanceRef.current.write(`\x1b[${moveBack}D`);
+  }, []);
+
+  const deleteCharacterForward = useCallback(() => {
+    const line = currentLineRef.current;
+    const pos = cursorPositionRef.current;
+    if (!terminalInstanceRef.current || pos >= line.length) return;
+    const before = line.slice(0, pos);
+    const after = line.slice(pos + 1);
+    currentLineRef.current = before + after;
+    if (after) terminalInstanceRef.current.write(after);
+    terminalInstanceRef.current.write(' ');
+    const moveBack = (after ? after.length : 0) + 1;
+    terminalInstanceRef.current.write(`\x1b[${moveBack}D`);
+  }, []);
+
+  const showHistoryEntry = useCallback((entry) => {
+    if (!terminalInstanceRef.current) return;
+    // Erase current input (without touching the prompt): backspace over current input
+    const toErase = currentLineRef.current.length - 0;
+    if (toErase > 0) {
+      terminalInstanceRef.current.write('\b \b'.repeat(toErase));
+    }
+    currentLineRef.current = entry || '';
+    cursorPositionRef.current = currentLineRef.current.length;
+    if (entry) terminalInstanceRef.current.write(entry);
+  }, []);
+
+  const navigateHistory = useCallback((direction) => {
+    const history = commandHistoryRef.current;
+    if (!history || history.length === 0) return;
+    let idx = historyIndexRef.current;
+    if (direction === 'up') {
+      if (idx === -1) idx = history.length - 1; else if (idx > 0) idx -= 1;
+    } else if (direction === 'down') {
+      if (idx === -1) return; // already at live line
+      if (idx < history.length - 1) idx += 1; else idx = -1;
+    }
+    historyIndexRef.current = idx;
+    const cmd = idx === -1 ? '' : history[idx];
+    showHistoryEntry(cmd);
+  }, [showHistoryEntry]);
+
+  const addToHistory = useCallback((cmd) => {
+    const trimmed = (cmd || '').trim();
+    if (!trimmed) return;
+    const history = commandHistoryRef.current;
+    if (history.length === 0 || history[history.length - 1] !== trimmed) {
+      history.push(trimmed);
+      if (history.length > 100) history.shift();
+    }
+    historyIndexRef.current = -1;
+  }, []);
+
+  // Terminal input handler - this is the key fix
   const setupTerminalInput = useCallback(() => {
     if (!terminalInstanceRef.current) return;
 
     terminalInstanceRef.current.onData((data) => {
-      const currentActiveSession = activeShellSessionRef.current;
+      // Use refs to get current values instead of stale closure values
+      const currentSelectedAgent = selectedAgentRef.current;
+      const currentShellStarted = shellStartedRef.current;
       
-      if (!currentActiveSession || !shellSessions[currentActiveSession]) {
-        terminalInstanceRef.current.write('\x1b[31m\r\nNo active shell session. Please start a new shell.\x1b[0m\r\n');
-        return;
-      }
+      console.log('Terminal input received. Agent:', currentSelectedAgent, 'Shell started:', currentShellStarted);
 
-      const session = shellSessions[currentActiveSession];
-      if (session.status !== 'running') {
-        terminalInstanceRef.current.write('\x1b[31m\r\nShell session is not running.\x1b[0m\r\n');
+      if (!currentSelectedAgent || !currentShellStarted) {
+        terminalInstanceRef.current.write('\x1b[31m\r\nPlease select an agent and start a shell first.\x1b[0m\r\n');
         return;
       }
 
@@ -428,147 +304,119 @@ const TerminalComponent = () => {
         return;
       }
 
-      const charCode = data.charCodeAt(0);
-
-      // Handle special key combinations
-      if (data === '\u000C') {
-        handleClearScreen();
-        return;
-      }
-
-      if (data === '\u0001') {
-        moveCursorToHome();
-        return;
-      }
-
-      if (data === '\u0005') {
-        moveCursorToEnd();
-        return;
-      }
-
-      if (data === '\u001b[A') {
-        navigateHistory('up');
-        return;
-      }
-      
-      if (data === '\u001b[B') {
-        navigateHistory('down');
-        return;
-      }
-
-      if (data === '\u001b[C') {
-        moveCursorRight();
-        return;
-      }
-
-      if (data === '\u001b[D') {
-        moveCursorLeft();
-        return;
-      }
-
-      if (data === '\u001b[H' || data === '\u001bOH') {
-        moveCursorToHome();
-        return;
-      }
-
-      if (data === '\u001b[F' || data === '\u001bOF') {
-        moveCursorToEnd();
-        return;
-      }
-
-      if (data === '\u001b[3~') {
-        deleteCharacterForward();
+      // Clear screen (Ctrl+L)
+      if (data === '\u000C') { // Ctrl+L
+        // For Ctrl+L, send the clear command to backend and let it handle the prompt
+        socketRef.current.emit('command_input', {
+          agent_id: currentSelectedAgent,
+          command: 'cls\n'  // Send cls command to backend
+        });
+        // Clear the local screen without writing prompt
+        terminalInstanceRef.current.clear();
+        currentLineRef.current = '';
+        cursorPositionRef.current = 0;
         return;
       }
 
       // Handle Enter key
       if (data === '\r' || data === '\n') {
         terminalInstanceRef.current.write('\r\n');
-        
-        const command = currentLineRef.current.trim();
-        
-        if (command.toLowerCase() === 'clear' || command.toLowerCase() === 'cls') {
-          handleClearScreen();
+        const cmd = currentLineRef.current;
+        const trimmed = cmd.trim().toLowerCase();
+        if (trimmed === 'clear' || trimmed === 'cls') {
+          handleClearScreen(true); // Write prompt immediately for local clear
           currentLineRef.current = '';
           cursorPositionRef.current = 0;
           return;
         }
-
-        if (command) {
-          addToHistory(command, currentActiveSession);
-        }
-
-        console.log('Sending command to session:', currentActiveSession, 'Command:', currentLineRef.current);
+        addToHistory(cmd);
+        console.log('Sending command to agent:', currentSelectedAgent, 'Command:', cmd);
         socketRef.current.emit('command_input', {
-          agent_id: session.agentId,
-          session_id: currentActiveSession,
-          command: currentLineRef.current + '\n'
+          agent_id: currentSelectedAgent,
+          command: cmd + '\n'
         });
         currentLineRef.current = '';
         cursorPositionRef.current = 0;
         return;
       }
 
+      // Handle Backspace
       if (data === '\u007f' || data === '\b') {
-        deleteCharacterAtCursor();
+        deleteCharacterBackward();
         return;
       }
 
+      // Handle Ctrl+C
       if (data === '\u0003') {
-        console.log('Ctrl+C pressed, sending interrupt signal');
+        terminalInstanceRef.current.write('^C\r\n');
         socketRef.current.emit('command_input', { 
-          agent_id: session.agentId,
-          session_id: currentActiveSession,
+          agent_id: currentSelectedAgent, 
           command: '\u0003' 
         });
         currentLineRef.current = '';
-        cursorPositionRef.current = 0;
         return;
       }
 
+      // Handle Ctrl+Z
       if (data === '\u001A') {
-        console.log('Ctrl+Z pressed, sending suspend signal');
+        terminalInstanceRef.current.write('^Z\r\n');
         socketRef.current.emit('command_input', {
-          agent_id: session.agentId,
-          session_id: currentActiveSession,
+          agent_id: currentSelectedAgent,
           command: '\u001A'
         });
         currentLineRef.current = '';
-        cursorPositionRef.current = 0;
         return;
       }
 
+      // Handle Ctrl+D
       if (data === '\u0004') {
-        console.log('Ctrl+D pressed, sending EOF signal');
         socketRef.current.emit('command_input', { 
-          agent_id: session.agentId,
-          session_id: currentActiveSession,
+          agent_id: currentSelectedAgent, 
           command: '\u0004' 
         });
-        currentLineRef.current = '';
-        cursorPositionRef.current = 0;
         return;
       }
 
+      // Handle arrows and delete/home/end
+      if (data === '\u001b[A') { // Up
+        navigateHistory('up');
+        return;
+      }
+      if (data === '\u001b[B') { // Down
+        navigateHistory('down');
+        return;
+      }
+      if (data === '\u001b[D') { // Left
+        moveCursorLeft();
+        return;
+      }
+      if (data === '\u001b[C') { // Right
+        moveCursorRight();
+        return;
+      }
+      if (data === '\u001b[3~') { // Delete (forward)
+        deleteCharacterForward();
+        return;
+      }
+
+      // Handle printable characters
+      const charCode = data.charCodeAt(0);
       if (charCode >= 32 || data === '\t') {
         insertCharacterAtCursor(data);
       }
     });
   }, [
-    shellSessions,
-    handleClearScreen, 
-    navigateHistory, 
-    addToHistory, 
-    moveCursorLeft, 
-    moveCursorRight, 
-    moveCursorToHome, 
-    moveCursorToEnd,
+    handleClearScreen,
+    addToHistory,
+    navigateHistory,
+    moveCursorLeft,
+    moveCursorRight,
     insertCharacterAtCursor,
-    deleteCharacterAtCursor,
+    deleteCharacterBackward,
     deleteCharacterForward
-  ]);
+  ]); // uses refs for runtime values
 
-  // Socket connection (updated for session management)
+  // Socket connection with better error handling
   const initializeSocket = useCallback(() => {
     if (socketRef.current || connectionAttemptedRef.current) return;
     
@@ -589,7 +437,7 @@ const TerminalComponent = () => {
         autoConnect: true
       });
 
-      // Connection events
+      // Connection successful
       socketRef.current.on('connect', () => {
         if (!isMountedRef.current) return;
         
@@ -598,19 +446,9 @@ const TerminalComponent = () => {
         setIsLoading(false);
         setConnectionError(null);
         
-        // Register as frontend immediately on connection
-        console.log('Registering as frontend...');
-        socketRef.current.emit('frontend_register', { 
-          client_type: 'frontend',
-          timestamp: Date.now()
-        });
-        
-        // Request current shell list on connection
-        console.log('Requesting shells list...');
-        socketRef.current.emit('get_shells', { agent_id: agentId });
-        
         const connectMsg = addNotification('Connected to backend server', 'success');
         
+        // Wait for the connection message to be shown before showing the next one
         setTimeout(() => {
           if (isMountedRef.current) {
             removeNotification(connectMsg);
@@ -618,8 +456,10 @@ const TerminalComponent = () => {
           }
         }, 2000);
 
+        // Register frontend and get agents
         socketRef.current.emit('frontend_register', {});
         
+        // Reduce the delay for getting agents
         setTimeout(() => {
           if (socketRef.current && socketRef.current.connected) {
             console.log('Requesting agents list...');
@@ -628,6 +468,7 @@ const TerminalComponent = () => {
         }, 200);
       });
 
+      // Connection failed
       socketRef.current.on('connect_error', (error) => {
         if (!isMountedRef.current) return;
         
@@ -642,40 +483,43 @@ const TerminalComponent = () => {
         }
       });
 
+      // Disconnected
       socketRef.current.on('disconnect', (reason) => {
         if (!isMountedRef.current) return;
         
         console.log('Disconnected from backend:', reason);
         setIsConnected(false);
+        setShellStarted(false);
         setConnectionError(`Disconnected: ${reason}`);
-        
-        // Clear all shell sessions
-        setShellSessions({});
-        setActiveShellSession('');
         
         if (terminalInstanceRef.current) {
           terminalInstanceRef.current.writeln(`\x1b[31m✗ Disconnected: ${reason}\x1b[0m`);
         }
 
+        // Clear agent/shell data
         setConnectedAgents([]);
         setAvailableShells([]);
         setSelectedAgent('');
+        setSelectedShell('');
       });
 
-      // Agents and shells events
+      // Agents list received
       socketRef.current.on('agents_list', (agents) => {
         if (!isMountedRef.current) return;
         
         console.log('Received agents list:', agents);
         
         if (Array.isArray(agents)) {
+          // Check if the agents list has actually changed
           const agentsString = agents.join(',');
           if (agentsString !== connectedAgents.join(',')) {
             setConnectedAgents(agents);
             
             if (agents.length > 0) {
+              // Only show notification if it's a new agent list
               addNotification(`Found ${agents.length} agent(s): ${agents.join(', ')}`, 'success');
               
+              // Auto-select first agent only if no agent is selected
               if (!selectedAgentRef.current) {
                 const firstAgent = agents[0];
                 setSelectedAgent(firstAgent);
@@ -694,6 +538,7 @@ const TerminalComponent = () => {
         }
       });
 
+      // Shells list received
       socketRef.current.on('shells_list', (shells) => {
         if (!isMountedRef.current) return;
         
@@ -704,104 +549,82 @@ const TerminalComponent = () => {
           
           if (shells.length > 0) {
             addNotification(`Found ${shells.length} shell(s): ${shells.join(', ')}`, 'success');
+            
+            // Auto-select default shell
+            if (!selectedShell) {
+              const defaultShell = shells.includes('cmd') ? 'cmd' : 
+                               shells.includes('bash') ? 'bash' : shells[0];
+              setSelectedShell(defaultShell);
+            }
           } else {
             addNotification('No shells available for this agent', 'warning');
           }
         }
       });
 
-      // Updated shell events for session management
-      socketRef.current.on('shell_started', (data) => {
-        if (!isMountedRef.current) return;
-        
-        const { shell, session_id } = data;
-        console.log('Shell started successfully:', shell, 'Session:', session_id);
-        console.log('Current shell sessions:', shellSessions);
-        
-        setShellSessions(prev => {
-          const existingSession = prev[session_id];
-          console.log('Existing session for', session_id, ':', existingSession);
-          
-          if (existingSession) {
-            // Update existing session
-            return {
-              ...prev,
-              [session_id]: {
-                ...existingSession,
-                status: 'running'
-              }
-            };
-          } else {
-            // Create new session if it doesn't exist (shouldn't happen normally)
-            console.warn('Creating new session from shell_started event - this should not happen normally');
-            return {
-              ...prev,
-              [session_id]: {
-                agentId: data.agent_id || 'unknown',
-                shell: shell,
-                status: 'running',
-                lastActivity: new Date().toISOString()
-              }
-            };
-          }
-        });
-
-        // Switch to the new session
-        setActiveShellSession(session_id);
-        
-        addNotification(`Shell '${shell}' started successfully`, 'success');
-      });
-
-      // Handle registration confirmation
-      socketRef.current.on('registration_success', (data) => {
-        console.log('Registration successful:', data);
-        if (data.client_type === 'frontend') {
-          console.log('✓ Frontend registered successfully');
-        }
-      });
-
-      // Handle shell list updates
-      socketRef.current.on('shells_list', (shells) => {
-        console.log('Received shells list:', shells);
-        setShellSessions(shells || []);
-        
-        // If we don't have an active session but there are shells available, activate the first one
-        if (!activeShellSessionRef.current && shells && shells.length > 0) {
-          console.log('No active session, setting first shell as active:', shells[0].session_id);
-          setActiveShellSession(shells[0].session_id);
-          activeShellSessionRef.current = shells[0].session_id;
-        }
-      });
-
-      // Session-aware command output
+      // Command output
       socketRef.current.on('command_output', (data) => {
         if (!isMountedRef.current || !terminalInstanceRef.current) return;
-        
-        const { output, session_id } = data;
-        console.log('Received command output for session:', session_id, 'active session:', activeShellSessionRef.current);
-        
-        // Only show output if it's for the active session
-        if (session_id === activeShellSessionRef.current) {
-          console.log('Writing output to terminal:', output);
-          terminalInstanceRef.current.write(output);
-          
-          cursorPositionRef.current = 0;
-          currentLineRef.current = '';
-          
-          const lines = output.split('\n');
-          const lastLine = lines[lines.length - 1];
-          
-          if (lastLine && 
-              !lastLine.includes('\r') && 
-              lastLine.trim() !== '' &&
-              (lastLine.includes('>') || lastLine.includes('$') || lastLine.includes('#'))) {
-            currentPromptRef.current = lastLine;
+        let text = typeof data === 'string' ? data : '';
+        // Try to detect and remember the prompt from output (for clear/cls)
+        try {
+          if (text) {
+            const lines = text.split('\n');
+            for (let i = lines.length - 1; i >= 0; i--) {
+              const raw = lines[i].replace(/\r/g, '');
+              const s = raw.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, ''); // strip basic ANSI incl. private
+              const t = s.trimEnd();
+              // Common prompts: CMD (C:\path>), PowerShell (PS C:\path>), bash/zsh ($,#)
+              if (/^[A-Za-z]:\\.*>$/.test(t) || /^PS\s+.*>$/.test(t) || /[#$]\s*$/.test(t)) {
+                currentPromptRef.current = t;
+                const p = extractPathFromPrompt(t);
+                if (p) currentPathRef.current = p;
+                break;
+              }
+            }
+            // If we just cleared locally and backend sends only a prompt, suppress it once
+            if (suppressPromptOnceRef.current) {
+              const linesRaw = text.split('\n');
+              // Find last non-empty (after strip) line
+              let j = linesRaw.length - 1;
+              const stripLine = (ln) => ln.replace(/\r/g, '').replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').trimEnd();
+              // Skip trailing empties
+              while (j >= 0 && stripLine(linesRaw[j]).trim() === '') j--;
+              if (j >= 0) {
+                const lastStripped = stripLine(linesRaw[j]);
+                if (/^(?:[A-Za-z]:\\.*>|PS\s+.*>|[#$])\s*$/.test(lastStripped)) {
+                  // Remove the trailing prompt line
+                  const withoutPrompt = linesRaw.slice(0, j).join('\n');
+                  text = withoutPrompt;
+                }
+              }
+              suppressPromptOnceRef.current = false;
+            }
           }
-        } else {
-          console.log('Ignoring output for inactive session:', session_id);
+        } catch (_) {}
+        // Write output (possibly filtered)
+        if (text) {
+          terminalInstanceRef.current.write(text);
         }
       });
 
+      // Shell started - this is crucial
+      socketRef.current.on('shell_started', (shell) => {
+        if (!isMountedRef.current) return;
+        
+        console.log('Shell started successfully:', shell);
+        setShellStarted(true); // This will update shellStartedRef.current
+        
+        addNotification(`Shell '${shell}' started successfully on ${selectedAgentRef.current}`, 'success');
+      });
+
+      // Clear terminal
+      socketRef.current.on('clear_terminal', () => {
+        if (!isMountedRef.current || !terminalInstanceRef.current) return;
+        terminalInstanceRef.current.clear();
+      });
+
+      // Error messages
       socketRef.current.on('error', (data) => {
         if (!isMountedRef.current) return;
         
@@ -814,6 +637,7 @@ const TerminalComponent = () => {
         }
       });
 
+      // Debug: Log all events
       socketRef.current.onAny((eventName, ...args) => {
         console.log(`Socket event: ${eventName}`, args);
       });
@@ -823,7 +647,7 @@ const TerminalComponent = () => {
       setConnectionError('Failed to initialize connection: ' + error.message);
       setIsLoading(false);
     }
-  }, [addNotification, removeNotification]);
+  }, []);
 
   // Event handlers
   const handleAgentChange = useCallback((agentId) => {
@@ -831,15 +655,40 @@ const TerminalComponent = () => {
     
     console.log('Agent changed to:', agentId);
     setSelectedAgent(agentId);
+    setShellStarted(false);
+    setSelectedShell('');
     setAvailableShells([]);
 
     if (agentId && terminalInstanceRef.current) {
-      addNotification(`Switched to agent: ${agentId}`, 'info');
+      terminalInstanceRef.current.clear();
+      terminalInstanceRef.current.writeln(`\x1b[36mSwitched to agent: ${agentId}\x1b[0m`);
+      terminalInstanceRef.current.writeln('\x1b[33mFetching available shells...\x1b[0m');
+      
       socketRef.current.emit('get_shells', agentId);
     }
-  }, [addNotification]);
+  }, []);
 
-  // Resize handler
+  const handleStartShell = useCallback(() => {
+    if (!selectedAgent || !selectedShell || shellStarted || !socketRef.current?.connected) {
+      console.log('Cannot start shell:', { selectedAgent, selectedShell, shellStarted, connected: socketRef.current?.connected });
+      return;
+    }
+
+    console.log('Starting shell:', selectedShell, 'on agent:', selectedAgent);
+    setShellStarted(false); // Reset state before starting
+    
+    if (terminalInstanceRef.current) {
+      terminalInstanceRef.current.clear();
+      terminalInstanceRef.current.writeln(`\x1b[36mStarting ${selectedShell} on ${selectedAgent}...\x1b[0m`);
+    }
+    
+    socketRef.current.emit('start_shell', { 
+      agent_id: selectedAgent, 
+      shell: selectedShell 
+    });
+  }, [selectedAgent, selectedShell, shellStarted]);
+
+  // Window and container resize handler
   const handleResize = useCallback(() => {
     if (fitAddonRef.current && terminalInstanceRef.current) {
       try {
@@ -874,7 +723,7 @@ const TerminalComponent = () => {
     const terminal = initializeTerminal();
     if (terminal) {
       initializeSocket();
-      setupTerminalInput();
+      setupTerminalInput(); // Set up input handler once
     }
 
     window.addEventListener('resize', handleResize);
@@ -896,110 +745,7 @@ const TerminalComponent = () => {
         terminalInstanceRef.current = null;
       }
     };
-  }, [initializeTerminal, initializeSocket, setupTerminalInput, handleResize]);
-
-  // New Shell Modal Component
-  const NewShellModal = () => {
-    const [modalAgent, setModalAgent] = useState(selectedAgent);
-    const [modalShell, setModalShell] = useState('');
-    const [modalAvailableShells, setModalAvailableShells] = useState([]);
-
-    useEffect(() => {
-      if (showNewShellModal && modalAgent) {
-        // Fetch shells for the selected agent
-        if (modalAgent === selectedAgent) {
-          setModalAvailableShells(availableShells);
-        } else {
-          socketRef.current?.emit('get_shells', modalAgent);
-        }
-      }
-    }, [showNewShellModal, modalAgent]);
-
-    useEffect(() => {
-      // Listen for shells list for modal
-      const handleModalShellsList = (shells) => {
-        if (showNewShellModal) {
-          setModalAvailableShells(shells);
-        }
-      };
-
-      socketRef.current?.on('shells_list', handleModalShellsList);
-      
-      return () => {
-        socketRef.current?.off('shells_list', handleModalShellsList);
-      };
-    }, [showNewShellModal]);
-
-    const handleStart = () => {
-      if (modalAgent && modalShell) {
-        startNewShell(modalAgent, modalShell);
-      }
-    };
-
-    if (!showNewShellModal) return null;
-
-    return (
-      <div className="modal-overlay">
-        <div className="modal-content">
-          <div className="modal-header">
-            <h3>Start New Shell</h3>
-            <button 
-              className="modal-close" 
-              onClick={() => setShowNewShellModal(false)}
-            >
-              ×
-            </button>
-          </div>
-          
-          <div className="modal-body">
-            <div className="form-group">
-              <label>Agent:</label>
-              <select
-                value={modalAgent}
-                onChange={(e) => setModalAgent(e.target.value)}
-                disabled={connectedAgents.length === 0}
-              >
-                <option value="">Select Agent</option>
-                {connectedAgents.map(agent => (
-                  <option key={agent} value={agent}>{agent}</option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="form-group">
-              <label>Shell:</label>
-              <select
-                value={modalShell}
-                onChange={(e) => setModalShell(e.target.value)}
-                disabled={modalAvailableShells.length === 0}
-              >
-                <option value="">Select Shell</option>
-                {modalAvailableShells.map(shell => (
-                  <option key={shell} value={shell}>{shell}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          
-          <div className="modal-footer">
-            <button 
-              onClick={() => setShowNewShellModal(false)}
-              className="btn-secondary"
-            >
-              Cancel
-            </button>
-            <button 
-              onClick={handleStart}
-              disabled={!modalAgent || !modalShell}
-              className="btn-primary"
-            >
-              Start Shell
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  }, []);
 
   return (
     <div className="terminal-container">
@@ -1014,7 +760,6 @@ const TerminalComponent = () => {
           />
         ))}
       </div>
-      
       <div className="terminal-header">
         <div className="terminal-controls">
           <div className="control-group">
@@ -1034,12 +779,26 @@ const TerminalComponent = () => {
           </div>
           
           <div className="control-group">
-            <button
-              onClick={() => setShowNewShellModal(true)}
-              disabled={!isConnected || connectedAgents.length === 0}
-              className="btn-primary"
+            <label>Shell:</label>
+            <select
+              value={selectedShell}
+              onChange={(e) => setSelectedShell(e.target.value)}
+              disabled={availableShells.length === 0 || !isConnected}
             >
-              + New Shell
+              <option value="">Select Shell ({availableShells.length} available)</option>
+              {availableShells.map(shell => (
+                <option key={shell} value={shell}>{shell}</option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="control-group">
+            <button
+              onClick={handleStartShell}
+              disabled={!selectedAgent || !selectedShell || shellStarted || !isConnected}
+              className="start-shell-btn"
+            >
+              {shellStarted ? 'Shell Running' : 'Start Shell'}
             </button>
           </div>
           
@@ -1048,9 +807,7 @@ const TerminalComponent = () => {
             <span>
               {isLoading ? 'Connecting...' : isConnected ? 'Connected' : 'Disconnected'}
             </span>
-            {Object.keys(shellSessions).length > 0 && (
-              <span className="shell-status">• {Object.keys(shellSessions).length} Shell(s)</span>
-            )}
+            {shellStarted && <span className="shell-status">• Shell Active</span>}
           </div>
         </div>
         
@@ -1060,42 +817,10 @@ const TerminalComponent = () => {
           </div>
         )}
       </div>
-
-      {/* Shell Tabs */}
-      {Object.keys(shellSessions).length > 0 && (
-        <div className="shell-tabs">
-          {Object.entries(shellSessions).map(([sessionId, session]) => (
-            <div
-              key={sessionId}
-              className={`shell-tab ${activeShellSession === sessionId ? 'active' : ''}`}
-              onClick={() => switchToShellSession(sessionId)}
-            >
-              <span className="tab-title">
-                {getSessionDisplayName(session)}
-              </span>
-              <span className={`tab-status ${session.status}`}>
-                {session.status === 'running' ? '●' : '○'}
-              </span>
-              <button
-                className="tab-close"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  stopShell(sessionId);
-                }}
-                title="Stop shell"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
       
       <div className="terminal-wrapper">
         <div ref={terminalRef} className="terminal" />
       </div>
-
-      <NewShellModal />
     </div>
   );
 };
