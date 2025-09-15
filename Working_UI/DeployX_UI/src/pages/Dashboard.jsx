@@ -1,10 +1,8 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import authService from '../services/auth.js';
 
 export default function Dashboard({ onLogout }) {
   const [activeSection, setActiveSection] = useState('shell');
-  const navigate = useNavigate();
   const user = authService.getCurrentUser();
 
   const sections = [
@@ -20,7 +18,6 @@ export default function Dashboard({ onLogout }) {
     if (onLogout) {
       onLogout();
     }
-    navigate("/"); // Redirect to home page
   };
 
   return (

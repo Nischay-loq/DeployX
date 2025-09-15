@@ -16,12 +16,14 @@ export default function App() {
     authService.init();
     setIsAuthenticated(authService.isLoggedIn());
     setIsLoading(false);
-  }, []);
 
-  // Handle login success
-  const handleLoginSuccess = () => {
-    setIsAuthenticated(true);
-  };
+    // Subscribe to auth change events instead of polling
+    const handler = () => setIsAuthenticated(authService.isLoggedIn());
+    window.addEventListener('auth:changed', handler);
+    return () => {
+      window.removeEventListener('auth:changed', handler);
+    };
+  }, []);
 
   // Handle logout
   const handleLogout = () => {

@@ -13,18 +13,12 @@ export default function Login() {
   const [notification, setNotification] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Pre-fill username if coming from signup (using email as username)
+  // Pre-fill username if coming from signup
   useEffect(() => {
     if (location.state?.email) {
       setUsername(location.state.email);
     }
-    
-    // Initialize auth service and check if already logged in
-    authService.init();
-    if (authService.isLoggedIn()) {
-      navigate("/dashboard");
-    }
-  }, [location.state, navigate]);
+  }, [location.state]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,19 +27,16 @@ export default function Login() {
 
     try {
       await authService.login({ username, password }, rememberMe);
-      
       setNotification({
         type: "success",
         message: "Login successful! Redirecting to dashboard...",
       });
-
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 1500);
+      // Navigate immediately; App will also gate by auth state
+      navigate("/dashboard");
     } catch (error) {
       setNotification({
         type: "error",
-        message: error.message || "Login failed. Please check your credentials.",
+        message: error?.message || "Unable to connect to the server. Please try again later.",
       });
     } finally {
       setIsLoading(false);
@@ -53,7 +44,6 @@ export default function Login() {
   };
 
   const handleGoogleLogin = async () => {
-    // For now, show a message that Google login is not implemented
     setNotification({
       type: "error",
       message: "Google login will be implemented in a future update.",
@@ -66,7 +56,7 @@ export default function Login() {
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(0,255,247,0.12),transparent_35%),radial-gradient(circle_at_80%_80%,rgba(0,168,255,0.12),transparent_35%)]">
-      {/* motion particles via CSS circles */}
+      {/* motion particles */}
       <div className="particles-background">
         {Array.from({ length: 20 }).map((_, i) => (
           <div
@@ -130,7 +120,7 @@ export default function Login() {
 
           {/* Form */}
           <form className="space-y-6" onSubmit={handleSubmit}>
-            {/* Username/Email */}
+            {/* Username */}
             <div>
               <input
                 type="text"
@@ -138,8 +128,7 @@ export default function Login() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                className="w-full px-4 py-3 rounded-xl bg-cyberBlue/60 border border-neonAqua/40 text-softWhite
-                           focus:outline-none focus:ring-2 focus:ring-neonAqua/70 transition-all cursor-text"
+                className="w-full px-4 py-3 rounded-xl bg-cyberBlue/60 border border-neonAqua/40 text-softWhite focus:outline-none focus:ring-2 focus:ring-neonAqua/70 transition-all cursor-text"
               />
             </div>
 
@@ -151,8 +140,7 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 rounded-xl bg-cyberBlue/60 border border-neonAqua/40 text-softWhite
-                           focus:outline-none focus:ring-2 focus:ring-neonAqua/70 transition-all pr-12 cursor-text"
+                className="w-full px-4 py-3 rounded-xl bg-cyberBlue/60 border border-neonAqua/40 text-softWhite focus:outline-none focus:ring-2 focus:ring-neonAqua/70 transition-all pr-12 cursor-text"
               />
               <button
                 type="button"
@@ -205,8 +193,7 @@ export default function Login() {
             <button
               type="button"
               onClick={handleGoogleLogin}
-              className="w-full px-6 py-3 rounded-xl bg-white text-gray-800 font-semibold flex items-center justify-center gap-3
-                      hover:shadow-lg transition-all cursor-pointer"
+              className="w-full px-6 py-3 rounded-xl bg-white text-gray-800 font-semibold flex items-center justify-center gap-3 hover:shadow-lg transition-all cursor-pointer"
             >
               <img
                 src="https://www.svgrepo.com/show/355037/google.svg"

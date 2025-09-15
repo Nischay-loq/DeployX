@@ -8,6 +8,15 @@ class AuthService {
     this.isAuthenticated = false;
   }
 
+  // Notify app/components that auth state changed
+  notifyAuthChange() {
+    try {
+      window.dispatchEvent(new Event('auth:changed'));
+    } catch (_) {
+      // no-op in non-browser contexts
+    }
+  }
+
   // Initialize authentication state from stored tokens
   init() {
     const token = localStorage.getItem('token') || sessionStorage.getItem('token');
@@ -17,7 +26,12 @@ class AuthService {
       this.token = token;
       this.user = { username };
       this.isAuthenticated = true;
+    } else {
+      this.token = null;
+      this.user = null;
+      this.isAuthenticated = false;
     }
+    this.notifyAuthChange();
   }
 
   // Login function
@@ -38,11 +52,13 @@ class AuthService {
         sessionStorage.setItem('username', credentials.username);
       }
 
+      this.notifyAuthChange();
       return response;
     } catch (error) {
       this.isAuthenticated = false;
       this.user = null;
       this.token = null;
+      this.notifyAuthChange();
       throw error;
     }
   }
@@ -68,6 +84,7 @@ class AuthService {
     localStorage.removeItem('username');
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('username');
+    this.notifyAuthChange();
   }
 
   // Check if user is authenticated
