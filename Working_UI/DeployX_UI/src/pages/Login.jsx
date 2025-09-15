@@ -45,24 +45,24 @@ export default function Login() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-      setNotification({
-        type: "success",
-        message: "Signed in with Google! Redirecting…",
-      });
+ const [googleLoading, setGoogleLoading] = useState(false);
 
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 2000);
-    } catch (error) {
-      setNotification({
-        type: "error",
-        message: error.message,
-      });
-    }
-  };
+const handleGoogleLogin = async () => {
+  try {
+    setGoogleLoading(true);
+    await signInWithPopup(auth, googleProvider);
+    setNotification({
+      type: "success",
+      message: "Signed in with Google! Redirecting…",
+    });
+    setTimeout(() => navigate("/dashboard"), 2000);
+  } catch (error) {
+    setNotification({ type: "error", message: error.message });
+  } finally {
+    setGoogleLoading(false);
+  }
+};
+
 
   const handleClose = () => {
     navigate("/");
@@ -203,20 +203,23 @@ export default function Login() {
               <hr className="flex-grow border-gray-600" />
             </div>
 
-            {/* Google Button */}
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              className="w-full px-6 py-3 rounded-xl bg-white text-gray-800 font-semibold flex items-center justify-center gap-3
-                      hover:shadow-lg transition-all cursor-pointer"
-            >
-              <img
-                src="https://www.svgrepo.com/show/355037/google.svg"
-                alt="Google"
-                className="w-5 h-5"
-              />
-              Continue with Google
-            </button>
+           <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={googleLoading}
+            className={`w-full px-6 py-3 rounded-xl font-semibold flex items-center justify-center gap-3 transition-all
+              ${googleLoading 
+                ? "bg-gray-400 text-gray-700 cursor-not-allowed" 
+                : "bg-white text-gray-800 hover:shadow-lg cursor-pointer"}
+              disabled:opacity-50`}
+          >
+          <img
+            src="https://www.svgrepo.com/show/355037/google.svg"
+            alt="Google"
+            className="w-5 h-5"
+          />
+          {googleLoading ? "Signing in..." : "Continue with Google"}
+        </button>
 
             {/* Links */}
             <div className="text-center space-y-2">
