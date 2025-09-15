@@ -25,10 +25,8 @@ class ConnectionManager:
             logger=False,  # Reduce logging noise
             engineio_logger=False,
             reconnection=True,
-            reconnection_attempts=10,
-            reconnection_delay=5,
-            reconnection_delay_max=30,
-            randomization_factor=0.5
+            reconnection_attempts=5,
+            reconnection_delay=2
         )
         self.connected = False
         self._event_handlers: Dict[str, Callable] = {}

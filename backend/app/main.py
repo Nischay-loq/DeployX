@@ -309,21 +309,6 @@ async def agent_register(sid, data):
         await sio.emit('registration_error', {'error': str(e)}, room=sid)
 
 @sio.event
-async def frontend_register(sid, data):
-    """Handle frontend registration"""
-    try:
-        logger.info(f"Frontend registration request from {sid}")
-        conn_manager.add_frontend(sid)
-        
-        # Send current agent list to the new frontend
-        agent_list = conn_manager.get_agent_list()
-        await sio.emit('agents_list', agent_list, room=sid)
-        logger.info(f"Sent agent list to frontend {sid}: {agent_list}")
-        
-    except Exception as e:
-        logger.error(f"Error registering frontend: {e}")
-
-@sio.event
 async def get_agents(sid):
     """Get list of connected agents"""
     try:
@@ -523,10 +508,8 @@ async def get_agents_rest():
 async def root():
     return {"message": "Remote Terminal Server with Real CMD Running (Socket.IO)"}
 
-# Mount Socket.IO app
+# Create the final ASGI app with Socket.IO
 socket_app = socketio.ASGIApp(sio, app)
-
-app.mount("/", socket_app)  # Mount Socket.IO app at the root
 
 def start():
     """Start the backend server."""
