@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import authService from '../services/auth.js';
+import Terminal from '../components/Terminal.jsx';
 
 export default function Dashboard({ onLogout }) {
   const [activeSection, setActiveSection] = useState('shell');
@@ -84,34 +85,8 @@ export default function Dashboard({ onLogout }) {
                   <span className="text-sm text-gray-400">Live</span>
                 </div>
               </div>
-              
-              <div className="bg-black/80 border border-cyan-400/30 rounded-lg p-4 h-96 overflow-auto">
-                <div className="space-y-1 font-mono text-sm">
-                  <div className="flex items-start gap-2 text-cyan-400">
-                    <span className="text-gray-500 text-xs w-16">14:30:22</span>
-                    <span>root@server-01:~# </span>
-                    <span className="animate-pulse">|</span>
-                  </div>
-                  <div className="flex items-start gap-2 text-gray-300">
-                    <span className="text-gray-500 text-xs w-16">14:30:22</span>
-                    <span>Welcome to DeployX Remote Shell v2.1.0</span>
-                  </div>
-                  <div className="flex items-start gap-2 text-gray-300">
-                    <span className="text-gray-500 text-xs w-16">14:30:22</span>
-                    <span>Connected to: server-01.deployx.local</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Enter command..."
-                  className="flex-1 px-4 py-2 bg-black/60 border border-cyan-400/30 rounded-lg text-softWhite focus:outline-none focus:border-cyan-400/60 cursor-text"
-                />
-                <button className="px-6 py-2 bg-cyan-500/20 border border-cyan-400/50 rounded-lg text-cyan-400 hover:bg-cyan-500/30 transition-all cursor-pointer">
-                  Execute
-                </button>
+              <div className="bg-black/80 border border-cyan-400/30 rounded-lg p-2">
+                <Terminal />
               </div>
             </div>
           )}
