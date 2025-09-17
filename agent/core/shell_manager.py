@@ -25,7 +25,7 @@ class ShellManager:
         """Start a shell subprocess using provided path."""
         try:
             logger.info(f"Starting shell {shell_name} with path {shell_path}")
-            self.cleanup_process()
+            await self.cleanup_process()
             self.output_callback = output_callback
 
             if not os.path.exists(shell_path):
@@ -362,7 +362,7 @@ class ShellManager:
             
         return False
 
-    def cleanup_process(self):
+    async def cleanup_process(self):
         """Cleanup current subprocess and its output thread."""
         self.running = False
         process = self.current_process
@@ -398,8 +398,13 @@ class ShellManager:
 
         # Clean up the output thread
         if self.output_thread and self.output_thread.is_alive():
-            self.output_thread.join(timeout=2)
+            # Yield control briefly to let thread wrap up
+            try:
+                self.output_thread.join(timeout=2)
+            except Exception:
+                pass
         self.output_thread = None
+        return True
 
     async def get_previous_command(self):
         """Get the previous command from history and send it to the terminal."""

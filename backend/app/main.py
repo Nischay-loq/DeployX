@@ -251,6 +251,25 @@ async def start_shell(sid, data):
         await sio.emit('error', {'message': f'Error starting shell: {str(e)}'}, room=sid)
 
 @sio.event
+async def stop_shell(sid, data):
+    """Request agent to stop current shell"""
+    try:
+        agent_id = data.get('agent_id')
+        logger.info(f"Shell stop request: agent={agent_id}, frontend={sid}")
+
+        agent_sid = conn_manager.get_agent_sid(agent_id)
+        if agent_sid:
+            await sio.emit('stop_shell_request', {}, room=agent_sid)
+            logger.info(f"Forwarded stop_shell request to agent {agent_id} (sid: {agent_sid})")
+        else:
+            error_msg = f'Agent {agent_id} not found or not connected'
+            logger.error(error_msg)
+            await sio.emit('error', {'message': error_msg}, room=sid)
+    except Exception as e:
+        logger.error(f"Error stopping shell: {e}")
+        await sio.emit('error', {'message': f'Error stopping shell: {str(e)}'}, room=sid)
+
+@sio.event
 async def command_input(sid, data):
     """Forward command input from frontend to agent"""
     try:
@@ -310,6 +329,23 @@ async def shell_started(sid, data):
             logger.warning(f"Received shell_started from unknown agent (sid: {sid})")
     except Exception as e:
         logger.error(f"Error handling shell started: {e}")
+
+@sio.event
+async def shell_stopped(sid, data):
+    """Handle shell stopped notification from agent"""
+    try:
+        agent_id = conn_manager.get_agent_by_sid(sid)
+        if agent_id:
+            frontend_sid = conn_manager.get_frontend_for_agent(agent_id)
+            if frontend_sid:
+                await sio.emit('shell_stopped', data or {}, room=frontend_sid)
+                logger.info(f"Shell stopped on agent {agent_id}, notified frontend {frontend_sid}")
+            else:
+                logger.warning(f"No frontend mapped for agent {agent_id}")
+        else:
+            logger.warning(f"Received shell_stopped from unknown agent (sid: {sid})")
+    except Exception as e:
+        logger.error(f"Error handling shell stopped: {e}")
 
 # Health check endpoint
 @app.get("/health")

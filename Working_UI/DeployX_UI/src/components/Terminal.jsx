@@ -7,7 +7,7 @@ import "@xterm/xterm/css/xterm.css";
 import './css/Terminal.css';
 import Notification from './jsx/Notification';
 
-const TerminalComponent = () => {
+const TerminalComponent = ({ height = '70vh' }) => {
   const terminalRef = useRef(null);
   const terminalInstanceRef = useRef(null);
   const fitAddonRef = useRef(null);
@@ -34,6 +34,8 @@ const TerminalComponent = () => {
   const [connectedAgents, setConnectedAgents] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState('');
   const [shellStarted, setShellStarted] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [notifications, setNotifications] = useState([]);
 
@@ -87,9 +89,7 @@ const TerminalComponent = () => {
     fontFamily: 'Consolas, "Cascadia Code", "Source Code Pro", "Courier New", monospace',
     fontWeight: 500,
     letterSpacing: 0,
-    rows: 24,
-    cols: 80,
-  scrollback: 1000,
+    scrollback: 2000,
     allowTransparency: true,
     theme: {
       background: '#1a1a1a',
@@ -113,9 +113,7 @@ const TerminalComponent = () => {
       brightMagenta: '#d670d6',
       brightCyan: '#29b8db',
       brightWhite: '#e5e5e5'
-    },
-    cols: 100,
-    rows: 30
+    }
   };
 
   // Initialize terminal
@@ -138,13 +136,17 @@ const TerminalComponent = () => {
       terminalInstanceRef.current.writeln('\x1b[34m=== DeployX Terminal ===\x1b[0m');
       terminalInstanceRef.current.writeln('\x1b[90mConnecting to backend...\x1b[0m');
       
-      // Ensure proper sizing
-      setTimeout(() => {
-        if (fitAddonRef.current) {
-          fitAddonRef.current.fit();
-          terminalInstanceRef.current.scrollToBottom();
-        }
-      }, 100);
+      // Ensure proper sizing (initial fit, then a nudge after layout settles)
+      const doFit = () => {
+        try {
+          if (fitAddonRef.current && terminalInstanceRef.current) {
+            fitAddonRef.current.fit();
+            terminalInstanceRef.current.scrollToBottom();
+          }
+        } catch (e) { /* noop */ }
+      };
+      doFit();
+      setTimeout(doFit, 100);
 
       console.log('Terminal initialized successfully');
       return terminalInstanceRef.current;
@@ -608,6 +610,11 @@ const TerminalComponent = () => {
         // Write output (possibly filtered)
         if (text) {
           terminalInstanceRef.current.write(text);
+          // Keep viewport sized and scrolled during continuous output
+          try {
+            if (fitAddonRef.current) fitAddonRef.current.fit();
+            terminalInstanceRef.current.scrollToBottom();
+          } catch (_) {}
         }
       });
 
@@ -616,9 +623,20 @@ const TerminalComponent = () => {
         if (!isMountedRef.current) return;
         
         console.log('Shell started successfully:', shell);
-        setShellStarted(true); // This will update shellStartedRef.current
-        
+        setShellStarted(true);
+        setIsStarting(false);
         addNotification(`Shell '${shell}' started successfully on ${selectedAgentRef.current}`, 'success');
+      });
+
+      socketRef.current.on('shell_stopped', () => {
+        if (!isMountedRef.current) return;
+        console.log('Shell stopped');
+        setShellStarted(false);
+        setIsStopping(false);
+        addNotification(`Shell stopped on ${selectedAgentRef.current}`, 'success');
+        if (terminalInstanceRef.current) {
+          terminalInstanceRef.current.writeln('\x1b[33mShell stopped.\x1b[0m');
+        }
       });
 
       // Clear terminal
@@ -661,6 +679,8 @@ const TerminalComponent = () => {
     setShellStarted(false);
     setSelectedShell('');
     setAvailableShells([]);
+    setIsStarting(false);
+    setIsStopping(false);
 
     if (agentId && terminalInstanceRef.current) {
       terminalInstanceRef.current.clear();
@@ -672,25 +692,35 @@ const TerminalComponent = () => {
   }, []);
 
   const handleStartShell = useCallback(() => {
-    if (!selectedAgent || !selectedShell || shellStarted || !socketRef.current?.connected) {
+    if (!selectedAgent || !selectedShell || shellStarted || !socketRef.current?.connected || isStarting) {
       console.log('Cannot start shell:', { selectedAgent, selectedShell, shellStarted, connected: socketRef.current?.connected });
       return;
     }
 
     console.log('Starting shell:', selectedShell, 'on agent:', selectedAgent);
-    setShellStarted(false); // Reset state before starting
-    
+    setShellStarted(false);
+    setIsStarting(true);
+
     if (terminalInstanceRef.current) {
       terminalInstanceRef.current.clear();
       terminalInstanceRef.current.writeln(`\x1b[36mStarting ${selectedShell} on ${selectedAgent}...\x1b[0m`);
     }
-    
-    console.log('Emitting start_shell event...');
-    socketRef.current.emit('start_shell', { 
-      agent_id: selectedAgent, 
-      shell: selectedShell 
+
+    socketRef.current.emit('start_shell', {
+      agent_id: selectedAgent,
+      shell: selectedShell
     });
-  }, [selectedAgent, selectedShell, shellStarted]);
+  }, [selectedAgent, selectedShell, shellStarted, isStarting]);
+
+  const handleStopShell = useCallback(() => {
+    if (!selectedAgent || !shellStarted || !socketRef.current?.connected || isStopping) {
+      console.log('Cannot stop shell:', { selectedAgent, shellStarted, connected: socketRef.current?.connected });
+      return;
+    }
+    setIsStopping(true);
+    addNotification(`Stopping shell on ${selectedAgent}...`, 'info');
+    socketRef.current.emit('stop_shell', { agent_id: selectedAgent });
+  }, [selectedAgent, shellStarted, isStopping, addNotification]);
 
   // Window and container resize handler
   const handleResize = useCallback(() => {
@@ -752,7 +782,7 @@ const TerminalComponent = () => {
   }, []);
 
   return (
-    <div className="terminal-container">
+    <div className="terminal-container" style={{ height }}>
       <div className="notification-container">
         {notifications.map(({ id, message, type, duration }) => (
           <Notification
@@ -786,7 +816,13 @@ const TerminalComponent = () => {
             <label>Shell:</label>
             <select
               value={selectedShell}
-              onChange={(e) => setSelectedShell(e.target.value)}
+              onChange={(e) => {
+                const newShell = e.target.value;
+                if (shellStarted && newShell && newShell !== selectedShell) {
+                  handleStopShell();
+                }
+                setSelectedShell(newShell);
+              }}
               disabled={availableShells.length === 0 || !isConnected}
             >
               <option value="">Select Shell ({availableShells.length} available)</option>
@@ -797,13 +833,23 @@ const TerminalComponent = () => {
           </div>
           
           <div className="control-group">
-            <button
-              onClick={handleStartShell}
-              disabled={!selectedAgent || !selectedShell || shellStarted || !isConnected}
-              className="start-shell-btn"
-            >
-              {shellStarted ? 'Shell Running' : 'Start Shell'}
-            </button>
+            {shellStarted ? (
+              <button
+                onClick={handleStopShell}
+                disabled={!isConnected || isStopping}
+                className="stop-shell-btn"
+              >
+                {isStopping ? 'Stopping...' : 'Stop Shell'}
+              </button>
+            ) : (
+              <button
+                onClick={handleStartShell}
+                disabled={!selectedAgent || !selectedShell || !isConnected || isStarting}
+                className="start-shell-btn"
+              >
+                {isStarting ? 'Starting...' : 'Start Shell'}
+              </button>
+            )}
           </div>
           
           <div className="status-indicator">

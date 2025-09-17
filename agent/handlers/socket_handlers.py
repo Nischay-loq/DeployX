@@ -155,5 +155,17 @@ class SocketEventHandler:
             'start_shell_request': self.handle_start_shell_request,
             'command_input': self.handle_command_input,
             'interrupt_signal': self.handle_interrupt_signal,
-            'get_shells': self.handle_get_shells
+            'get_shells': self.handle_get_shells,
+            'stop_shell_request': self._handle_stop_shell_request
         }
+
+    async def _handle_stop_shell_request(self, data: Dict[str, Any]):
+        """Handle request to stop current shell."""
+        try:
+            logger.info("Handling stop shell request")
+            await self.shell_manager.cleanup_process()
+            if self._connection and self._connection.connected:
+                await self._connection.emit('shell_stopped', {})
+                logger.info("Sent shell_stopped event to backend")
+        except Exception as e:
+            logger.exception(f"Error handling stop shell request: {e}")
