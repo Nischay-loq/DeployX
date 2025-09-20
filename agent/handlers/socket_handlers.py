@@ -140,6 +140,127 @@ class SocketEventHandler:
             logger.error(f"Failed to start shell {shell_name}")
             return False
 
+    async def handle_execute_deployment_command(self, data: Dict[str, Any]):
+        """Handle deployment command execution request."""
+        try:
+            cmd_id = data.get('command_id')
+            command = data.get('command', '')
+            shell = data.get('shell', 'cmd')
+            
+            logger.info(f"Received deployment command {cmd_id}: {command}")
+            
+            if not cmd_id:
+                logger.error("No command ID provided in deployment command")
+                return
+                
+            # Check if shell is running using available attributes
+            shell_is_active = (self.shell_manager.running and 
+                              self.shell_manager.current_process and 
+                              self.shell_manager.current_process.poll() is None)
+            
+            if not shell_is_active:
+                logger.info(f"Starting shell {shell} for deployment command")
+                from agent.utils.shell_detector import detect_shells
+                shells = detect_shells()
+                
+                if shell not in shells:
+                    error_msg = f"Shell {shell} not available"
+                    logger.error(error_msg)
+                    if self._connection and self._connection.connected:
+                        await self._connection.emit('deployment_command_completed', {
+                            'command_id': cmd_id,
+                            'success': False,
+                            'output': '',
+                            'error': error_msg
+                        })
+                    return
+                
+                # Start shell for deployment
+                shell_path = shells[shell]
+                
+                async def deployment_output_callback(output: str):
+                    """Callback for deployment command output."""
+                    if self._connection and self._connection.connected:
+                        await self._connection.emit('deployment_command_output', {
+                            'command_id': cmd_id,
+                            'output': output
+                        })
+                
+                success = await self.shell_manager.start_shell(shell, shell_path, deployment_output_callback)
+                if not success:
+                    error_msg = f"Failed to start shell {shell}"
+                    logger.error(error_msg)
+                    if self._connection and self._connection.connected:
+                        await self._connection.emit('deployment_command_completed', {
+                            'command_id': cmd_id,
+                            'success': False,
+                            'output': '',
+                            'error': error_msg
+                        })
+                    return
+            
+            # Execute the deployment command
+            logger.info(f"Executing deployment command: {command}")
+            
+            # Set up output callback specifically for this deployment command  
+            original_callback = self.shell_manager.output_callback
+            
+            async def deployment_specific_callback(output: str):
+                """Enhanced callback that captures output for deployment command."""
+                # Call original callback if it exists
+                if original_callback:
+                    await original_callback(output)
+                
+                # Also send deployment-specific output
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('deployment_command_output', {
+                        'command_id': cmd_id,
+                        'output': output
+                    })
+            
+            # Temporarily replace the callback
+            self.shell_manager.output_callback = deployment_specific_callback
+            
+            try:
+                # Execute the command
+                result = await self.shell_manager.execute_command(command + '\n')
+                
+                # Command completed successfully
+                logger.info(f"Deployment command {cmd_id} completed successfully")
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('deployment_command_completed', {
+                        'command_id': cmd_id,
+                        'success': True,
+                        'output': '',  # Output was already sent via callback
+                        'error': ''
+                    })
+                    
+            except Exception as e:
+                # Command failed
+                error_msg = f"Command execution failed: {str(e)}"
+                logger.error(f"Deployment command {cmd_id} failed: {error_msg}")
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('deployment_command_completed', {
+                        'command_id': cmd_id,
+                        'success': False,
+                        'output': '',
+                        'error': error_msg
+                    })
+            finally:
+                # Restore original callback
+                self.shell_manager.output_callback = original_callback
+                    
+        except Exception as e:
+            error_msg = f"Error handling deployment command: {str(e)}"
+            logger.exception(error_msg)
+            if self._connection and self._connection.connected:
+                await self._connection.emit('deployment_command_completed', {
+                    'command_id': data.get('command_id', ''),
+                    'success': False,
+                    'output': '',
+                    'error': error_msg
+                })
+
     def get_handlers(self) -> Dict[str, Callable]:
         """Get all event handlers.
         
@@ -156,7 +277,8 @@ class SocketEventHandler:
             'command_input': self.handle_command_input,
             'interrupt_signal': self.handle_interrupt_signal,
             'get_shells': self.handle_get_shells,
-            'stop_shell_request': self._handle_stop_shell_request
+            'stop_shell_request': self._handle_stop_shell_request,
+            'execute_deployment_command': self.handle_execute_deployment_command
         }
 
     async def _handle_stop_shell_request(self, data: Dict[str, Any]):

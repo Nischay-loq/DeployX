@@ -208,18 +208,8 @@ class ShellManager:
                 return await self.get_next_command()
             elif command in ['cls', 'clear']:
                 return await self.clear_terminal()
-            elif command == '\u001b[A':  # Up arrow
-                return await self.get_previous_command()
-            elif command == '\u001b[B':  # Down arrow
-                return await self.get_next_command()
-            elif command in ['cls', 'clear']:
-                return await self.clear_terminal()
 
             self.last_command = command.strip()
-            if self.last_command:
-                self.command_history.append(self.last_command)
-                self.history_index = len(self.command_history)
-
             if self.last_command:
                 self.command_history.append(self.last_command)
                 self.history_index = len(self.command_history)

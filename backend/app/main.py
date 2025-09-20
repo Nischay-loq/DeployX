@@ -12,6 +12,8 @@ from app.grouping.route import router as groups_router
 from app.Devices.routes import router as devices_router
 from app.auth import routes, models
 from app.auth.database import engine
+from app.command_deployment.routes import router as deployment_router
+from app.command_deployment.executor import command_executor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -34,6 +36,7 @@ app = FastAPI(title="Remote Command Execution Backend")
 app.include_router(routes.router)
 app.include_router(groups_router)
 app.include_router(devices_router)
+app.include_router(deployment_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -133,6 +136,9 @@ class ConnectionManager:
 # Initialize connection manager
 conn_manager = ConnectionManager()
 
+# Set up command executor with socket.io and connection manager
+command_executor.set_socketio(sio, conn_manager)
+
 @sio.event
 async def connect(sid, environ, auth):
     """Handle new socket connections"""
@@ -229,26 +235,38 @@ async def get_agents(sid):
 async def start_shell(sid, data):
     """Request agent to start a specific shell"""
     try:
+        # Validate input data
+        if not isinstance(data, dict):
+            raise ValueError("Invalid data format - expected dictionary")
+        
         agent_id = data.get('agent_id')
         shell = data.get('shell', 'cmd')
+        
+        if not agent_id:
+            raise ValueError("Missing required field: agent_id")
+        
+        if not isinstance(shell, str) or not shell.strip():
+            raise ValueError("Invalid shell parameter")
         
         logger.info(f"Shell start request: agent={agent_id}, shell={shell}, frontend={sid}")
         
         agent_sid = conn_manager.get_agent_sid(agent_id)
-        if agent_sid:
-            # Map this agent to this frontend for future communications
-            conn_manager.map_agent_to_frontend(agent_id, sid)
-            
-            # Forward request to agent
-            await sio.emit('start_shell_request', {'shell': shell}, room=agent_sid)
-            logger.info(f"Forwarded start_shell request to agent {agent_id} (sid: {agent_sid})")
-        else:
-            error_msg = f'Agent {agent_id} not found or not connected'
-            logger.error(error_msg)
-            await sio.emit('error', {'message': error_msg}, room=sid)
+        if not agent_sid:
+            raise ValueError(f'Agent {agent_id} not found or not connected')
+        
+        # Map this agent to this frontend for future communications
+        conn_manager.map_agent_to_frontend(agent_id, sid)
+        
+        # Forward request to agent
+        await sio.emit('start_shell_request', {'shell': shell}, room=agent_sid)
+        logger.info(f"Forwarded start_shell request to agent {agent_id} (sid: {agent_sid})")
+        
+    except ValueError as ve:
+        logger.warning(f"Validation error in start_shell: {ve}")
+        await sio.emit('error', {'message': str(ve), 'type': 'validation_error'}, room=sid)
     except Exception as e:
         logger.error(f"Error starting shell: {e}")
-        await sio.emit('error', {'message': f'Error starting shell: {str(e)}'}, room=sid)
+        await sio.emit('error', {'message': f'Error starting shell: {str(e)}', 'type': 'server_error'}, room=sid)
 
 @sio.event
 async def stop_shell(sid, data):
@@ -273,21 +291,37 @@ async def stop_shell(sid, data):
 async def command_input(sid, data):
     """Forward command input from frontend to agent"""
     try:
+        # Validate input data
+        if not isinstance(data, dict):
+            raise ValueError("Invalid data format - expected dictionary")
+        
         agent_id = data.get('agent_id')
         command = data.get('command')
+        
+        if not agent_id:
+            raise ValueError("Missing required field: agent_id")
+        
+        if command is None:
+            raise ValueError("Missing required field: command")
+        
+        if not isinstance(command, str):
+            raise ValueError("Command must be a string")
         
         logger.debug(f"Command input: agent={agent_id}, command={repr(command)}, frontend={sid}")
         
         agent_sid = conn_manager.get_agent_sid(agent_id)
-        if agent_sid:
-            await sio.emit('command_input', {'command': command}, room=agent_sid)
-            logger.debug(f"Forwarded command to agent {agent_id}")
-        else:
-            error_msg = f'Agent {agent_id} not found or not connected'
-            logger.error(error_msg)
-            await sio.emit('error', {'message': error_msg}, room=sid)
+        if not agent_sid:
+            raise ValueError(f'Agent {agent_id} not found or not connected')
+        
+        await sio.emit('command_input', {'command': command}, room=agent_sid)
+        logger.debug(f"Forwarded command to agent {agent_id}")
+        
+    except ValueError as ve:
+        logger.warning(f"Validation error in command_input: {ve}")
+        await sio.emit('error', {'message': str(ve), 'type': 'validation_error'}, room=sid)
     except Exception as e:
         logger.error(f"Error forwarding command: {e}")
+        await sio.emit('error', {'message': f'Error forwarding command: {str(e)}', 'type': 'server_error'}, room=sid)
 
 @sio.event
 async def command_output(sid, data):
@@ -346,6 +380,58 @@ async def shell_stopped(sid, data):
             logger.warning(f"Received shell_stopped from unknown agent (sid: {sid})")
     except Exception as e:
         logger.error(f"Error handling shell stopped: {e}")
+
+@sio.event
+async def deployment_command_output(sid, data):
+    """Handle output from deployment command execution"""
+    try:
+        cmd_id = data.get('command_id')
+        output = data.get('output', '')
+        
+        if cmd_id:
+            await command_executor.handle_command_output(cmd_id, output)
+            
+            # Forward to all frontends for real-time updates
+            await sio.emit('deployment_command_output', {
+                'command_id': cmd_id,
+                'output': output
+            })
+    except Exception as e:
+        logger.error(f"Error handling deployment command output: {e}")
+
+@sio.event
+async def deployment_command_completed(sid, data):
+    """Handle deployment command completion notification from agent"""
+    try:
+        cmd_id = data.get('command_id')
+        success = data.get('success', False)
+        final_output = data.get('output', '')
+        error = data.get('error', '')
+        
+        if cmd_id:
+            await command_executor.handle_command_completion(
+                cmd_id, success, final_output, error
+            )
+            
+            # Notify all frontends
+            await sio.emit('deployment_command_completed', {
+                'command_id': cmd_id,
+                'success': success,
+                'output': final_output,
+                'error': error
+            })
+    except Exception as e:
+        logger.error(f"Error handling deployment command completion: {e}")
+
+@sio.event
+async def execute_deployment_command(sid, data):
+    """Handle execute deployment command request from frontend or internal system"""
+    try:
+        # This could be called by frontend directly or by the executor
+        # For now, let's just handle the agent's response to a deployment command
+        pass
+    except Exception as e:
+        logger.error(f"Error handling execute deployment command: {e}")
 
 # Health check endpoint
 @app.get("/health")

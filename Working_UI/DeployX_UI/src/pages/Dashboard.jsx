@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import authService from '../services/auth.js';
 import Terminal from '../components/Terminal.jsx';
+import DeploymentManager from '../components/DeploymentManager.jsx';
+import io from 'socket.io-client';
 import { 
   Terminal as TerminalIcon, 
   FolderOpen, 
@@ -14,21 +16,177 @@ import {
   MoreHorizontal,
   Play,
   Square,
-  RotateCcw
+  RotateCcw,
+  Command
 } from 'lucide-react';
 
 export default function Dashboard({ onLogout }) {
   const [activeSection, setActiveSection] = useState('shell');
+  const [agents, setAgents] = useState([]);
+  const [currentAgent, setCurrentAgent] = useState('');
+  const [shells, setShells] = useState([]);
+  const [currentShell, setCurrentShell] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
+  const [connectionError, setConnectionError] = useState(null);
+  const socketRef = useRef(null);
+  const isMountedRef = useRef(true);
   const user = authService.getCurrentUser();
 
   const sections = [
     { id: 'shell', name: 'Remote Shell', icon: TerminalIcon, color: 'text-cyan-400' },
+    { id: 'deployment', name: 'Deployment', icon: Command, color: 'text-purple-400' },
     { id: 'files', name: 'File System', icon: FolderOpen, color: 'text-blue-400' },
     { id: 'system', name: 'System Info', icon: Monitor, color: 'text-green-400' },
     { id: 'network', name: 'Network', icon: Network, color: 'text-purple-400' },
     { id: 'processes', name: 'Processes', icon: Activity, color: 'text-yellow-400' },
     { id: 'services', name: 'Services', icon: Settings, color: 'text-red-400' }
   ];
+
+  // Initialize socket connection for agent management
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    const initializeSocket = () => {
+      if (socketRef.current) return;
+      
+      console.log('Dashboard: Initializing socket connection...');
+      
+      socketRef.current = io('http://localhost:8000', {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionAttempts: 5,
+        timeout: 20000,
+        forceNew: true,
+        autoConnect: true
+      });
+
+      // Connection successful
+      socketRef.current.on('connect', () => {
+        if (!isMountedRef.current) return;
+        
+        console.log('Dashboard: Connected to backend server');
+        setIsConnected(true);
+        setConnectionError(null);
+        
+        // Register as frontend to receive agent updates
+        socketRef.current.emit('frontend_register', {});
+        
+        // Request initial agents list
+        setTimeout(() => {
+          if (socketRef.current && socketRef.current.connected) {
+            console.log('Dashboard: Requesting agents list...');
+            socketRef.current.emit('get_agents');
+          }
+        }, 200);
+      });
+
+      // Connection failed
+      socketRef.current.on('connect_error', (error) => {
+        if (!isMountedRef.current) return;
+        
+        console.error('Dashboard: Connection error:', error);
+        setIsConnected(false);
+        setConnectionError(`Failed to connect: ${error.message}`);
+      });
+
+      // Disconnected
+      socketRef.current.on('disconnect', (reason) => {
+        if (!isMountedRef.current) return;
+        
+        console.log('Dashboard: Disconnected from backend:', reason);
+        setIsConnected(false);
+        setConnectionError(`Disconnected: ${reason}`);
+        
+        // Clear agent/shell data
+        setAgents([]);
+        setShells([]);
+        setCurrentAgent('');
+        setCurrentShell('');
+      });
+
+      // Agents list received
+      socketRef.current.on('agents_list', (agentsList) => {
+        if (!isMountedRef.current) return;
+        
+        console.log('Dashboard: Received agents list:', agentsList);
+        
+        if (Array.isArray(agentsList)) {
+          setAgents(agentsList);
+          
+          // Auto-select first agent if none selected and agents available
+          if (agentsList.length > 0 && !currentAgent) {
+            const firstAgent = agentsList[0];
+            setCurrentAgent(firstAgent);
+            
+            // Request shells for the first agent
+            if (socketRef.current && socketRef.current.connected) {
+              socketRef.current.emit('get_shells', firstAgent);
+            }
+          }
+        } else {
+          console.error('Dashboard: Invalid agents list received:', agentsList);
+          setConnectionError('Invalid agents list received from server');
+        }
+      });
+
+      // Shells list received
+      socketRef.current.on('shells_list', (shellsList) => {
+        if (!isMountedRef.current) return;
+        
+        console.log('Dashboard: Received shells list:', shellsList);
+        
+        if (Array.isArray(shellsList)) {
+          setShells(shellsList);
+          
+          // Auto-select default shell if none selected
+          if (shellsList.length > 0 && !currentShell) {
+            const defaultShell = shellsList.includes('cmd') ? 'cmd' : 
+                               shellsList.includes('bash') ? 'bash' : shellsList[0];
+            setCurrentShell(defaultShell);
+          }
+        }
+      });
+
+      // Error messages
+      socketRef.current.on('error', (data) => {
+        if (!isMountedRef.current) return;
+        
+        console.error('Dashboard: Socket error:', data);
+        const errorMessage = data?.message || data || 'Unknown error';
+        setConnectionError(errorMessage);
+      });
+    };
+
+    initializeSocket();
+
+    return () => {
+      isMountedRef.current = false;
+      
+      if (socketRef.current) {
+        socketRef.current.removeAllListeners();
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    };
+  }, []);
+
+  // Handle agent selection
+  const handleAgentSelect = (agentId) => {
+    setCurrentAgent(agentId);
+    setShells([]);
+    setCurrentShell('');
+    
+    if (agentId && socketRef.current && socketRef.current.connected) {
+      console.log('Dashboard: Requesting shells for agent:', agentId);
+      socketRef.current.emit('get_shells', agentId);
+    }
+  };
+
+  // Handle shell selection
+  const handleShellSelect = (shellType) => {
+    setCurrentShell(shellType);
+  };
 
   const handleDisconnect = () => {
     if (onLogout) {
@@ -71,9 +229,22 @@ export default function Dashboard({ onLogout }) {
             </button>
             
             {/* Connection Status */}
-            <div className="flex items-center gap-2 px-3 py-2 bg-green-500/20 border border-green-500/30 rounded-lg">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-sm font-medium">Connected</span>
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
+              isConnected 
+                ? 'bg-green-500/20 border-green-500/30' 
+                : 'bg-red-500/20 border-red-500/30'
+            }`}>
+              <div className={`w-2 h-2 rounded-full ${
+                isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'
+              }`}></div>
+              <span className={`text-sm font-medium ${
+                isConnected ? 'text-green-400' : 'text-red-400'
+              }`}>
+                {isConnected ? 'Connected' : 'Disconnected'}
+              </span>
+              {agents.length > 0 && (
+                <span className="text-gray-400 text-xs">• {agents.length} agent(s)</span>
+              )}
             </div>
             
             {/* Logout */}
@@ -133,6 +304,19 @@ export default function Dashboard({ onLogout }) {
                 <Terminal />
               </div>
             </div>
+          )}
+
+          {activeSection === 'deployment' && (
+            <DeploymentManager 
+              agents={agents}
+              currentAgent={currentAgent}
+              onSelectAgent={handleAgentSelect}
+              shells={shells}
+              currentShell={currentShell}
+              onSelectShell={handleShellSelect}
+              isConnected={isConnected}
+              connectionError={connectionError}
+            />
           )}
 
           {activeSection === 'files' && (
