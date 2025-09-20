@@ -4,8 +4,8 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import io from 'socket.io-client';
 import "@xterm/xterm/css/xterm.css";
-import '../css/Terminal.css';
-import Notification from './Notification';
+import './css/Terminal.css';
+import Notification from './jsx/Notification';
 
 const TerminalComponent = () => {
   const terminalRef = useRef(null);
@@ -75,6 +75,8 @@ const TerminalComponent = () => {
     shellStartedRef.current = shellStarted;
     console.log('shellStarted updated to:', shellStarted);
   }, [shellStarted]);
+
+  // no session handling in legacy component
 
   // Terminal configuration
   const TERMINAL_CONFIG = {
@@ -292,9 +294,10 @@ const TerminalComponent = () => {
       const currentSelectedAgent = selectedAgentRef.current;
       const currentShellStarted = shellStartedRef.current;
       
-      console.log('Terminal input received. Agent:', currentSelectedAgent, 'Shell started:', currentShellStarted);
+  console.log('Terminal input received. Agent:', currentSelectedAgent, 'Shell started:', currentShellStarted);
 
       if (!currentSelectedAgent || !currentShellStarted) {
+        console.log('Blocking input: Missing agent or shell not started');
         terminalInstanceRef.current.write('\x1b[31m\r\nPlease select an agent and start a shell first.\x1b[0m\r\n');
         return;
       }
@@ -682,6 +685,7 @@ const TerminalComponent = () => {
       terminalInstanceRef.current.writeln(`\x1b[36mStarting ${selectedShell} on ${selectedAgent}...\x1b[0m`);
     }
     
+    console.log('Emitting start_shell event...');
     socketRef.current.emit('start_shell', { 
       agent_id: selectedAgent, 
       shell: selectedShell 

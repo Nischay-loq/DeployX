@@ -6,21 +6,27 @@ from typing import Optional, Dict, Any, Callable
 logger = logging.getLogger(__name__)
 
 class ConnectionManager:
-    def __init__(self, server_url: str, agent_id: str):
+    def __init__(self, server_url: str, agent_id: str = None):
         """Initialize the connection manager.
         
         Args:
             server_url: URL of the backend server
-            agent_id: Unique identifier for this agent
+            agent_id: Unique identifier for this agent. If not provided, generates a default name.
         """
         self.server_url = server_url
+        if agent_id is None:
+            import socket
+            import time
+            hostname = socket.gethostname()
+            timestamp = int(time.time())
+            agent_id = f"agent_{hostname}_{timestamp}"
         self.agent_id = agent_id
         self.sio = socketio.AsyncClient(
-            logger=True,
-            engineio_logger=True,
+            logger=False,  # Reduce logging noise
+            engineio_logger=False,
             reconnection=True,
             reconnection_attempts=5,
-            reconnection_delay=10
+            reconnection_delay=2
         )
         self.connected = False
         self._event_handlers: Dict[str, Callable] = {}
@@ -44,8 +50,10 @@ class ConnectionManager:
     def register_handler(self, event: str, handler: Callable):
         """Register a handler for a socket.io event."""
         @self.sio.on(event)
-        async def wrapper(data):
+        async def wrapper(data=None):
             try:
+                if data is None:
+                    data = {}
                 logger.info(f"Handling event {event} with data: {data}")
                 result = await handler(data)
                 # If handler returns a value, emit acknowledgment
@@ -82,10 +90,12 @@ class ConnectionManager:
     async def disconnect(self):
         """Disconnect from the backend server."""
         try:
-            await self.sio.disconnect()
-            self.connected = False
-            logger.info("Disconnected from backend")
-            return True
+            if self.connected:
+                await self.sio.disconnect()
+                self.connected = False
+                logger.info("Disconnected from backend")
+                return True
+            return False
         except Exception as e:
             logger.error(f"Error during disconnect: {e}")
             return False

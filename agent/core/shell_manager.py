@@ -17,6 +17,9 @@ class ShellManager:
         self.output_thread = None
         self.running = False
         self.output_callback = None
+        self.last_command = ""
+        self.command_history = []
+        self.history_index = 0
 
     async def start_shell(self, shell_name: str, shell_path: str, output_callback):
         """Start a shell subprocess using provided path."""
@@ -40,8 +43,7 @@ class ShellManager:
                 # Minimal PowerShell configuration
                 cmd = [
                     shell_path,
-                    "-NoLogo",
-                    "-NoProfile",
+                    "-NoExit",
                     "-Command",
                     "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue';"
                 ]
@@ -67,6 +69,10 @@ class ShellManager:
 
             system = platform.system().lower()
             if system == "windows":
+                startup_info = subprocess.STARTUPINFO()
+                startup_info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startup_info.wShowWindow = subprocess.SW_HIDE
+                
                 self.current_process = subprocess.Popen(
                     cmd,
                     stdin=subprocess.PIPE,
@@ -75,7 +81,8 @@ class ShellManager:
                     text=True,
                     bufsize=0,
                     env=env,
-                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                    startupinfo=startup_info
                 )
             else:
                 self.current_process = subprocess.Popen(
@@ -103,17 +110,8 @@ class ShellManager:
                 
             # Give the shell a moment to initialize
             await asyncio.sleep(0.5)
-            
-            # Send test command based on shell type
-            test_cmd = "echo Shell test\n"
-            if shell_name in ["powershell", "pwsh"]:
-                test_cmd = "Write-Host 'Shell test'\n"
                 
-            if not await self.execute_command(test_cmd):
-                logger.error("Failed to verify shell responsiveness")
-                return False
-                
-            logger.info(f"Shell {shell_name} started and verified successfully")
+            logger.info(f"Shell {shell_name} started successfully")
             return True
 
         except Exception as e:
@@ -192,19 +190,39 @@ class ShellManager:
             return False
 
         try:
+            # Special handling for control sequences
             if command == '\u0003':  # Ctrl+C
                 logger.info("Received Ctrl+C signal")
-                if platform.system().lower() == "windows":
-                    try:
-                        self.current_process.send_signal(signal.CTRL_C_EVENT)
-                    except:
-                        self.current_process.terminate()
-                else:
-                    try:
-                        os.killpg(os.getpgid(self.current_process.pid), signal.SIGINT)
-                    except:
-                        self.current_process.terminate()
+                return await self.send_interrupt(force=True)
+            elif command == '\u001A':  # Ctrl+Z
+                logger.info("Received Ctrl+Z signal")
+                return await self.send_suspend(force=True)
+            elif command == '\u0004':  # Ctrl+D
+                logger.info("Received Ctrl+D signal")
+                if platform.system().lower() != "windows":
+                    os.write(self.current_process.stdin.fileno(), b'\x04')
                 return True
+            elif command == '\u001b[A':  # Up arrow
+                return await self.get_previous_command()
+            elif command == '\u001b[B':  # Down arrow
+                return await self.get_next_command()
+            elif command in ['cls', 'clear']:
+                return await self.clear_terminal()
+            elif command == '\u001b[A':  # Up arrow
+                return await self.get_previous_command()
+            elif command == '\u001b[B':  # Down arrow
+                return await self.get_next_command()
+            elif command in ['cls', 'clear']:
+                return await self.clear_terminal()
+
+            self.last_command = command.strip()
+            if self.last_command:
+                self.command_history.append(self.last_command)
+                self.history_index = len(self.command_history)
+
+            if self.last_command:
+                self.command_history.append(self.last_command)
+                self.history_index = len(self.command_history)
 
             # Handle standard input
             if self.current_process.stdin:
@@ -222,7 +240,7 @@ class ShellManager:
             logger.error(f"Failed to execute command: {e}")
             return False
 
-    async def send_interrupt(self):
+    async def send_interrupt(self, force=False):
         """Send interrupt signal to the current process."""
         if not self.current_process or self.current_process.poll() is not None:
             return False
@@ -232,13 +250,117 @@ class ShellManager:
 
         try:
             if system == "windows":
-                os.kill(self.current_process.pid, signal.CTRL_BREAK_EVENT)
+                # Special handling for ping command
+                if "ping" in self.last_command:
+                    logger.info("Ping command detected, using special interrupt handling.")
+                    return await self._handle_windows_ping_interrupt()
+
+                # Standard approach for other commands
+                logger.info("Sending standard interrupt signal.")
+                self.current_process.send_signal(signal.CTRL_C_EVENT)
+                await asyncio.sleep(0.2) # Give it a moment to process
+
+                if force and self.current_process.poll() is None:
+                    logger.warning("Process did not terminate, forcing a new prompt.")
+                    if self.current_process.stdin:
+                        self.current_process.stdin.write('\r\n')
+                        self.current_process.stdin.flush()
             else:
+                # Unix systems - use SIGINT
+                logger.info("Sending SIGINT to process group.")
                 os.killpg(os.getpgid(self.current_process.pid), signal.SIGINT)
+            
             return True
+
         except Exception as e:
             logger.error(f"Failed to send interrupt signal: {e}")
             return False
+
+    async def _handle_windows_ping_interrupt(self):
+        """Handle interrupt for ping command on Windows."""
+        try:
+            # First, send a standard Ctrl+C to allow it to print statistics
+            logger.info("Sending CTRL_C_EVENT to ping process.")
+            self.current_process.send_signal(signal.CTRL_C_EVENT)
+            
+            # Give it a moment to print stats, but don't wait too long
+            await asyncio.sleep(0.25)
+
+            # Then, forcefully kill any remaining ping.exe processes to ensure termination
+            logger.info("Forcefully terminating ping.exe process to ensure it stops.")
+            
+            # This runs a command to kill the process outside the current shell
+            kill_cmd = 'taskkill /F /IM ping.exe /T'
+            subprocess.run(kill_cmd, shell=True, capture_output=True, text=True)
+            
+            # Give a moment for the OS to handle termination
+            await asyncio.sleep(0.1)
+
+            # Refresh the prompt in the parent shell
+            if self.current_process and self.current_process.stdin and self.current_process.poll() is None:
+                logger.info("Sending newline to get a fresh prompt.")
+                self.current_process.stdin.write('\r\n')
+                self.current_process.stdin.flush()
+
+            return True
+        except Exception as e:
+            logger.error(f"Error in ping interrupt handler: {e}")
+            return False
+    
+    async def _force_stop_ping_command(self):
+        """DEPRECATED: This method is no longer the primary way to stop ping."""
+        logger.warning("Using deprecated _force_stop_ping_command.")
+        return await self._handle_windows_ping_interrupt()
+    
+    async def send_suspend(self, force=False):
+        """Send suspend signal (Ctrl+Z) to the current process."""
+        if not self.current_process or self.current_process.poll() is not None:
+            return False
+
+        system = platform.system().lower()
+        logger.info(f"Attempting to send suspend signal to {self.current_shell} on {system}")
+
+        try:
+            if system == "windows":
+                # Windows doesn't properly support job control (background/foreground)
+                # so redirect to the interrupt handler which has better techniques
+                return await self.send_interrupt(force=True)
+            else:
+                # Unix systems - use SIGTSTP
+                try:
+                    os.killpg(os.getpgid(self.current_process.pid), signal.SIGTSTP)
+                    logger.info("Sent SIGTSTP to process group")
+                except Exception as e:
+                    logger.error(f"Failed to send SIGTSTP: {e}")
+                    if self.current_process.stdin:
+                        self.current_process.stdin.write('\r\n')
+                        self.current_process.stdin.flush()
+                    
+                    # Fallback to interrupt if needed
+                    if force:
+                        return await self.send_interrupt(force=True)
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send suspend signal: {e}")
+            return False
+            
+    def _is_long_running_cmd(self):
+        """Check if current process is likely a long-running Windows command.
+        
+        This helps identify commands like ping, tracert, etc. that need special handling.
+        """
+        if not self.current_process or platform.system().lower() != "windows":
+            return False
+            
+        # We can't directly access the command name of a running subprocess,
+        # but we can use heuristics based on the shell type
+        if self.current_shell == "cmd" or self.current_shell == "powershell":
+            # These commands are known to behave differently with Ctrl+C/Z
+            return True
+            
+        return False
 
     def cleanup_process(self):
         """Cleanup current subprocess and its output thread."""
@@ -274,6 +396,32 @@ class ShellManager:
                 self.current_process = None
                 self.current_shell = None
 
-        thread = self.output_thread
-        if thread and thread.is_alive():
-            thread.join(timeout=2)
+        # Clean up the output thread
+        if self.output_thread and self.output_thread.is_alive():
+            self.output_thread.join(timeout=2)
+        self.output_thread = None
+
+    async def get_previous_command(self):
+        """Get the previous command from history and send it to the terminal."""
+        if self.history_index > 0:
+            self.history_index -= 1
+            command = self.command_history[self.history_index]
+            await self.output_callback(f"\033[2K\r{command}")
+            return command
+        return self.command_history[0] if self.command_history else ""
+
+    async def get_next_command(self):
+        """Get the next command from history and send it to the terminal."""
+        if self.history_index < len(self.command_history) - 1:
+            self.history_index += 1
+            command = self.command_history[self.history_index]
+            await self.output_callback(f"\033[2K\r{command}")
+            return command
+        elif self.history_index == len(self.command_history) - 1:
+            self.history_index += 1
+            await self.output_callback("\033[2K\r")
+        return ""
+
+    async def clear_terminal(self):
+        """Return a dictionary to signal a terminal clear event."""
+        return {'type': 'clear'}

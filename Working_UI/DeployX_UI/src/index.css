@@ -1,0 +1,214 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Glass effect */
+.glass {
+  backdrop-filter: blur(12px);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.18);
+}
+
+/* Glass effect with reduced blur for content areas */
+.glass-light {
+  backdrop-filter: blur(4px);
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+/* Glowing border that traces around on hover via conic-gradient */
+.border-trace {
+  position: relative;
+  border-radius: 1rem;
+}
+.border-trace::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background:
+    conic-gradient(from var(--angle), #00FFF7, #00A8FF, transparent 210deg, transparent);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box, 
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: spin 3s linear infinite paused;
+}
+.border-trace:hover::before { animation-play-state: running; }
+@keyframes spin { to { --angle: 360deg; } }
+:root { --angle: 0deg; }
+
+/* CTA pulse */
+@keyframes pulseGlow {
+  0% { box-shadow: 0 0 10px #00FFF7, 0 0 20px #00A8FF; }
+  50% { box-shadow: 0 0 18px #00FFF7, 0 0 40px #00A8FF; }
+  100% { box-shadow: 0 0 10px #00FFF7, 0 0 20px #00A8FF; }
+}
+.btn-pulse { animation: pulseGlow 1.6s infinite; }
+
+/* Star glow */
+.star-glow { filter: drop-shadow(0 0 6px #00FFF7); }
+
+/* Ring meter */
+.ring {
+  --p: 75;
+  width: 96px; height: 96px;
+  background:
+    radial-gradient(closest-side, #001F3F 70%, transparent 72% 100%),
+    conic-gradient(#00FFF7 calc(var(--p) * 1%), rgba(255,255,255,0.08) 0);
+  border-radius: 50%;
+}
+
+/* Particle canvas should ignore pointer events */
+.particles { pointer-events: none; }
+
+/* Scrollbar subtle style */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #00A8FF #001F3F;
+}
+::-webkit-scrollbar { height: 8px; width: 8px; }
+::-webkit-scrollbar-thumb { background: #00A8FF; border-radius: 8px; }
+::-webkit-scrollbar-track { background: #001F3F; }
+
+/* Z-index fixes for interactive elements */
+.form-container {
+  position: relative;
+  z-index: 10;
+}
+
+.particles-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Interactive elements should have higher z-index */
+input, button, a, textarea, select {
+  position: relative;
+  z-index: 20;
+}
+
+/* ...existing code... */
+
+.border-light-animate {
+  position: relative;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.border-light-animate::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 1rem; /* matches rounded-2xl */
+  border: 2px solid transparent;
+  pointer-events: none;
+  z-index: 1;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.border-light-animate:hover::before {
+  border-color: #fff;
+  box-shadow: 0 0 12px 2px #fff, 0 0 24px 4px #ffffff55;
+  animation: border-glow 1.2s linear infinite;
+}
+
+@keyframes border-glow {
+  0% {
+    box-shadow: 0 0 12px 2px #fff, 0 0 24px 4px #ffffff55;
+  }
+  50% {
+    box-shadow: 0 0 24px 6px #fff, 0 0 36px 8px #ffffff99;
+  }
+  100% {
+    box-shadow: 0 0 12px 2px #fff, 0 0 24px 4px #ffffff55;
+  }
+}
+
+/* Services carousel fixes */
+.services-carousel {
+  position: relative;
+  z-index: 10;
+}
+
+.services-carousel .swiper-slide {
+  filter: brightness(1);
+  transition: filter 0.3s ease;
+}
+
+.services-carousel .swiper-slide-active {
+  filter: brightness(1.1);
+}
+
+/* Responsive navbar */
+.navbar-mobile {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .navbar-desktop {
+    display: none;
+  }
+  
+  .navbar-mobile {
+    display: block;
+  }
+}
+
+/*for map 21 august 2025*/
+.map-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.map-container iframe {
+  /* By default, the iframe is not interactive */
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.map-container .map-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: opacity 0.3s ease;
+}
+
+/* When the container is active... */
+.map-container.active iframe {
+  /* ...make the iframe interactive */
+  pointer-events: auto;
+}
+
+.map-container.active .map-overlay {
+  /* ...hide the overlay */
+  opacity: 0;
+  pointer-events: none; /* Make sure the hidden overlay can't be clicked */
+}

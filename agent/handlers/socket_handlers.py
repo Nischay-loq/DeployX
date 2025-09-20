@@ -2,6 +2,7 @@
 import logging
 from typing import Any, Callable, Dict
 from agent.core.shell_manager import ShellManager
+import platform
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,41 @@ class SocketEventHandler:
     async def handle_command_input(self, data: Dict[str, Any]):
         """Handle incoming command input."""
         command = data.get('command', '')
-        await self.shell_manager.execute_command(command)
+        
+        # Check if this is a ping command (but don't show note)
+        is_ping_command = command and "ping" in command.lower() and ("-t" in command or "-w" in command)
+        
+        # Special handling for control sequences
+        if command in ['\u0003', '^C', '\x03']:  # Ctrl+C variants
+            logger.info("Received interrupt signal request")
+            await self.shell_manager.send_interrupt(force=True)
+        elif command in ['\u001A', '^Z', '\x1A']:  # Ctrl+Z variants
+            logger.info("Received suspend signal request")
+            if platform.system().lower() == "windows":
+                # Removed message about Windows not supporting Ctrl+Z
+                await self.shell_manager.send_interrupt(force=True)
+            else:
+                await self.shell_manager.send_suspend(force=True)
+        elif command in ['\u0004', '^D', '\x04']:  # Ctrl+D variants
+            logger.info("Received EOF signal request")
+            await self.shell_manager.execute_command('\u0004')
+        elif is_ping_command and platform.system().lower() == "windows":
+            # No longer show the note about using Ctrl+C
+            await self.shell_manager.execute_command(command)
+        elif command in ['cls', 'clear']:
+            logger.info("Received clear screen request")
+            result = await self.shell_manager.clear_terminal()
+            if result and result.get('type') == 'clear':
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('clear_terminal')
+        elif command == '\u001b[A':  # Up arrow
+            logger.info("Received get previous command request")
+            await self.shell_manager.get_previous_command()
+        elif command == '\u001b[B':  # Down arrow
+            logger.info("Received get next command request")
+            await self.shell_manager.get_next_command()
+        else:
+            await self.shell_manager.execute_command(command)
 
     async def handle_interrupt_signal(self, data: Dict[str, Any]):
         """Handle interrupt signal request."""
