@@ -31,7 +31,7 @@ export default function DeploymentPage() {
   const [retryIds, setRetryIds] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const API_BASE = import.meta.env.VITE_API_URL.replace(/\/$/, "");
+  const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
   useEffect(() => {
     let mounted = true;

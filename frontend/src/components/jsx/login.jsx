@@ -9,7 +9,7 @@ function Login({ onLoginSuccess }) {
   const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
  
-   const API_URL = import.meta.env.VITE_API_URL.replace(/\/$/, "");  // This points to backend
+   const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");  // This points to backend
 
 
   // Auto-login if token exists in localStorage or sessionStorage

@@ -1,7 +1,8 @@
 import axios from "axios";
 
 // Ensure no trailing slash in VITE_API_URL
-const API_BASE = `${import.meta.env.VITE_API_URL.replace(/\/$/, "")}/groups`;
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_BASE = `${API_URL.replace(/\/$/, "")}/groups`;
 
 // Groups API
 export const fetchGroups = () => axios.get(`${API_BASE}/`);
@@ -17,6 +18,6 @@ export const removeDevice = (groupId, deviceId) =>
 
 // Devices API
 export const getDevices = async () => {
-  const res = await axios.get(`${import.meta.env.VITE_API_URL.replace(/\/$/, "")}/devices/`);
+  const res = await axios.get(`${API_URL.replace(/\/$/, "")}/devices/`);
   return res.data;
 };
