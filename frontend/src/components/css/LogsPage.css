@@ -1,0 +1,28 @@
+.logs-container {
+  max-width: 900px;
+  margin: 40px auto;
+  background: #f8f9fa;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+  padding: 32px;
+}
+.logs-filter {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.logs-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.logs-table th, .logs-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #eee;
+  text-align: left;
+}
+.info { color: #2980b9; }
+.warning { color: #f39c12; }
+.error { color: #e74c3c; }

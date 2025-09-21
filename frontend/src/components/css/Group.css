@@ -1,0 +1,184 @@
+.container {
+  max-width: 1200px;
+  margin: 20px auto;
+  padding: 0 20px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #222;
+}
+
+.groups-list {
+  margin-bottom: 30px;
+  background: #f5f5f5;
+  padding: 15px 20px;
+  border-radius: 8px;
+}
+
+.group-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: white;
+  margin-bottom: 8px;
+  border-radius: 5px;
+  box-shadow: 0 0 4px rgba(0,0,0,0.1);
+  cursor: default;
+}
+
+.group-info {
+  font-weight: 600;
+  font-size: 1.1em;
+}
+
+.create-btn {
+  padding: 10px 16px;
+  background-color: #6200ea;
+  border: none;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  margin-top: 10px;
+  transition: background-color 0.3s ease;
+}
+.create-btn:hover {
+  background-color: #3700b3;
+}
+
+/* Modal Styling */
+.modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 90%;
+  max-width: 900px;
+  height: 80vh;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  transform: translate(-50%, -50%);
+  display: flex;
+  overflow: hidden;
+  z-index: 1000;
+}
+
+.modal-left, .modal-right {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.modal-left {
+  flex: 1;
+  border-right: 1px solid #ddd;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-right {
+  flex: 1.5;
+}
+
+.close-btn {
+  align-self: flex-end;
+  background: transparent;
+  border: none;
+  font-size: 2em;
+  color: #555;
+  cursor: pointer;
+  margin-bottom: 10px;
+  transition: color 0.3s ease;
+}
+.close-btn:hover {
+  color: #e91e63;
+}
+
+.modal input[type="text"],
+.modal textarea {
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 1em;
+  resize: none;
+}
+
+.modal button {
+  padding: 10px 16px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  background-color: #6200ea;
+  color: white;
+  margin-top: 10px;
+  transition: background-color 0.3s ease;
+}
+.modal button:hover:not(:disabled) {
+  background-color: #3700b3;
+}
+.modal button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cancel-btn {
+  background-color: #aaa;
+  margin-left: 10px;
+}
+.cancel-btn:hover {
+  background-color: #888;
+}
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+
+th, td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #ddd;
+  text-align: left;
+}
+
+th {
+  background-color: #f0f0f0;
+  font-weight: 700;
+}
+
+.group-label {
+  background-color: #6200ea;
+  color: white;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
+.group-row {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+.group-row:hover, .group-row:focus {
+  background-color: #e0d7ff;
+  outline: none;
+}
+
+.not-in-group {
+  background-color: #fff0f6;
+}
+
+.device-name {
+  margin-left: 8px;
+  font-weight: 600;
+}
+
+/* Groups Table Section */
+.groups-table-section {
+  margin-top: 40px;
+}
+
+.groups-table-section h2 {
+  margin-bottom: 15px;
+}

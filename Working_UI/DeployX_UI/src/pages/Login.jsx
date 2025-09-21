@@ -1,22 +1,22 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, Shield, X } from "lucide-react";
-import { auth, googleProvider } from "../firebase";  // ✅ correct import
-import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
+import authService from "../services/auth.js";
 
 export default function Login() {
   const location = useLocation();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [notification, setNotification] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Pre-fill email if coming from signup
+  // Pre-fill username if coming from signup
   useEffect(() => {
     if (location.state?.email) {
-      setEmail(location.state.email);
+      setUsername(location.state.email);
     }
   }, [location.state]);
 
@@ -26,43 +26,29 @@ export default function Login() {
     setNotification(null);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await authService.login({ username, password }, rememberMe);
       setNotification({
         type: "success",
-        message: "Redirecting to dashboard… Email verified",
+        message: "Login successful! Redirecting to dashboard...",
       });
-
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 2000);
+      // Navigate immediately; App will also gate by auth state
+      navigate("/dashboard");
     } catch (error) {
       setNotification({
         type: "error",
-        message: error.message,
+        message: error?.message || "Unable to connect to the server. Please try again later.",
       });
     } finally {
       setIsLoading(false);
     }
   };
 
- const [googleLoading, setGoogleLoading] = useState(false);
-
-const handleGoogleLogin = async () => {
-  try {
-    setGoogleLoading(true);
-    await signInWithPopup(auth, googleProvider);
+  const handleGoogleLogin = async () => {
     setNotification({
-      type: "success",
-      message: "Signed in with Google! Redirecting…",
+      type: "error",
+      message: "Google login will be implemented in a future update.",
     });
-    setTimeout(() => navigate("/dashboard"), 2000);
-  } catch (error) {
-    setNotification({ type: "error", message: error.message });
-  } finally {
-    setGoogleLoading(false);
-  }
-};
-
+  };
 
   const handleClose = () => {
     navigate("/");
@@ -70,7 +56,7 @@ const handleGoogleLogin = async () => {
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(0,255,247,0.12),transparent_35%),radial-gradient(circle_at_80%_80%,rgba(0,168,255,0.12),transparent_35%)]">
-      {/* motion particles via CSS circles */}
+      {/* motion particles */}
       <div className="particles-background">
         {Array.from({ length: 20 }).map((_, i) => (
           <div
@@ -134,16 +120,15 @@ const handleGoogleLogin = async () => {
 
           {/* Form */}
           <form className="space-y-6" onSubmit={handleSubmit}>
-            {/* Email */}
+            {/* Username */}
             <div>
               <input
-                type="email"
-                placeholder="Email Address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                placeholder="Username or Email"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 required
-                className="w-full px-4 py-3 rounded-xl bg-cyberBlue/60 border border-neonAqua/40 text-softWhite
-                           focus:outline-none focus:ring-2 focus:ring-neonAqua/70 transition-all cursor-text"
+                className="w-full px-4 py-3 rounded-xl bg-cyberBlue/60 border border-neonAqua/40 text-softWhite focus:outline-none focus:ring-2 focus:ring-neonAqua/70 transition-all cursor-text"
               />
             </div>
 
@@ -155,8 +140,7 @@ const handleGoogleLogin = async () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 rounded-xl bg-cyberBlue/60 border border-neonAqua/40 text-softWhite
-                           focus:outline-none focus:ring-2 focus:ring-neonAqua/70 transition-all pr-12 cursor-text"
+                className="w-full px-4 py-3 rounded-xl bg-cyberBlue/60 border border-neonAqua/40 text-softWhite focus:outline-none focus:ring-2 focus:ring-neonAqua/70 transition-all pr-12 cursor-text"
               />
               <button
                 type="button"
@@ -172,6 +156,8 @@ const handleGoogleLogin = async () => {
               <label className="flex items-center gap-2 text-gray-400 cursor-pointer">
                 <input
                   type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
                   className="accent-electricBlue w-4 h-4 rounded cursor-pointer"
                 />
                 Remember me
@@ -203,23 +189,19 @@ const handleGoogleLogin = async () => {
               <hr className="flex-grow border-gray-600" />
             </div>
 
-           <button
-            type="button"
-            onClick={handleGoogleLogin}
-            disabled={googleLoading}
-            className={`w-full px-6 py-3 rounded-xl font-semibold flex items-center justify-center gap-3 transition-all
-              ${googleLoading 
-                ? "bg-gray-400 text-gray-700 cursor-not-allowed" 
-                : "bg-white text-gray-800 hover:shadow-lg cursor-pointer"}
-              disabled:opacity-50`}
-          >
-          <img
-            src="https://www.svgrepo.com/show/355037/google.svg"
-            alt="Google"
-            className="w-5 h-5"
-          />
-          {googleLoading ? "Signing in..." : "Continue with Google"}
-        </button>
+            {/* Google Button */}
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              className="w-full px-6 py-3 rounded-xl bg-white text-gray-800 font-semibold flex items-center justify-center gap-3 hover:shadow-lg transition-all cursor-pointer"
+            >
+              <img
+                src="https://www.svgrepo.com/show/355037/google.svg"
+                alt="Google"
+                className="w-5 h-5"
+              />
+              Continue with Google
+            </button>
 
             {/* Links */}
             <div className="text-center space-y-2">
