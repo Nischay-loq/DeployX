@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import asyncio
 import logging
+import uuid
 
 from .queue import command_queue, CommandStatus, CommandItem
 from .strategies import HybridDeploymentStrategy
@@ -29,7 +30,15 @@ class CommandBatchRequest(BaseModel):
     commands: List[str]
     agent_id: str
     shell: str = "cmd"
-    strategy: str = "transactional"
+    strategy: str = "batch"
+    config: Dict[str, Any] = {}
+    stop_on_failure: bool = True
+
+class SequentialBatchRequest(BaseModel):
+    commands: List[str]
+    agent_id: str
+    shell: str = "cmd"
+    stop_on_failure: bool = True
     config: Dict[str, Any] = {}
 
 class CommandResponse(BaseModel):
@@ -45,6 +54,19 @@ class CommandResponse(BaseModel):
     started_at: Optional[str]
     completed_at: Optional[str]
 
+class BatchStatusResponse(BaseModel):
+    batch_id: str
+    overall_status: str
+    progress: str
+    total_commands: int
+    successful_commands: int
+    failed_commands: int
+    current_command_index: int
+    started_at: Optional[str]
+    completed_at: Optional[str]
+    commands: List[Dict]
+    execution_log: List[str]
+
 class QueueStatsResponse(BaseModel):
     stats: Dict[str, int]
     active_commands: int
@@ -53,6 +75,30 @@ class QueueStatsResponse(BaseModel):
 async def get_deployment_strategies():
     """Get available deployment strategies."""
     return deployment_strategy.get_available_strategies()
+
+@router.get("/strategies/recommend")
+async def recommend_strategy(command: str, current_strategy: str = "transactional"):
+    """Recommend the best deployment strategy for a given command."""
+    try:
+        if not command:
+            raise HTTPException(status_code=400, detail="Command is required")
+        
+        recommended = deployment_strategy.choose_strategy_for_command(command)
+        
+        warning = None
+        if current_strategy == 'transactional' and recommended == 'snapshot':
+            warning = f"WARNING: Command '{command}' is destructive and may cause data loss. Consider using 'snapshot' strategy for better rollback capability."
+        
+        return {
+            "command": command,
+            "recommended_strategy": recommended,
+            "current_strategy": current_strategy,
+            "warning": warning,
+            "reason": f"Recommended '{recommended}' strategy for this type of operation"
+        }
+    except Exception as e:
+        logger.error(f"Error recommending strategy: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/commands", response_model=CommandResponse)
 async def add_command(request: CommandRequest, background_tasks: BackgroundTasks):
@@ -106,7 +152,7 @@ async def add_command(request: CommandRequest, background_tasks: BackgroundTasks
 
 @router.post("/commands/batch", response_model=List[CommandResponse])
 async def add_command_batch(request: CommandBatchRequest, background_tasks: BackgroundTasks):
-    """Add multiple commands to the execution queue."""
+    """Add multiple commands to the execution queue (parallel execution)."""
     try:
         cmd_ids = []
         responses = []
@@ -124,7 +170,7 @@ async def add_command_batch(request: CommandBatchRequest, background_tasks: Back
             cmd = command_queue.get_command(cmd_id)
             responses.append(CommandResponse(**cmd.dict()))
         
-        # Start execution for all commands in background
+        # Start execution for all commands in background (parallel)
         for cmd_id in cmd_ids:
             background_tasks.add_task(execute_command_async, cmd_id)
         
@@ -132,6 +178,114 @@ async def add_command_batch(request: CommandBatchRequest, background_tasks: Back
     
     except Exception as e:
         logger.error(f"Error adding command batch: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/commands/batch/sequential", response_model=BatchStatusResponse)
+async def add_sequential_batch(request: SequentialBatchRequest, background_tasks: BackgroundTasks):
+    """Add multiple commands for sequential execution with enhanced status tracking."""
+    try:
+        # Validate request
+        if not request.commands or len(request.commands) == 0:
+            raise HTTPException(status_code=400, detail="Commands list cannot be empty")
+        
+        if len(request.commands) > 50:  # Reasonable limit
+            raise HTTPException(status_code=400, detail="Too many commands in batch (max 50)")
+        
+        # Validate agent
+        if not request.agent_id or not request.agent_id.strip():
+            raise HTTPException(status_code=400, detail="Agent ID cannot be empty")
+        
+        # Get batch strategy
+        batch_strategy = deployment_strategy.get_batch_strategy()
+        
+        # Start sequential execution in background
+        background_tasks.add_task(
+            execute_sequential_batch_async, 
+            batch_strategy,
+            request.commands,
+            request.agent_id.strip(),
+            request.shell,
+            request.stop_on_failure,
+            request.config or {}
+        )
+        
+        # Return initial status (will be updated as execution progresses)
+        return BatchStatusResponse(
+            batch_id="pending",  # Will be updated when batch starts
+            overall_status="initializing",
+            progress="⏳ Initializing batch execution...",
+            total_commands=len(request.commands),
+            successful_commands=0,
+            failed_commands=0,
+            current_command_index=0,
+            started_at=None,
+            completed_at=None,
+            commands=[{
+                "command": cmd,
+                "cmd_id": "",
+                "status": "⏳ pending",
+                "output": "",
+                "error": "",
+                "started_at": None,
+                "completed_at": None,
+                "execution_time": 0
+            } for cmd in request.commands],
+            execution_log=["Batch execution queued for processing"]
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding sequential batch: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/batches", response_model=Dict[str, BatchStatusResponse])
+async def get_all_batch_statuses():
+    """Get status of all active batch executions."""
+    try:
+        batch_strategy = deployment_strategy.get_batch_strategy()
+        active_batches = batch_strategy.get_all_active_batches()
+        
+        return {
+            batch_id: BatchStatusResponse(**batch_data)
+            for batch_id, batch_data in active_batches.items()
+        }
+    except Exception as e:
+        logger.error(f"Error getting batch statuses: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/batches/{batch_id}", response_model=BatchStatusResponse)
+async def get_batch_status(batch_id: str):
+    """Get status of a specific batch execution."""
+    try:
+        batch_strategy = deployment_strategy.get_batch_strategy()
+        batch_status = batch_strategy.get_batch_status(batch_id)
+        
+        if not batch_status:
+            raise HTTPException(status_code=404, detail="Batch not found")
+        
+        return BatchStatusResponse(**batch_status)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting batch status for {batch_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/batches/{batch_id}")
+async def cleanup_batch(batch_id: str):
+    """Clean up a completed batch from active tracking."""
+    try:
+        batch_strategy = deployment_strategy.get_batch_strategy()
+        success = batch_strategy.cleanup_completed_batch(batch_id)
+        
+        if not success:
+            raise HTTPException(status_code=400, detail="Cannot cleanup batch (not found or still active)")
+        
+        return {"message": f"Batch {batch_id} cleaned up successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error cleaning up batch {batch_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/commands", response_model=List[CommandResponse])
@@ -257,6 +411,16 @@ async def rollback_command(cmd_id: str, background_tasks: BackgroundTasks):
         logger.error(f"Error rolling back command {cmd_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.delete("/commands/completed")
+async def clear_completed_commands():
+    """Clear all completed and failed commands."""
+    try:
+        cleared_count = command_queue.clear_completed()
+        return {"message": f"Cleared {cleared_count} completed commands"}
+    except Exception as e:
+        logger.error(f"Error clearing completed commands: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.delete("/commands/{cmd_id}")
 async def delete_command(cmd_id: str):
     """Delete a command from the queue."""
@@ -269,16 +433,6 @@ async def delete_command(cmd_id: str):
         raise
     except Exception as e:
         logger.error(f"Error deleting command {cmd_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.delete("/commands/completed")
-async def clear_completed_commands():
-    """Clear all completed and failed commands."""
-    try:
-        cleared_count = command_queue.clear_completed()
-        return {"message": f"Cleared {cleared_count} completed commands"}
-    except Exception as e:
-        logger.error(f"Error clearing completed commands: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/stats", response_model=QueueStatsResponse)
@@ -317,3 +471,30 @@ async def execute_command_async(cmd_id: str):
             CommandStatus.FAILED, 
             error=str(e)
         )
+
+async def execute_sequential_batch_async(batch_strategy, commands: List[str], agent_id: str, 
+                                       shell: str, stop_on_failure: bool, config: Dict[str, Any]):
+    """Execute a batch of commands sequentially with status updates."""
+    try:
+        logger.info(f"Starting sequential batch execution for agent {agent_id} with {len(commands)} commands")
+        
+        # Define callback for real-time status updates (could be extended for WebSocket notifications)
+        async def status_callback(batch_result):
+            logger.info(f"Batch {batch_result.batch_id} progress: {batch_result.get_progress_summary()}")
+            # Here you could emit WebSocket events for real-time UI updates
+            # await emit_batch_status_update(batch_result)
+        
+        # Execute the batch
+        result = await batch_strategy.execute_batch_sequential(
+            commands=commands,
+            agent_id=agent_id,
+            shell=shell,
+            stop_on_failure=stop_on_failure,
+            callback=status_callback
+        )
+        
+        logger.info(f"Sequential batch {result.batch_id} completed with status: {result.overall_status}")
+        
+    except Exception as e:
+        logger.error(f"Error in sequential batch execution: {e}")
+        # Here you could update the batch status to show the error

@@ -1,4 +1,5 @@
 """Socket.IO event handlers for DeployX agent."""
+import asyncio
 import logging
 from typing import Any, Callable, Dict
 from agent.core.shell_manager import ShellManager
@@ -17,13 +18,13 @@ class SocketEventHandler:
         self.shell_manager = shell_manager
         self._connection = connection
 
-    async def handle_connect(self):
+    async def handle_connect(self, data: Dict[str, Any] = None):
         """Handle socket connection event."""
         logger.info("Connected to backend server")
 
-    async def handle_disconnect(self):
+    async def handle_disconnect(self, data: Dict[str, Any] = None):
         """Handle socket disconnection event."""
-        logger.info("Disconnected from backend server")
+        logger.info(f"Disconnected from backend server: {data}")
         await self.shell_manager.cleanup_process()
 
     async def handle_connect_error(self, data: Dict[str, Any]):
@@ -221,18 +222,64 @@ class SocketEventHandler:
             # Temporarily replace the callback
             self.shell_manager.output_callback = deployment_specific_callback
             
+            command_output = ""
+            command_success = True
+            
+            async def enhanced_deployment_callback(output: str):
+                """Enhanced callback that captures output and tracks command completion."""
+                nonlocal command_output, command_success
+                command_output += output
+                
+                # Call original callback if it exists
+                if original_callback:
+                    await original_callback(output)
+                
+                # Also send deployment-specific output
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('deployment_command_output', {
+                        'command_id': cmd_id,
+                        'output': output
+                    })
+                
+                # Check for common error indicators in the output
+                error_indicators = [
+                    "Access is denied",
+                    "The system cannot find",
+                    "Permission denied",
+                    "No such file or directory",
+                    "command not found",
+                    "is not recognized as an internal or external command",
+                    "The filename, directory name, or volume label syntax is incorrect",
+                    "Cannot remove",
+                    "Failed to",
+                    "Error:",
+                    "FATAL:",
+                    "syntax error"
+                ]
+                
+                for indicator in error_indicators:
+                    if indicator.lower() in output.lower():
+                        command_success = False
+                        break
+            
+            # Use the enhanced callback
+            self.shell_manager.output_callback = enhanced_deployment_callback
+            
             try:
                 # Execute the command
                 result = await self.shell_manager.execute_command(command + '\n')
                 
-                # Command completed successfully
-                logger.info(f"Deployment command {cmd_id} completed successfully")
+                # Wait a bit for command to complete and output to be captured
+                await asyncio.sleep(0.5)
+                
+                # Determine success based on output analysis
+                logger.info(f"Deployment command {cmd_id} completed with success: {command_success}")
                 if self._connection and self._connection.connected:
                     await self._connection.emit('deployment_command_completed', {
                         'command_id': cmd_id,
-                        'success': True,
-                        'output': '',  # Output was already sent via callback
-                        'error': ''
+                        'success': command_success,
+                        'output': command_output,
+                        'error': '' if command_success else 'Command execution failed (see output for details)'
                     })
                     
             except Exception as e:
@@ -243,7 +290,7 @@ class SocketEventHandler:
                     await self._connection.emit('deployment_command_completed', {
                         'command_id': cmd_id,
                         'success': False,
-                        'output': '',
+                        'output': command_output,
                         'error': error_msg
                     })
             finally:
@@ -278,7 +325,8 @@ class SocketEventHandler:
             'interrupt_signal': self.handle_interrupt_signal,
             'get_shells': self.handle_get_shells,
             'stop_shell_request': self._handle_stop_shell_request,
-            'execute_deployment_command': self.handle_execute_deployment_command
+            'execute_deployment_command': self.handle_execute_deployment_command,
+            'execute_batch_persistent': self.handle_execute_batch_persistent
         }
 
     async def _handle_stop_shell_request(self, data: Dict[str, Any]):
@@ -291,3 +339,251 @@ class SocketEventHandler:
                 logger.info("Sent shell_stopped event to backend")
         except Exception as e:
             logger.exception(f"Error handling stop shell request: {e}")
+
+    async def handle_execute_batch_persistent(self, data: Dict[str, Any]):
+        """Handle batch command execution with persistent shell session."""
+        try:
+            batch_id = data.get('batch_id')
+            commands = data.get('commands', [])
+            shell = data.get('shell', 'cmd')
+            stop_on_failure = data.get('stop_on_failure', True)
+            
+            logger.info(f"Received persistent batch execution request {batch_id} with {len(commands)} commands")
+            
+            if not batch_id or not commands:
+                error_msg = "Batch ID and commands are required for persistent batch execution"
+                logger.error(error_msg)
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('batch_execution_completed', {
+                        'batch_id': batch_id,
+                        'success': False,
+                        'error': error_msg
+                    })
+                return
+            
+            # Ensure we have a clean shell session for the batch
+            if (self.shell_manager.running and 
+                self.shell_manager.current_process and 
+                self.shell_manager.current_process.poll() is None):
+                # Use existing shell session
+                logger.info(f"Using existing shell session for batch {batch_id}")
+            else:
+                # Start a new shell session
+                logger.info(f"Starting new shell {shell} for batch {batch_id}")
+                from agent.utils.shell_detector import detect_shells
+                shells = detect_shells()
+                
+                if shell not in shells:
+                    error_msg = f"Shell {shell} not available"
+                    logger.error(error_msg)
+                    if self._connection and self._connection.connected:
+                        await self._connection.emit('batch_execution_completed', {
+                            'batch_id': batch_id,
+                            'success': False,
+                            'error': error_msg
+                        })
+                    return
+                
+                shell_path = shells[shell]
+                
+                async def batch_output_callback(output: str):
+                    """Callback for batch command output."""
+                    if self._connection and self._connection.connected:
+                        await self._connection.emit('batch_command_output', {
+                            'batch_id': batch_id,
+                            'output': output
+                        })
+                
+                success = await self.shell_manager.start_shell(shell, shell_path, batch_output_callback)
+                if not success:
+                    error_msg = f"Failed to start shell {shell} for batch execution"
+                    logger.error(error_msg)
+                    if self._connection and self._connection.connected:
+                        await self._connection.emit('batch_execution_completed', {
+                            'batch_id': batch_id,
+                            'success': False,
+                            'error': error_msg
+                        })
+                    return
+            
+            # Execute commands sequentially in the same shell session
+            all_output = ""
+            successful_commands = 0
+            failed_commands = 0
+            execution_results = []
+            
+            for i, command in enumerate(commands):
+                command = command.strip()
+                if not command:
+                    continue
+                    
+                logger.info(f"Executing command {i+1}/{len(commands)} in batch {batch_id}: {command}")
+                
+                # Track command execution
+                command_output = ""
+                command_success = True
+                command_start_time = asyncio.get_event_loop().time()
+                
+                # Enhanced callback to capture command-specific output
+                original_callback = self.shell_manager.output_callback
+                
+                async def command_specific_callback(output: str):
+                    """Enhanced callback that captures output for this specific command."""
+                    nonlocal command_output, command_success, all_output
+                    command_output += output
+                    all_output += output
+                    
+                    # Call original callback
+                    if original_callback:
+                        await original_callback(output)
+                    
+                    # Send command-specific progress
+                    if self._connection and self._connection.connected:
+                        await self._connection.emit('batch_command_progress', {
+                            'batch_id': batch_id,
+                            'command_index': i,
+                            'command': command,
+                            'output': output,
+                            'status': 'running'
+                        })
+                    
+                    # Check for error indicators
+                    error_indicators = [
+                        "Access is denied",
+                        "The system cannot find",
+                        "Permission denied", 
+                        "No such file or directory",
+                        "command not found",
+                        "is not recognized as an internal or external command",
+                        "The filename, directory name, or volume label syntax is incorrect",
+                        "Cannot remove",
+                        "Failed to",
+                        "Error:",
+                        "FATAL:",
+                        "syntax error"
+                    ]
+                    
+                    for indicator in error_indicators:
+                        if indicator.lower() in output.lower():
+                            command_success = False
+                            break
+                
+                # Set the enhanced callback
+                self.shell_manager.output_callback = command_specific_callback
+                
+                try:
+                    # Execute the command in the persistent shell
+                    result = await self.shell_manager.execute_command(command + '\n')
+                    
+                    # Wait for command completion (check for prompt return or timeout)
+                    await self._wait_for_command_completion(command, timeout=30)
+                    
+                    command_end_time = asyncio.get_event_loop().time()
+                    execution_time = command_end_time - command_start_time
+                    
+                    # Record command result
+                    command_result = {
+                        'command': command,
+                        'index': i,
+                        'success': command_success,
+                        'output': command_output,
+                        'execution_time': execution_time,
+                        'error': '' if command_success else 'Command execution failed (see output for details)'
+                    }
+                    execution_results.append(command_result)
+                    
+                    if command_success:
+                        successful_commands += 1
+                        logger.info(f"Command {i+1} completed successfully")
+                    else:
+                        failed_commands += 1
+                        logger.warning(f"Command {i+1} failed: {command}")
+                        
+                        if stop_on_failure:
+                            logger.info(f"Stopping batch {batch_id} due to failure at command {i+1}")
+                            # Mark remaining commands as skipped
+                            for j in range(i + 1, len(commands)):
+                                execution_results.append({
+                                    'command': commands[j].strip(),
+                                    'index': j,
+                                    'success': False,
+                                    'output': '',
+                                    'execution_time': 0,
+                                    'error': 'Skipped due to previous failure'
+                                })
+                            break
+                    
+                    # Send command completion status
+                    if self._connection and self._connection.connected:
+                        await self._connection.emit('batch_command_completed', {
+                            'batch_id': batch_id,
+                            'command_index': i,
+                            'command': command,
+                            'success': command_success,
+                            'output': command_output,
+                            'error': command_result['error']
+                        })
+                        
+                except Exception as e:
+                    failed_commands += 1
+                    error_msg = f"Command execution failed: {str(e)}"
+                    logger.error(f"Command {i+1} in batch {batch_id} failed: {error_msg}")
+                    
+                    execution_results.append({
+                        'command': command,
+                        'index': i,
+                        'success': False,
+                        'output': command_output,
+                        'execution_time': asyncio.get_event_loop().time() - command_start_time,
+                        'error': error_msg
+                    })
+                    
+                    if stop_on_failure:
+                        logger.info(f"Stopping batch {batch_id} due to error at command {i+1}")
+                        break
+                        
+                finally:
+                    # Restore original callback
+                    self.shell_manager.output_callback = original_callback
+            
+            # Send final batch completion status
+            overall_success = failed_commands == 0
+            logger.info(f"Batch {batch_id} completed: {successful_commands} successful, {failed_commands} failed")
+            
+            if self._connection and self._connection.connected:
+                await self._connection.emit('batch_execution_completed', {
+                    'batch_id': batch_id,
+                    'success': overall_success,
+                    'total_commands': len(commands),
+                    'successful_commands': successful_commands,
+                    'failed_commands': failed_commands,
+                    'execution_results': execution_results,
+                    'output': all_output,
+                    'error': '' if overall_success else f'{failed_commands} command(s) failed'
+                })
+                    
+        except Exception as e:
+            error_msg = f"Error handling persistent batch execution: {str(e)}"
+            logger.exception(error_msg)
+            if self._connection and self._connection.connected:
+                await self._connection.emit('batch_execution_completed', {
+                    'batch_id': data.get('batch_id', ''),
+                    'success': False,
+                    'error': error_msg
+                })
+
+    async def _wait_for_command_completion(self, command: str, timeout: int = 30):
+        """Wait for command completion by monitoring output for prompt return."""
+        start_time = asyncio.get_event_loop().time()
+        last_output_time = start_time
+        
+        # Simple approach: wait a reasonable time for command to complete
+        # This could be enhanced to detect shell prompts more intelligently
+        await asyncio.sleep(1.0)  # Base wait time
+        
+        # For known long-running commands, wait longer
+        if any(keyword in command.lower() for keyword in ['ping', 'tracert', 'nslookup', 'download', 'install']):
+            await asyncio.sleep(3.0)
+        
+        # Additional smart waiting could be implemented here based on shell type
+        # and command patterns
