@@ -87,9 +87,9 @@ const TerminalComponent = () => {
     fontFamily: 'Consolas, "Cascadia Code", "Source Code Pro", "Courier New", monospace',
     fontWeight: 500,
     letterSpacing: 0,
-    rows: 24,
-    cols: 80,
-  scrollback: 1000,
+    cols: 100,
+    rows: 30,
+    scrollback: 1000,
     allowTransparency: true,
     theme: {
       background: '#1a1a1a',
@@ -113,9 +113,7 @@ const TerminalComponent = () => {
       brightMagenta: '#d670d6',
       brightCyan: '#29b8db',
       brightWhite: '#e5e5e5'
-    },
-    cols: 100,
-    rows: 30
+    }
   };
 
   // Initialize terminal

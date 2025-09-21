@@ -2,7 +2,9 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 class DeploymentCreate(BaseModel):
-    group_ids: List[int]
+    group_ids: List[int] = []
+    device_ids: List[int] = []
+    software_ids: List[int] = []
     deployment_name: Optional[str] = None
 
 class DeploymentResponse(BaseModel):
@@ -19,3 +21,6 @@ class DeploymentProgressResponse(BaseModel):
     completed: bool
     
     model_config = {"from_attributes": True}
+
+class RetryRequest(BaseModel):
+    device_ids: List[int]

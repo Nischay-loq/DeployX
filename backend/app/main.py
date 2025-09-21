@@ -10,8 +10,10 @@ import uvicorn
 import os
 from app.grouping.route import router as groups_router
 from app.Devices.routes import router as devices_router
+from app.Deployments.routes import router as deployments_router
 from app.auth import routes, models
 from app.auth.database import engine
+from app.grouping import models as grouping_models  # Import grouping models
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -31,17 +33,36 @@ models.Base.metadata.create_all(bind=engine)
 
 # Create FastAPI app
 app = FastAPI(title="Remote Command Execution Backend")
+
+# Add CORS middleware BEFORE including routers
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",  # Vite dev server
+        "http://127.0.0.1:5173",  # Alternative localhost
+        "http://localhost:3000",  # Alternative React dev server
+        "http://127.0.0.1:3000",  # Alternative React dev server
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
+
 app.include_router(routes.router)
 app.include_router(groups_router)
 app.include_router(devices_router)
+app.include_router(deployments_router)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["*"],  # You can also restrict headers if needed
-)
+# Health check endpoint
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "message": "Backend is running"}
+
+# Add explicit OPTIONS handler for CORS preflight
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    return {"message": "OK"}
 
 
 # Routes are already included above

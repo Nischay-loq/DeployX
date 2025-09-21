@@ -44,10 +44,30 @@ export default function Login() {
   };
 
   const handleGoogleLogin = async () => {
-    setNotification({
-      type: "error",
-      message: "Google login will be implemented in a future update.",
-    });
+    try {
+      // For demo purposes, we'll use a mock token
+      // In a real implementation, you would use Google's OAuth library
+      const mockGoogleToken = "mock_google_token_" + Date.now();
+      
+      setIsLoading(true);
+      await authService.googleLogin(mockGoogleToken, rememberMe);
+      
+      setNotification({
+        type: "success",
+        message: "Google login successful! Redirecting to dashboard...",
+      });
+      
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 1000);
+    } catch (error) {
+      setNotification({
+        type: "error",
+        message: error?.message || "Google login failed. Please try again.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleClose = () => {
@@ -193,14 +213,15 @@ export default function Login() {
             <button
               type="button"
               onClick={handleGoogleLogin}
-              className="w-full px-6 py-3 rounded-xl bg-white text-gray-800 font-semibold flex items-center justify-center gap-3 hover:shadow-lg transition-all cursor-pointer"
+              disabled={isLoading}
+              className="w-full px-6 py-3 rounded-xl bg-white text-gray-800 font-semibold flex items-center justify-center gap-3 hover:shadow-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <img
                 src="https://www.svgrepo.com/show/355037/google.svg"
                 alt="Google"
                 className="w-5 h-5"
               />
-              Continue with Google
+              {isLoading ? "Signing in..." : "Continue with Google"}
             </button>
 
             {/* Links */}
