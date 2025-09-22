@@ -10,10 +10,14 @@ import uvicorn
 import os
 from app.grouping.route import router as groups_router
 from app.Devices.routes import router as devices_router
+from app.agents.routes import router as agents_router
 from app.auth import routes, models
-from app.auth.database import engine
+from app.agents import models as agent_models, crud as agent_crud, schemas as agent_schemas
+from app.auth.database import engine, get_db
 from app.command_deployment.routes import router as deployment_router
 from app.command_deployment.executor import command_executor
+from app.auth.database import get_db
+from app.agents import crud as agent_crud, schemas as agent_schemas
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -30,12 +34,14 @@ sio = socketio.AsyncServer(
 )
 
 models.Base.metadata.create_all(bind=engine)
+agent_models.Base.metadata.create_all(bind=engine)
 
 # Create FastAPI app
 app = FastAPI(title="Remote Command Execution Backend")
 app.include_router(routes.router)
 app.include_router(groups_router)
 app.include_router(devices_router)
+app.include_router(agents_router)
 app.include_router(deployment_router)
 
 app.add_middleware(
@@ -45,9 +51,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],  # You can also restrict headers if needed
 )
-
-
-# Routes are already included above
 
 # Store connected agents and frontends
 class ConnectionManager:
@@ -77,34 +80,23 @@ class ConnectionManager:
     
     def remove_connection(self, sid: str):
         """Remove a connection by session ID"""
-        connection_type = self.sid_to_type.get(sid)
+        connection_type = self.sid_to_type.pop(sid, None)
         
         if connection_type == 'agent':
-            agent_id = self.sid_to_agent.get(sid)
+            agent_id = self.sid_to_agent.pop(sid, None)
             if agent_id:
-                # Clean up agent
-                if sid in self.sid_to_agent:
-                    del self.sid_to_agent[sid]
-                if agent_id in self.agents:
-                    del self.agents[agent_id]
-                if agent_id in self.agent_frontend_mapping:
-                    del self.agent_frontend_mapping[agent_id]
+                self.agents.pop(agent_id, None)
+                self.agent_frontend_mapping.pop(agent_id, None)
                 logger.info(f"Agent {agent_id} disconnected (sid: {sid})")
                 return 'agent', agent_id
                 
         elif connection_type == 'frontend':
-            # Clean up frontend
             self.frontends.discard(sid)
-            # Remove any agent mappings for this frontend
             to_remove = [agent_id for agent_id, frontend_sid in self.agent_frontend_mapping.items() if frontend_sid == sid]
             for agent_id in to_remove:
                 del self.agent_frontend_mapping[agent_id]
             logger.info(f"Frontend disconnected (sid: {sid})")
             return 'frontend', None
-        
-        # Clean up tracking
-        if sid in self.sid_to_type:
-            del self.sid_to_type[sid]
             
         return None, None
     
@@ -136,6 +128,35 @@ class ConnectionManager:
 # Initialize connection manager
 conn_manager = ConnectionManager()
 
+# Helper function to get and send agent list
+async def _update_and_send_agent_list(sid=None):
+    """Helper to fetch agents from DB, update status, and emit to frontends."""
+    db = next(get_db())
+    try:
+        db_agents = agent_crud.get_agents(db, limit=1000)
+        online_agent_ids = set(conn_manager.get_agent_list())
+        
+        agents_with_status = []
+        for agent in db_agents:
+            # Use from_orm to convert SQLAlchemy model to Pydantic model
+            agent_pydantic = agent_schemas.AgentResponse.from_orm(agent)
+            agent_info = agent_pydantic.model_dump()
+            agent_info['status'] = 'online' if agent.agent_id in online_agent_ids else 'offline'
+            agents_with_status.append(agent_info)
+
+        target = sid if sid else None
+        if target:
+            await sio.emit('agents_list', agents_with_status, room=target)
+            logger.info(f"Sent full agent list to frontend {sid}")
+        else:
+            await sio.emit('agents_list', agents_with_status)
+            logger.info("Sent full agent list to all frontends")
+            
+    except Exception as e:
+        logger.error(f"Error in _update_and_send_agent_list: {e}")
+    finally:
+        db.close()
+
 # Set up command executor with socket.io and connection manager
 command_executor.set_socketio(sio, conn_manager)
 
@@ -151,14 +172,23 @@ async def disconnect(sid):
     try:
         connection_type, agent_id = conn_manager.remove_connection(sid)
         
-        if connection_type == 'agent':
-            # Notify all frontends about agent disconnection with a small delay
-            await asyncio.sleep(0.1)  # Small delay to prevent race conditions
-            await sio.emit('agents_list', conn_manager.get_agent_list())
+        if connection_type == 'agent' and agent_id:
+            # Update agent status in the database to 'offline'
+            db = next(get_db())
+            try:
+                agent_crud.update_agent_status(db, agent_id, "offline")
+                logger.info(f"Agent {agent_id} status updated to offline in database.")
+            finally:
+                db.close()
+
+            # Notify all frontends about agent list change
+            await _update_and_send_agent_list()
+            
         elif connection_type == 'frontend':
             logger.info(f"Frontend {sid} disconnected")
+            
     except Exception as e:
-        logger.error(f"Error handling disconnect: {e}")
+        logger.error(f"Error handling disconnect for sid {sid}: {e}")
 
 @sio.event
 async def get_shells(sid, agent_id):
@@ -187,19 +217,27 @@ async def get_shells(sid, agent_id):
 async def agent_register(sid, data):
     """Handle agent registration"""
     try:
-        agent_id = data.get('agent_id', f'agent_{sid[:8]}')
-        shells = data.get('shells', ['cmd'])
+        logger.info(f"Agent registration request from {sid} with data: {data}")
         
-        logger.info(f"Agent registration request: {agent_id} with shells {shells}")
+        # Validate data
+        reg_data = agent_schemas.AgentRegistrationRequest(**data)
         
-        conn_manager.add_agent(agent_id, sid, shells)
+        # Use a database session
+        db = next(get_db())
+        try:
+            agent = agent_crud.register_or_update_agent(db, reg_data)
+            logger.info(f"Agent {agent.agent_id} registered/updated in database.")
+        finally:
+            db.close()
+            
+        conn_manager.add_agent(reg_data.agent_id, sid, reg_data.shells)
         
-        # Notify all frontends about new agent
-        await sio.emit('agents_list', conn_manager.get_agent_list())
+        # Notify all frontends about the updated agent list
+        await _update_and_send_agent_list()
         
         # Confirm registration to the agent
-        await sio.emit('registration_success', {'agent_id': agent_id}, room=sid)
-        logger.info(f"Agent {agent_id} registered successfully")
+        await sio.emit('registration_success', {'agent_id': reg_data.agent_id}, room=sid)
+        logger.info(f"Agent {reg_data.agent_id} registered successfully via socket.")
         
     except Exception as e:
         logger.error(f"Error registering agent: {e}")
@@ -213,9 +251,7 @@ async def frontend_register(sid, data):
         conn_manager.add_frontend(sid)
         
         # Send current agent list to the new frontend
-        agent_list = conn_manager.get_agent_list()
-        await sio.emit('agents_list', agent_list, room=sid)
-        logger.info(f"Sent agent list to frontend {sid}: {agent_list}")
+        await _update_and_send_agent_list(sid=sid)
         
     except Exception as e:
         logger.error(f"Error registering frontend: {e}")
@@ -462,7 +498,9 @@ async def root():
 # Mount Socket.IO app
 socket_app = socketio.ASGIApp(sio, app)
 
-app.mount("/", socket_app)  # Mount Socket.IO app at the root
+# This was the original mounting point, but it's better to mount at the root
+# to align with standard practices and simplify client connection URLs.
+# app.mount("/socket.io", socket_app)
 
 def start():
     """Start the backend server."""
