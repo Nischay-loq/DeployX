@@ -4,6 +4,8 @@ import { useState } from 'react'
 
 export default function Contact() {
   const [isMapActive, setIsMapActive] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitStatus, setSubmitStatus] = useState(null) // null, 'success', 'error'
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -13,11 +15,36 @@ export default function Contact() {
     message: ''
   })
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    // Handle form submission logic here
-    console.log('Form submitted:', formData)
-    // You could add success message here
+    setIsSubmitting(true)
+    setSubmitStatus(null)
+    
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      
+      // Handle form submission logic here
+      console.log('Form submitted:', formData)
+      
+      setSubmitStatus('success')
+      // Reset form after successful submission
+      setFormData({
+        firstName: '',
+        lastName: '',
+        email: '',
+        company: '',
+        subject: '',
+        message: ''
+      })
+    } catch (error) {
+      console.error('Form submission error:', error)
+      setSubmitStatus('error')
+    } finally {
+      setIsSubmitting(false)
+      // Clear status message after 5 seconds
+      setTimeout(() => setSubmitStatus(null), 5000)
+    }
   }
 
   const handleInputChange = (e) => {
@@ -161,13 +188,50 @@ export default function Contact() {
                   ></textarea>
                 </div>
                 
-                <button 
+                {/* Status Messages */}
+                {submitStatus === 'success' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-green-500/20 border border-green-500/30 rounded-lg p-4 text-green-400 text-center"
+                  >
+                    ✅ Message sent successfully! We'll get back to you within 24 hours.
+                  </motion.div>
+                )}
+                
+                {submitStatus === 'error' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-red-500/20 border border-red-500/30 rounded-lg p-4 text-red-400 text-center"
+                  >
+                    ❌ Failed to send message. Please try again or contact us directly.
+                  </motion.div>
+                )}
+                
+                <motion.button 
                   type="submit" 
-                  className="btn-cta w-full group"
+                  disabled={isSubmitting}
+                  whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
+                  whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
+                  className={`w-full font-semibold py-4 px-8 rounded-xl transition-all duration-300 shadow-lg group flex items-center justify-center gap-2 ${
+                    isSubmitting 
+                      ? 'bg-gray-600 cursor-not-allowed text-gray-300' 
+                      : 'bg-gradient-to-r from-primary-500 to-accent-cyan hover:from-primary-600 hover:to-accent-cyan/90 text-white hover:shadow-primary-500/25'
+                  }`}
                 >
-                  <Send className="w-5 h-5 mr-2 transition-transform group-hover:translate-x-1" />
-                  Send Message
-                </button>
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-gray-300 border-t-transparent rounded-full animate-spin"></div>
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+                      Send Message
+                    </>
+                  )}
+                </motion.button>
               </form>
             </div>
           </motion.div>

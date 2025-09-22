@@ -14,6 +14,7 @@ from app.auth import routes, models
 from app.auth.database import engine
 from app.command_deployment.routes import router as deployment_router
 from app.command_deployment.executor import command_executor
+from app.files.routes import router as files_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -37,6 +38,7 @@ app.include_router(routes.router)
 app.include_router(groups_router)
 app.include_router(devices_router)
 app.include_router(deployment_router)
+app.include_router(files_router)
 
 app.add_middleware(
     CORSMiddleware,

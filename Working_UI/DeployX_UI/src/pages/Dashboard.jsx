@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import authService from '../services/auth.js';
 import Terminal from '../components/Terminal.jsx';
 import DeploymentManager from '../components/DeploymentManager.jsx';
+import FileManagementPanel from '../components/FileManagementPanel.jsx';
 import io from 'socket.io-client';
 import { 
   Terminal as TerminalIcon, 
@@ -30,14 +32,15 @@ export default function Dashboard({ onLogout }) {
   const [connectionError, setConnectionError] = useState(null);
   const socketRef = useRef(null);
   const isMountedRef = useRef(true);
+  const navigate = useNavigate();
   const user = authService.getCurrentUser();
 
   const sections = [
-    { id: 'shell', name: 'Remote Shell', icon: TerminalIcon, color: 'text-cyan-400' },
-    { id: 'deployment', name: 'Deployment', icon: Command, color: 'text-purple-400' },
-    { id: 'files', name: 'File System', icon: FolderOpen, color: 'text-blue-400' },
-    { id: 'system', name: 'System Info', icon: Monitor, color: 'text-green-400' },
-    { id: 'network', name: 'Network', icon: Network, color: 'text-purple-400' },
+    { id: 'shell', name: 'Remote Shell', icon: TerminalIcon, color: 'text-[#4dd0e1]' },
+    { id: 'deployment', name: 'Deployment', icon: Command, color: 'text-[#81c784]' },
+    { id: 'files', name: 'File Management', icon: FolderOpen, color: 'text-[#4dd0e1]' },
+    { id: 'system', name: 'System Info', icon: Monitor, color: 'text-[#81c784]' },
+    { id: 'network', name: 'Network', icon: Network, color: 'text-[#4dd0e1]' },
     { id: 'processes', name: 'Processes', icon: Activity, color: 'text-yellow-400' },
     { id: 'services', name: 'Services', icon: Settings, color: 'text-red-400' }
   ];
@@ -195,17 +198,17 @@ export default function Dashboard({ onLogout }) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen bg-[#1a1a2e]">
       {/* Header */}
-      <header className="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 px-6 py-4">
+      <header className="bg-[#232338] backdrop-blur-sm border-b border-[#3a3a4c] px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-gradient-to-r from-primary-500 to-accent-cyan rounded-xl flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-xl font-display">DX</span>
+            <div className="w-12 h-12 bg-gradient-to-r from-[#4dd0e1] to-[#81c784] rounded-xl flex items-center justify-center shadow-lg">
+              <span className="text-[#1a1a2e] font-bold text-xl font-display">DX</span>
             </div>
             <div>
-              <h1 className="text-2xl font-bold font-display text-white">DeployX Dashboard</h1>
-              <p className="text-sm text-gray-400">
+              <h1 className="text-2xl font-bold font-display text-[#e0e0e0]">DeployX Dashboard</h1>
+              <p className="text-sm text-[#a0a0a0]">
                 {user?.username ? `Welcome back, ${user.username}` : 'Remote System Management Console'}
               </p>
             </div>
@@ -214,43 +217,43 @@ export default function Dashboard({ onLogout }) {
           <div className="flex items-center gap-4">
             {/* Search */}
             <div className="relative hidden md:block">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-[#6a6a80]" />
               <input 
                 type="text" 
                 placeholder="Search..." 
-                className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
+                className="pl-10 pr-4 py-2 bg-[#1a1a2e] border border-[#3a3a4c] rounded-lg text-[#e0e0e0] placeholder-[#6a6a80] focus:border-[#4dd0e1] focus:ring-1 focus:ring-[#4dd0e1] outline-none transition-all"
               />
             </div>
             
             {/* Notifications */}
-            <button className="relative p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all">
+            <button className="relative p-2 text-[#6a6a80] hover:text-[#e0e0e0] hover:bg-[#232338] rounded-lg transition-all">
               <Bell className="w-5 h-5" />
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-[#4dd0e1] rounded-full"></div>
             </button>
             
             {/* Connection Status */}
             <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
               isConnected 
-                ? 'bg-green-500/20 border-green-500/30' 
-                : 'bg-red-500/20 border-red-500/30'
+                ? 'bg-[#81c784]/20 border-[#81c784]/30' 
+                : 'bg-red-400/20 border-red-400/30'
             }`}>
               <div className={`w-2 h-2 rounded-full ${
-                isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'
+                isConnected ? 'bg-[#81c784] animate-pulse' : 'bg-red-400'
               }`}></div>
               <span className={`text-sm font-medium ${
-                isConnected ? 'text-green-400' : 'text-red-400'
+                isConnected ? 'text-[#81c784]' : 'text-red-400'
               }`}>
                 {isConnected ? 'Connected' : 'Disconnected'}
               </span>
               {agents.length > 0 && (
-                <span className="text-gray-400 text-xs">• {agents.length} agent(s)</span>
+                <span className="text-[#a0a0a0] text-xs">• {agents.length} agent(s)</span>
               )}
             </div>
             
             {/* Logout */}
             <button
               onClick={handleDisconnect}
-              className="flex items-center gap-2 px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 hover:bg-red-500/30 transition-all"
+              className="flex items-center gap-2 px-4 py-2 bg-red-400/20 border border-red-400/30 rounded-lg text-red-400 hover:bg-red-400/30 transition-all"
             >
               <LogOut className="w-4 h-4" />
               <span className="hidden sm:inline">Logout</span>
@@ -261,16 +264,18 @@ export default function Dashboard({ onLogout }) {
 
       <div className="flex h-[calc(100vh-80px)]">
         {/* Sidebar */}
-        <aside className="w-64 bg-gray-800/30 backdrop-blur-sm border-r border-gray-700 p-4">
+        <aside className="w-64 bg-[#232338] backdrop-blur-sm border-r border-[#3a3a4c] p-4">
           <nav className="space-y-2">
             {sections.map(section => (
               <button
                 key={section.id}
-                onClick={() => setActiveSection(section.id)}
+                onClick={() => {
+                  setActiveSection(section.id);
+                }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${
                   activeSection === section.id
-                    ? 'bg-primary-500/20 border border-primary-500/30 text-primary-400 shadow-lg'
-                    : 'text-gray-400 hover:bg-gray-800/50 hover:text-white'
+                    ? 'bg-[#4dd0e1]/20 border border-[#4dd0e1]/30 text-[#4dd0e1] shadow-lg'
+                    : 'text-[#a0a0a0] hover:bg-[#1a1a2e]/50 hover:text-[#e0e0e0]'
                 }`}
               >
                 <section.icon className={`w-5 h-5 ${section.color}`} />
@@ -281,26 +286,26 @@ export default function Dashboard({ onLogout }) {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 p-6 overflow-auto bg-gray-900/50">
+        <main className="flex-1 p-6 overflow-auto bg-[#1a1a2e]/50">
           {activeSection === 'shell' && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-cyan-500/20 rounded-lg">
-                    <TerminalIcon className="w-6 h-6 text-cyan-400" />
+                  <div className="p-2 bg-[#4dd0e1]/20 rounded-lg">
+                    <TerminalIcon className="w-6 h-6 text-[#4dd0e1]" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-white">Interactive Remote Shell</h2>
-                    <p className="text-gray-400">Execute commands on remote systems in real-time</p>
+                    <h2 className="text-2xl font-bold text-[#e0e0e0]">Interactive Remote Shell</h2>
+                    <p className="text-[#a0a0a0]">Execute commands on remote systems in real-time</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-2 bg-green-500/20 border border-green-500/30 rounded-lg">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span className="text-green-400 text-sm font-medium">Live</span>
+                <div className="flex items-center gap-2 px-3 py-2 bg-[#81c784]/20 border border-[#81c784]/30 rounded-lg">
+                  <div className="w-2 h-2 bg-[#81c784] rounded-full animate-pulse"></div>
+                  <span className="text-[#81c784] text-sm font-medium">Live</span>
                 </div>
               </div>
               
-              <div className="card-dark">
+              <div className="bg-[#232338] border border-[#3a3a4c] rounded-xl p-6">
                 <Terminal />
               </div>
             </div>
@@ -320,53 +325,18 @@ export default function Dashboard({ onLogout }) {
           )}
 
           {activeSection === 'files' && (
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-500/20 rounded-lg">
-                  <FolderOpen className="w-6 h-6 text-blue-400" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-white">File System Explorer</h2>
-                  <p className="text-gray-400">Browse and manage remote file systems</p>
-                </div>
-              </div>
-              
-              <div className="card-dark">
-                <div className="space-y-3">
-                  {[
-                    { name: 'home', type: 'folder', expanded: true },
-                    { name: 'user', type: 'folder', expanded: false, indent: 1 },
-                    { name: 'config', type: 'folder', expanded: false, indent: 1 },
-                    { name: 'documents', type: 'folder', expanded: false, indent: 1 },
-                    { name: 'downloads', type: 'folder', expanded: false, indent: 1 },
-                  ].map((item, index) => (
-                    <div 
-                      key={index}
-                      className={`flex items-center gap-3 py-2 px-3 hover:bg-gray-800/50 rounded-lg cursor-pointer transition-all ${
-                        item.indent ? 'ml-6' : ''
-                      }`}
-                    >
-                      <FolderOpen className="w-4 h-4 text-blue-400" />
-                      <span className="text-gray-200 font-medium">{item.name}</span>
-                      <span className="text-gray-500 text-xs ml-auto">
-                        {item.expanded ? '▼' : '▶'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <FileManagementPanel />
           )}
 
           {activeSection === 'system' && (
             <div className="space-y-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-500/20 rounded-lg">
-                  <Monitor className="w-6 h-6 text-green-400" />
+                <div className="p-2 bg-[#81c784]/20 rounded-lg">
+                  <Monitor className="w-6 h-6 text-[#81c784]" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-white">System Information</h2>
-                  <p className="text-gray-400">Monitor system resources and performance</p>
+                  <h2 className="text-2xl font-bold text-[#e0e0e0]">System Information</h2>
+                  <p className="text-[#a0a0a0]">Monitor system resources and performance</p>
                 </div>
               </div>
               
@@ -377,17 +347,17 @@ export default function Dashboard({ onLogout }) {
                   { label: 'Disk Usage', value: '45.2%', color: 'yellow' },
                   { label: 'Network I/O', value: '12.3 MB/s', color: 'purple' }
                 ].map((metric, index) => (
-                  <div key={index} className="card-dark">
+                  <div key={index} className="bg-[#232338] border border-[#3a3a4c] rounded-xl p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <span className="text-gray-400 text-sm font-medium">{metric.label}</span>
-                      <MoreHorizontal className="w-4 h-4 text-gray-500" />
+                      <span className="text-[#a0a0a0] text-sm font-medium">{metric.label}</span>
+                      <MoreHorizontal className="w-4 h-4 text-[#6a6a80]" />
                     </div>
-                    <div className="text-3xl font-bold text-white mb-2">{metric.value}</div>
-                    <div className="w-full bg-gray-700 rounded-full h-2">
+                    <div className="text-3xl font-bold text-[#e0e0e0] mb-2">{metric.value}</div>
+                    <div className="w-full bg-[#3a3a4c] rounded-full h-2">
                       <div 
                         className={`h-2 rounded-full transition-all duration-300 ${
-                          metric.color === 'green' ? 'bg-green-400' :
-                          metric.color === 'blue' ? 'bg-blue-400' :
+                          metric.color === 'green' ? 'bg-[#81c784]' :
+                          metric.color === 'blue' ? 'bg-[#4dd0e1]' :
                           metric.color === 'yellow' ? 'bg-yellow-400' : 'bg-purple-400'
                         }`} 
                         style={{ width: metric.value && metric.value.includes('%') ? metric.value : '60%' }}
@@ -397,7 +367,7 @@ export default function Dashboard({ onLogout }) {
                 ))}
               </div>
 
-              <div className="card-dark">
+              <div className="bg-[#232338] border border-[#3a3a4c] rounded-xl p-6">
                 <h3 className="text-lg font-semibold text-white mb-4">System Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div><span className="text-gray-400">OS:</span> <span className="text-white">Ubuntu 22.04.3 LTS</span></div>

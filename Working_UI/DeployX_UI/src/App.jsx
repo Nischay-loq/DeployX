@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import Home from './pages/Home.jsx'
 import ForgotPassword from './pages/ForgotPassword.jsx'
 import Dashboard from './pages/Dashboard.jsx'
+import FileManager from './pages/FileManager.jsx'
 import authService from './services/auth.js'
 
 export default function App() {
@@ -61,6 +62,10 @@ export default function App() {
         <Route 
           path="/dashboard" 
           element={isAuthenticated ? <Dashboard onLogout={handleLogout} /> : <Navigate to="/" />} 
+        />
+        <Route 
+          path="/files" 
+          element={isAuthenticated ? <FileManager /> : <Navigate to="/" />} 
         />
         
         {/* Catch all route - Professional 404 */}

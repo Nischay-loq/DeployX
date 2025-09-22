@@ -6,7 +6,7 @@
   max-height: 100%;
   width: 100%;
   min-height: 0; /* allow child flex items to shrink and scroll */
-  background: #1a1a1a;
+  background: #1e1e1e;
   color: #e0e0e0;
   font-family: 'Consolas', 'Cascadia Code', 'Source Code Pro', monospace;
 }
@@ -46,8 +46,8 @@
 
 .control-group select {
   padding: 6px 12px;
-  background: #404040;
-  border: 1px solid #555;
+  background: #1a1a2e;
+  border: 1px solid #3a3a4c;
   border-radius: 4px;
   color: #e0e0e0;
   font-size: 14px;
@@ -56,8 +56,8 @@
 
 .control-group select:focus {
   outline: none;
-  border-color: #007acc;
-  box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+  border-color: #4dd0e1;
+  box-shadow: 0 0 0 2px rgba(77, 208, 225, 0.2);
 }
 
 .control-group select:disabled {
@@ -67,13 +67,14 @@
 
 .btn-primary {
   background: #007acc;
-  color: white;
+  color: #ffffff;
   border: none;
   padding: 6px 12px;
   border-radius: 4px;
   font-size: 14px;
   cursor: pointer;
   transition: background-color 0.2s;
+  font-weight: 500;
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -82,33 +83,36 @@
 
 .btn-primary:disabled {
   background: #555;
+  color: #999;
   cursor: not-allowed;
   opacity: 0.6;
 }
 
 .start-shell-btn {
-  background: #007acc;
-  color: white;
+  background: #0dbc79;
+  color: #ffffff;
   border: none;
   padding: 6px 12px;
   border-radius: 4px;
   font-size: 14px;
   cursor: pointer;
   transition: background-color 0.2s;
+  font-weight: 500;
 }
 
 .start-shell-btn:hover:not(:disabled) {
-  background: #005a9e;
+  background: #0aa566;
 }
 
 .start-shell-btn:disabled {
   background: #555;
+  color: #999;
   cursor: not-allowed;
   opacity: 0.6;
 }
 
 .stop-shell-btn {
-  background: #cd3131;
+  background: #ef4444;
   color: white;
   border: none;
   padding: 6px 12px;
@@ -116,14 +120,15 @@
   font-size: 14px;
   cursor: pointer;
   transition: background-color 0.2s;
+  font-weight: 500;
 }
 
 .stop-shell-btn:hover:not(:disabled) {
-  background: #a82828;
+  background: #dc2626;
 }
 
 .stop-shell-btn:disabled {
-  background: #7a2a2a;
+  background: #7f1d1d;
   cursor: not-allowed;
   opacity: 0.6;
 }

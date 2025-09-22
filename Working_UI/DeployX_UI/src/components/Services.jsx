@@ -1,5 +1,6 @@
-import { LayoutGrid, Users2, Activity, Boxes, Laptop2, Shield, Zap, Globe, Database, Cpu } from 'lucide-react'
+import { LayoutGrid, Users2, Activity, Boxes, Laptop2, Shield, Zap, Globe, Database, Cpu, ChevronLeft, ChevronRight } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { useState } from 'react'
 
 const services = [
   { 
@@ -98,6 +99,17 @@ const colorMap = {
 }
 
 export default function Services() {
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const itemsPerView = 1 // Show one service card at a time in center
+  const maxIndex = Math.max(0, services.length - 1)
+
+  const nextSlide = () => {
+    setCurrentIndex(prev => (prev >= maxIndex ? 0 : prev + 1))
+  }
+
+  const prevSlide = () => {
+    setCurrentIndex(prev => (prev <= 0 ? maxIndex : prev - 1))
+  }
   return (
     <section id="services" className="py-24 relative overflow-hidden">
       {/* Background Effects */}
@@ -130,52 +142,101 @@ export default function Services() {
           </p>
         </motion.div>
 
-        {/* Services Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {services.map(({title, subtitle, icon: Icon, desc, features, color}, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 30 }} 
-              whileInView={{ opacity: 1, y: 0 }} 
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: i * 0.05 }}
-              whileHover={{ y: -8 }}
-              className="group"
-            >
-              <div className="card-dark h-full hover-lift border-glow relative overflow-hidden">
-                {/* Icon Header */}
-                <div className="flex flex-col items-start gap-4 mb-6">
-                  <div className={`w-14 h-14 bg-gradient-to-r ${colorMap[color]} rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-                    <Icon className="w-7 h-7 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-white group-hover:text-primary-400 transition-colors mb-1">
-                      {title}
-                    </h3>
-                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{subtitle}</p>
-                  </div>
-                </div>
+        {/* Services Carousel */}
+        <div className="relative flex items-center">
+          {/* Left Navigation */}
+          <button
+            onClick={prevSlide}
+            className="absolute left-0 z-10 w-16 h-16 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/30 rounded-full flex items-center justify-center transition-all duration-300 hover:border-primary-400/50 hover:scale-110 backdrop-blur-sm"
+          >
+            <ChevronLeft className="w-6 h-6 text-gray-300 hover:text-primary-400 transition-colors" />
+          </button>
 
-                {/* Description */}
-                <p className="text-gray-300 text-sm leading-relaxed mb-6">
-                  {desc}
-                </p>
+          {/* Right Navigation */}
+          <button
+            onClick={nextSlide}
+            className="absolute right-0 z-10 w-16 h-16 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/30 rounded-full flex items-center justify-center transition-all duration-300 hover:border-primary-400/50 hover:scale-110 backdrop-blur-sm"
+          >
+            <ChevronRight className="w-6 h-6 text-gray-300 hover:text-primary-400 transition-colors" />
+          </button>
 
-                {/* Features List */}
-                <div className="space-y-2">
-                  {features.map((feature, idx) => (
-                    <div key={idx} className="flex items-center gap-3 text-xs text-gray-400">
-                      <div className={`w-1.5 h-1.5 bg-gradient-to-r ${colorMap[color]} rounded-full`}></div>
-                      <span>{feature}</span>
+          {/* Carousel Container - Centered */}
+          <div className="w-full flex justify-center px-20">
+            <div className="max-w-md w-full overflow-hidden">
+              <div className="relative">
+                <motion.div
+                  className="flex"
+                  animate={{
+                    x: `-${currentIndex * 100}%`
+                  }}
+                  transition={{
+                    type: "tween",
+                    ease: "easeInOut",
+                    duration: 0.5
+                  }}
+                >
+                  {services.map(({title, subtitle, icon: Icon, desc, features, color}, i) => (
+                    <div
+                      key={i}
+                      className="w-full flex-shrink-0"
+                      style={{ minWidth: '100%' }}
+                    >
+                      <motion.div
+                        whileHover={{ y: -8, scale: 1.05 }}
+                        className="group w-full px-2"
+                      >
+                        <div className="card-dark h-full hover-lift border-glow relative overflow-hidden">
+                          {/* Icon Header */}
+                          <div className="flex flex-col items-center text-center gap-4 mb-6">
+                            <div className={`w-16 h-16 bg-gradient-to-r ${colorMap[color]} rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                              <Icon className="w-8 h-8 text-white" />
+                            </div>
+                            <div>
+                              <h3 className="text-xl font-bold text-white group-hover:text-primary-400 transition-colors mb-2">
+                                {title}
+                              </h3>
+                              <p className="text-sm text-gray-400 font-medium uppercase tracking-wide">{subtitle}</p>
+                            </div>
+                          </div>
+
+                          {/* Description */}
+                          <p className="text-gray-300 text-center leading-relaxed mb-6">
+                            {desc}
+                          </p>
+
+                          {/* Features List */}
+                          <div className="space-y-3">
+                            {features.map((feature, idx) => (
+                              <div key={idx} className="flex items-center gap-3 text-sm text-gray-400">
+                                <div className={`w-2 h-2 bg-gradient-to-r ${colorMap[color]} rounded-full`}></div>
+                                <span>{feature}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Hover Gradient Overlay */}
+                          <div className={`absolute inset-0 bg-gradient-to-br ${colorMap[color]} opacity-0 group-hover:opacity-5 transition-opacity duration-300 rounded-xl pointer-events-none`}></div>
+                        </div>
+                      </motion.div>
                     </div>
                   ))}
-                </div>
-
-                {/* Hover Gradient Overlay */}
-                <div className={`absolute inset-0 bg-gradient-to-br ${colorMap[color]} opacity-0 group-hover:opacity-5 transition-opacity duration-300 rounded-xl pointer-events-none`}></div>
+                </motion.div>
               </div>
-            </motion.div>
-          ))}
+            </div>
+          </div>
+
+          {/* Dots Indicator - Bottom Center */}
+          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-16 flex gap-2">
+            {services.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => setCurrentIndex(idx)}
+                className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                  idx === currentIndex ? 'bg-primary-400 w-6' : 'bg-gray-600 hover:bg-gray-500'
+                }`}
+              />
+            ))}
+          </div>
         </div>
 
         {/* Bottom CTA Section */}
