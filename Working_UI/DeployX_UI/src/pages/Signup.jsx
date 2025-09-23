@@ -1,9 +1,11 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import authService from '../services/auth.js'
+import OTPVerification from '../components/OTPVerification.jsx'
 
 export default function Signup() {
   const navigate = useNavigate();
+  const [step, setStep] = useState('signup'); // 'signup', 'otp', 'success'
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -38,19 +40,10 @@ export default function Signup() {
     }
 
     try {
-      // Call the backend API
-      await authService.signup({
-        username: formData.username,
-        email: formData.email,
-        password: formData.password
-      });
+      // First send OTP for email verification (don't create user yet)
+      await authService.sendOTP(formData.email, 'signup');
+      setStep('otp');
       
-      setShowSuccess(true);
-      
-      // Redirect to login with username pre-filled after 2 seconds
-      setTimeout(() => {
-        navigate('/login', { state: { email: formData.username } });
-      }, 2000);
     } catch (error) {
       // Handle API errors
       const errorMessage = error.message || 'Signup failed. Please try again.';
@@ -61,6 +54,56 @@ export default function Signup() {
       } else {
         setErrors({ general: errorMessage });
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOTPVerified = async () => {
+    try {
+      setIsLoading(true);
+      // Now create the user account after OTP verification
+      await authService.signup({
+        username: formData.username,
+        email: formData.email,
+        password: formData.password
+      });
+      
+      setShowSuccess(true);
+      // Redirect to login with username pre-filled after 2 seconds
+      setTimeout(() => {
+        navigate('/login', { 
+          state: { 
+            email: formData.email,
+            message: 'Account created and verified successfully! Please log in.' 
+          } 
+        });
+      }, 2000);
+    } catch (error) {
+      setErrors({ general: error.message || 'Failed to create account. Please try again.' });
+      setStep('signup'); // Go back to signup form
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignup = async () => {
+    try {
+      // For demo purposes, we'll use a mock token
+      // In a real implementation, you would use Google's OAuth library
+      const mockGoogleToken = "mock_google_token_" + Date.now();
+      
+      setIsLoading(true);
+      await authService.googleLogin(mockGoogleToken, false);
+      
+      setShowSuccess(true);
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 2000);
+    } catch (error) {
+      setErrors({ 
+        general: error?.message || "Google signup failed. Please try again." 
+      });
     } finally {
       setIsLoading(false);
     }
@@ -105,10 +148,23 @@ export default function Signup() {
               <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-white text-2xl">✓</span>
               </div>
-              <h2 className="text-2xl font-bold text-softWhite mb-2">Account Created!</h2>
+              <h2 className="text-2xl font-bold text-softWhite mb-2">Account Verified!</h2>
               <p className="text-gray-300 mb-4">Redirecting to login page...</p>
               <div className="animate-pulse text-electricBlue">Please wait...</div>
             </div>
+          ) : step === 'otp' ? (
+            <OTPVerification
+              email={formData.email}
+              onVerify={async (otpCode) => {
+                await authService.verifyOTP(formData.email, otpCode);
+                await handleOTPVerified();
+              }}
+              onBack={() => setStep('signup')}
+              onResend={() => authService.sendOTP(formData.email, 'signup')}
+              title="Verify Your Email"
+              subtitle="We've sent a 6-digit verification code to"
+              standalone={false}
+            />
           ) : (
             <>
               <h1 className="text-3xl font-bold mb-6 text-center text-softWhite">Create your DeployX account</h1>
@@ -187,7 +243,6 @@ export default function Signup() {
                   </Link>
                 </div>
 
-
                 <button 
                   type="submit"
                   disabled={isLoading}
@@ -196,6 +251,7 @@ export default function Signup() {
                   <span className="relative z-10">{isLoading ? "Creating Account..." : "Create Account"}</span>
                   <span className="absolute inset-0 rounded-xl blur-xl opacity-70 btn-pulse bg-neonAqua"></span>
                 </button>
+                
                 {/* Divider */}
                 <div className="flex items-center my-4">
                   <hr className="flex-grow border-gray-600" />
@@ -206,16 +262,17 @@ export default function Signup() {
                  {/* Google Button */}
                   <button
                     type="button"
-                    onClick={() => console.log("Google Sign Up")}
+                    onClick={handleGoogleSignup}
+                    disabled={isLoading}
                     className="w-full px-6 py-3 rounded-xl bg-white text-gray-800 font-semibold flex items-center justify-center gap-3
-                              hover:shadow-lg transition-all cursor-pointer"
+                              hover:shadow-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <img
                       src="https://www.svgrepo.com/show/355037/google.svg"
                       alt="Google"
                       className="w-5 h-5"
                     />
-                    Continue with Google
+                    {isLoading ? "Signing up..." : "Continue with Google"}
                   </button>
 
               </form>

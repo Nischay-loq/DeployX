@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import authService from '../services/auth.js';
 import Terminal from '../components/Terminal.jsx';
+<<<<<<< HEAD
 import DeploymentManager from '../components/DeploymentManager.jsx';
 import io from 'socket.io-client';
 import { 
@@ -19,6 +20,11 @@ import {
   RotateCcw,
   Command
 } from 'lucide-react';
+=======
+import GroupsManager from '../components/GroupsManager.jsx';
+import DeploymentsManager from '../components/DeploymentsManager.jsx';
+import APITest from '../components/APITest.jsx';
+>>>>>>> parth
 
 export default function Dashboard({ onLogout }) {
   const [activeSection, setActiveSection] = useState('shell');
@@ -33,6 +39,7 @@ export default function Dashboard({ onLogout }) {
   const user = authService.getCurrentUser();
 
   const sections = [
+<<<<<<< HEAD
     { id: 'shell', name: 'Remote Shell', icon: TerminalIcon, color: 'text-cyan-400' },
     { id: 'deployment', name: 'Deployment', icon: Command, color: 'text-purple-400' },
     { id: 'files', name: 'File System', icon: FolderOpen, color: 'text-blue-400' },
@@ -40,6 +47,17 @@ export default function Dashboard({ onLogout }) {
     { id: 'network', name: 'Network', icon: Network, color: 'text-purple-400' },
     { id: 'processes', name: 'Processes', icon: Activity, color: 'text-yellow-400' },
     { id: 'services', name: 'Services', icon: Settings, color: 'text-red-400' }
+=======
+    { id: 'shell', name: 'Remote Shell', color: 'text-cyan-400' },
+    { id: 'files', name: 'File System', color: 'text-blue-400' },
+    { id: 'groups', name: 'Device Groups', color: 'text-orange-400' },
+    { id: 'deployments', name: 'Deployments', color: 'text-purple-400' },
+    { id: 'system', name: 'System Info', color: 'text-green-400' },
+    { id: 'network', name: 'Network', color: 'text-indigo-400' },
+    { id: 'processes', name: 'Processes', color: 'text-yellow-400' },
+    { id: 'services', name: 'Services', color: 'text-red-400' },
+    { id: 'api-test', name: 'API Test', color: 'text-pink-400' }
+>>>>>>> parth
   ];
 
   // Initialize socket connection for agent management
@@ -358,6 +376,14 @@ export default function Dashboard({ onLogout }) {
             </div>
           )}
 
+          {activeSection === 'groups' && (
+            <GroupsManager />
+          )}
+
+          {activeSection === 'deployments' && (
+            <DeploymentsManager />
+          )}
+
           {activeSection === 'system' && (
             <div className="space-y-6">
               <div className="flex items-center gap-3">
@@ -560,6 +586,10 @@ export default function Dashboard({ onLogout }) {
                 </div>
               </div>
             </div>
+          )}
+
+          {activeSection === 'api-test' && (
+            <APITest />
           )}
         </main>
       </div>

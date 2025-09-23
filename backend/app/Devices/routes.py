@@ -58,7 +58,16 @@ def update_device_status(device: DeviceCreate, db: Session = Depends(get_db)):
             print("=== CREATING NEW DEVICE ===")
             # Handle None values in device creation
             device_data = device.dict()
-            db_device = Device(**device_data, last_seen=datetime.utcnow())
+            # Convert last_seen to datetime if it's a string
+            last_seen_value = device_data.get("last_seen")
+            if last_seen_value:
+                try:
+                    # Try to parse ISO string to datetime
+                    last_seen_dt = datetime.fromisoformat(last_seen_value)
+                except Exception:
+                    last_seen_dt = datetime.utcnow()
+                device_data["last_seen"] = last_seen_dt
+            db_device = Device(**device_data)
             db.add(db_device)
             db.commit()
             db.refresh(db_device)

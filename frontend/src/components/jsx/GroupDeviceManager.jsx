@@ -7,7 +7,8 @@ export default function GroupDeviceManager({ group, onClose }) {
 
   const loadDevices = async () => {
     try {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/devices`);
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+      const res = await axios.get(`${API_URL}/devices`);
       setDevices(res.data);
     } catch (error) {
       console.error("Error fetching devices:", error);

@@ -8,7 +8,7 @@ class DeviceCreate(BaseModel):
     os: str
     status: str
     connection_type: Optional[str] = None  # This allows None values
-    last_seen: str
+    last_seen: Optional[str] = None
 
 class DeviceResponse(BaseModel):
     id: int

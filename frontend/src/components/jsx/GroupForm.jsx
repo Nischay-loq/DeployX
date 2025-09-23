@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { createGroup, getDevices, updateGroup as updateGroupApi } from "./GroupingApi.js";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export default function GroupForm({ initialData, onGroupCreated }) {
   const [name, setName] = useState(initialData?.group_name || "");

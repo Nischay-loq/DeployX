@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean, Text
 from sqlalchemy.orm import relationship
-from auth.database import Base
+from app.auth.database import Base
 
 class Deployment(Base):
     __tablename__ = "deployments"

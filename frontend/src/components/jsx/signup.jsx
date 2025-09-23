@@ -11,7 +11,7 @@ function Signup({ onSignupSuccess }) {
 
   const handleSendOtp = async (e) => {
     e.preventDefault();
-    const API_URL = import.meta.env.VITE_API_URL.replace(/\/$/, ""); 
+    const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, ""); 
 
     try {
       const res = await fetch(`${API_URL}/auth/send-otp`, {
@@ -36,7 +36,7 @@ function Signup({ onSignupSuccess }) {
 
   const handleSignup = async (e) => {
     e.preventDefault();
-    const API_URL = import.meta.env.VITE_API_URL;
+    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
     try {
       const res = await fetch(`${API_URL}/auth/signup`, {
