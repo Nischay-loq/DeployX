@@ -63,8 +63,13 @@ def get_groups(db: Session, user_id: int):
     return result
 
 def create_group(db: Session, group: schemas.GroupCreate, user_id: int):
-    group_data = group.dict()
-    group_data['user_id'] = user_id
+    # Extract only the fields that belong to the DeviceGroup model
+    group_data = {
+        'group_name': group.group_name,
+        'description': group.description,
+        'color': group.color,
+        'user_id': user_id
+    }
     new_group = models.DeviceGroup(**group_data)
     db.add(new_group)
     db.commit()
@@ -78,7 +83,10 @@ def update_group(db: Session, group_id: int, group: schemas.GroupUpdate, user_id
     ).first()
     if not db_group:
         return None
-    for key, value in group.dict(exclude_unset=True).items():
+    
+    # Update only the fields that belong to the DeviceGroup model
+    update_data = group.dict(exclude_unset=True, exclude={'device_ids'})
+    for key, value in update_data.items():
         setattr(db_group, key, value)
     db.commit()
     db.refresh(db_group)
