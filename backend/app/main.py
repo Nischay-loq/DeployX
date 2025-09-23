@@ -11,12 +11,14 @@ import os
 from app.grouping.route import router as groups_router
 from app.Devices.routes import router as devices_router
 from app.Deployments.routes import router as deployments_router
+from app.files.routes import router as files_router
 from app.auth import routes, models
 from app.auth.database import engine
 from app.command_deployment.routes import router as deployment_router
 from app.command_deployment.executor import command_executor
 from app.grouping import models as grouping_models  # Import grouping models
 from app.Deployments import models as deployment_models  # Import deployment models
+from app.files import models as file_models  # Import file models
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -57,11 +59,68 @@ app.include_router(groups_router)
 app.include_router(devices_router)
 app.include_router(deployment_router)
 app.include_router(deployments_router)
+app.include_router(files_router)
 
 # Health check endpoint
 @app.get("/health")
 def health_check():
     return {"status": "healthy", "message": "Backend is running"}
+
+# Test endpoints (no auth required) - for debugging
+@app.get("/test/groups")
+def test_groups():
+    """Test endpoint for groups without authentication"""
+    return [
+        {
+            "id": 1,
+            "name": "Web Servers",
+            "description": "Production web servers",
+            "device_ids": [1, 2],
+            "created_at": "2024-01-01T00:00:00",
+            "updated_at": "2024-01-01T00:00:00"
+        },
+        {
+            "id": 2,
+            "name": "Database Servers",
+            "description": "Database cluster nodes",
+            "device_ids": [3],
+            "created_at": "2024-01-01T00:00:00",
+            "updated_at": "2024-01-01T00:00:00"
+        }
+    ]
+
+@app.get("/test/devices")
+def test_devices():
+    """Test endpoint for devices without authentication"""
+    return [
+        {
+            "id": 1,
+            "agent_id": "web-01",
+            "hostname": "web-server-01",
+            "ip_address": "192.168.1.10",
+            "status": "online",
+            "os_info": "Ubuntu 20.04",
+            "last_seen": "2024-01-01T00:00:00"
+        },
+        {
+            "id": 2,
+            "agent_id": "web-02",
+            "hostname": "web-server-02",
+            "ip_address": "192.168.1.11",
+            "status": "online",
+            "os_info": "Ubuntu 20.04",
+            "last_seen": "2024-01-01T00:00:00"
+        },
+        {
+            "id": 3,
+            "agent_id": "db-01",
+            "hostname": "database-01",
+            "ip_address": "192.168.1.20",
+            "status": "offline",
+            "os_info": "CentOS 8",
+            "last_seen": "2024-01-01T00:00:00"
+        }
+    ]
 
 # Add explicit OPTIONS handler for CORS preflight
 @app.options("/{path:path}")

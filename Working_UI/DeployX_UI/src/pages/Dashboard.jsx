@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import GroupsManager from '../components/GroupsManager.jsx';
 import DeploymentsManager from '../components/DeploymentsManager.jsx';
+import FileSystemManager from '../components/FileSystemManager.jsx';
 import APITest from '../components/APITest.jsx';
 
 export default function Dashboard({ onLogout }) {
@@ -311,42 +312,7 @@ export default function Dashboard({ onLogout }) {
           )}
 
           {activeSection === 'files' && (
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-500/20 rounded-lg">
-                  <FolderOpen className="w-6 h-6 text-blue-400" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-white">File System Explorer</h2>
-                  <p className="text-gray-400">Browse and manage remote file systems</p>
-                </div>
-              </div>
-              
-              <div className="card-dark">
-                <div className="space-y-3">
-                  {[
-                    { name: 'home', type: 'folder', expanded: true },
-                    { name: 'user', type: 'folder', expanded: false, indent: 1 },
-                    { name: 'config', type: 'folder', expanded: false, indent: 1 },
-                    { name: 'documents', type: 'folder', expanded: false, indent: 1 },
-                    { name: 'downloads', type: 'folder', expanded: false, indent: 1 },
-                  ].map((item, index) => (
-                    <div 
-                      key={index}
-                      className={`flex items-center gap-3 py-2 px-3 hover:bg-gray-800/50 rounded-lg cursor-pointer transition-all ${
-                        item.indent ? 'ml-6' : ''
-                      }`}
-                    >
-                      <FolderOpen className="w-4 h-4 text-blue-400" />
-                      <span className="text-gray-200 font-medium">{item.name}</span>
-                      <span className="text-gray-500 text-xs ml-auto">
-                        {item.expanded ? '▼' : '▶'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <FileSystemManager />
           )}
 
           {activeSection === 'groups' && (

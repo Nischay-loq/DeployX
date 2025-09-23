@@ -39,3 +39,4 @@ class Device(Base):
     group_id = Column(Integer, ForeignKey("device_groups.id", ondelete="SET NULL"))
 
     group = relationship("DeviceGroup", foreign_keys=[group_id])
+    # Note: file_deployment_results relationship temporarily removed to fix import issues
