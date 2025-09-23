@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import authService from '../services/auth.js';
 import Terminal from '../components/Terminal.jsx';
-<<<<<<< HEAD
 import DeploymentManager from '../components/DeploymentManager.jsx';
 import io from 'socket.io-client';
 import { 
@@ -20,11 +19,9 @@ import {
   RotateCcw,
   Command
 } from 'lucide-react';
-=======
 import GroupsManager from '../components/GroupsManager.jsx';
 import DeploymentsManager from '../components/DeploymentsManager.jsx';
 import APITest from '../components/APITest.jsx';
->>>>>>> parth
 
 export default function Dashboard({ onLogout }) {
   const [activeSection, setActiveSection] = useState('shell');
