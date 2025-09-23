@@ -9,6 +9,7 @@ sys.path.append('backend')
 from backend.app.auth.database import engine, SessionLocal
 from backend.app.auth.models import User
 from backend.app.grouping.models import DeviceGroup, Device, DeviceGroupMap
+from backend.app.Deployments.models import Deployment, DeploymentTarget, Checkpoint
 from sqlalchemy import text
 
 def test_database():
@@ -41,6 +42,18 @@ def test_database():
             # Test device_group_map table
             mappings = db.query(DeviceGroupMap).count()
             print(f"✅ Device group mappings table exists with {mappings} records")
+            
+            # Test deployments table
+            deployments = db.query(Deployment).count()
+            print(f"✅ Deployments table exists with {deployments} records")
+            
+            # Test deployment_targets table
+            targets = db.query(DeploymentTarget).count()
+            print(f"✅ Deployment targets table exists with {targets} records")
+            
+            # Test checkpoints table
+            checkpoints = db.query(Checkpoint).count()
+            print(f"✅ Checkpoints table exists with {checkpoints} records")
             
     except Exception as e:
         print(f"❌ Table access failed: {e}")

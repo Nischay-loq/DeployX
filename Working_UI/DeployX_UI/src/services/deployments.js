@@ -1,11 +1,22 @@
 import api from './api';
 
 class DeploymentsService {
+  // Get all deployments for current user
+  async fetchDeployments() {
+    try {
+      const response = await api.get('/deployments/');
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch deployments:', error);
+      throw error;
+    }
+  }
+
   // Install software on devices/groups
   async installSoftware(deploymentData) {
     try {
       const response = await api.post('/deployments/install', deploymentData);
-      return response.data;
+      return response;
     } catch (error) {
       console.error('Failed to start software installation:', error);
       throw error;
@@ -16,7 +27,7 @@ class DeploymentsService {
   async getDeploymentProgress(deploymentId) {
     try {
       const response = await api.get(`/deployments/${deploymentId}/progress`);
-      return response.data;
+      return response;
     } catch (error) {
       console.error('Failed to get deployment progress:', error);
       throw error;
@@ -24,12 +35,13 @@ class DeploymentsService {
   }
 
   // Retry failed deployments
-  async retryFailedDeployments(deviceIds) {
+  async retryFailedDeployments(deviceIds, deploymentId = null) {
     try {
       const response = await api.post('/deployments/retry', {
-        device_ids: deviceIds
+        device_ids: deviceIds,
+        deployment_id: deploymentId
       });
-      return response.data;
+      return response;
     } catch (error) {
       console.error('Failed to retry deployments:', error);
       throw error;

@@ -14,6 +14,7 @@ from app.Deployments.routes import router as deployments_router
 from app.auth import routes, models
 from app.auth.database import engine
 from app.grouping import models as grouping_models  # Import grouping models
+from app.Deployments import models as deployment_models  # Import deployment models
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
