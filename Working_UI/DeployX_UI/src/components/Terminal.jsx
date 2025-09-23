@@ -89,13 +89,9 @@ const TerminalComponent = ({ height = '70vh' }) => {
     fontFamily: 'Consolas, "Cascadia Code", "Source Code Pro", "Courier New", monospace',
     fontWeight: 500,
     letterSpacing: 0,
-<<<<<<< HEAD
-    scrollback: 2000,
-=======
     cols: 100,
     rows: 30,
     scrollback: 1000,
->>>>>>> parth
     allowTransparency: true,
     theme: {
       background: '#1a1a1a',

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import authService from '../services/auth.js';
 import Terminal from '../components/Terminal.jsx';
-import DeploymentManager from '../components/DeploymentManager.jsx';
 import io from 'socket.io-client';
 import { 
   Terminal as TerminalIcon, 
@@ -36,25 +35,15 @@ export default function Dashboard({ onLogout }) {
   const user = authService.getCurrentUser();
 
   const sections = [
-<<<<<<< HEAD
-    { id: 'shell', name: 'Remote Shell', icon: TerminalIcon, color: 'text-cyan-400' },
-    { id: 'deployment', name: 'Deployment', icon: Command, color: 'text-purple-400' },
-    { id: 'files', name: 'File System', icon: FolderOpen, color: 'text-blue-400' },
-    { id: 'system', name: 'System Info', icon: Monitor, color: 'text-green-400' },
-    { id: 'network', name: 'Network', icon: Network, color: 'text-purple-400' },
-    { id: 'processes', name: 'Processes', icon: Activity, color: 'text-yellow-400' },
-    { id: 'services', name: 'Services', icon: Settings, color: 'text-red-400' }
-=======
-    { id: 'shell', name: 'Remote Shell', color: 'text-cyan-400' },
-    { id: 'files', name: 'File System', color: 'text-blue-400' },
-    { id: 'groups', name: 'Device Groups', color: 'text-orange-400' },
-    { id: 'deployments', name: 'Deployments', color: 'text-purple-400' },
-    { id: 'system', name: 'System Info', color: 'text-green-400' },
-    { id: 'network', name: 'Network', color: 'text-indigo-400' },
-    { id: 'processes', name: 'Processes', color: 'text-yellow-400' },
-    { id: 'services', name: 'Services', color: 'text-red-400' },
-    { id: 'api-test', name: 'API Test', color: 'text-pink-400' }
->>>>>>> parth
+    { id: 'shell', name: 'Remote Shell', color: 'text-cyan-400', icon: TerminalIcon },
+    { id: 'files', name: 'File System', color: 'text-blue-400', icon: FolderOpen },
+    { id: 'groups', name: 'Device Groups', color: 'text-orange-400', icon: Monitor },
+    { id: 'deployments', name: 'Deployments', color: 'text-purple-400', icon: Play },
+    { id: 'system', name: 'System Info', color: 'text-green-400', icon: Activity },
+    { id: 'network', name: 'Network', color: 'text-indigo-400', icon: Network },
+    { id: 'processes', name: 'Processes', color: 'text-yellow-400', icon: Command },
+    { id: 'services', name: 'Services', color: 'text-red-400', icon: Settings },
+    { id: 'api-test', name: 'API Test', color: 'text-pink-400', icon: Search }
   ];
 
   // Initialize socket connection for agent management
@@ -319,19 +308,6 @@ export default function Dashboard({ onLogout }) {
                 <Terminal />
               </div>
             </div>
-          )}
-
-          {activeSection === 'deployment' && (
-            <DeploymentManager 
-              agents={agents}
-              currentAgent={currentAgent}
-              onSelectAgent={handleAgentSelect}
-              shells={shells}
-              currentShell={currentShell}
-              onSelectShell={handleShellSelect}
-              isConnected={isConnected}
-              connectionError={connectionError}
-            />
           )}
 
           {activeSection === 'files' && (
