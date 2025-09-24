@@ -82,22 +82,14 @@ export default function Ratings() {
           transition={{ duration: 0.8 }}
           className="text-center mb-16"
         >
-          <div className="inline-flex items-center gap-3 mb-4">
-            <div className="w-12 h-[2px] bg-gradient-to-r from-transparent via-neonAqua to-transparent"></div>
-            <span className="text-sm uppercase tracking-[0.2em] text-electricBlue font-semibold">
-              Customer Reviews
-            </span>
-            <div className="w-12 h-[2px] bg-gradient-to-r from-transparent via-neonAqua to-transparent"></div>
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-neonAqua/20 border border-neonAqua/30 rounded-full text-neonAqua text-sm font-medium mb-6">
+            <div className="w-2 h-2 bg-neonAqua rounded-full animate-pulse"></div>
+            Customer Reviews
           </div>
-          
-          <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 bg-gradient-to-r from-softWhite via-electricBlue to-neonAqua bg-clip-text text-transparent leading-tight">
-            What Our Community 
-            <span className="block bg-gradient-to-r from-neonAqua to-electricBlue bg-clip-text text-transparent">
-              Says About Us
-            </span>
+          <h2 className="text-4xl md:text-5xl font-bold font-display text-white mb-6">
+            What Our Community <span className="bg-gradient-to-r from-neonAqua to-electricBlue bg-clip-text text-transparent">Says About Us</span>
           </h2>
-          
-          <p className="text-lg text-softWhite/70 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-xl text-gray-400 max-w-3xl mx-auto">
             Real feedback from developers, DevOps engineers, and system administrators 
             who trust DeployX for their mission-critical deployments
           </p>
@@ -114,7 +106,7 @@ export default function Ratings() {
                 />
               ))}
             </div>
-            <span className="text-softWhite/60 text-sm font-medium">4.9 out of 5</span>
+            <span className="text-gray-400 text-sm font-medium">4.9 out of 5</span>
           </div>
         </motion.div>
 

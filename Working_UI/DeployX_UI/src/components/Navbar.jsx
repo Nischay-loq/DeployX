@@ -43,11 +43,18 @@ export default function Navbar({ onOpenAuth }) {
         <div className="flex items-center justify-between">
           {/* Logo/Brand */}
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-primary-500 to-accent-cyan rounded-xl flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-xl font-display">DX</span>
-            </div>
-            <div className="text-2xl font-bold font-display bg-gradient-to-r from-primary-400 to-accent-cyan bg-clip-text text-transparent">
-              DeployX
+            {/* DeployX Logo with Background Removal */}
+            <div className="relative">
+              <img 
+                src="/deployx-logo.png" 
+                alt="DeployX" 
+                className="h-8 w-auto object-contain"
+                style={{
+                  filter: 'brightness(1.2) contrast(1.1)',
+                  mixBlendMode: 'screen',
+                  background: 'transparent'
+                }}
+              />
             </div>
           </div>
 
