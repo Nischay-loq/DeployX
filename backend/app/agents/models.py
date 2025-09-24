@@ -1,5 +1,5 @@
 """SQLAlchemy models for agent management."""
-from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, JSON
+from sqlalchemy import Column, Integer, BigInteger, String, DateTime, Text, Boolean, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 from app.auth.database import Base
@@ -19,10 +19,10 @@ class Agent(Base):
     processor = Column(String(255))
     python_version = Column(String(50))
     cpu_count = Column(Integer)
-    memory_total = Column(Integer)  # in bytes
-    memory_available = Column(Integer)  # in bytes
-    disk_total = Column(Integer)  # in bytes
-    disk_free = Column(Integer)  # in bytes
+    memory_total = Column(BigInteger)  # in bytes
+    memory_available = Column(BigInteger)  # in bytes
+    disk_total = Column(BigInteger)  # in bytes
+    disk_free = Column(BigInteger)  # in bytes
     shells = Column(JSON)  # List of available shells
     status = Column(String(50), default="offline")  # online, offline, disconnected
     last_seen = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -140,7 +140,7 @@ async def _update_and_send_agent_list(sid=None):
         for agent in db_agents:
             # Use from_orm to convert SQLAlchemy model to Pydantic model
             agent_pydantic = agent_schemas.AgentResponse.from_orm(agent)
-            agent_info = agent_pydantic.model_dump()
+            agent_info = agent_pydantic.model_dump(mode='json')  # Use JSON mode for datetime serialization
             agent_info['status'] = 'online' if agent.agent_id in online_agent_ids else 'offline'
             agents_with_status.append(agent_info)
 
