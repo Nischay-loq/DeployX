@@ -1,45 +1,57 @@
 /**
  * Google Drive Service for file operations
- * Integrates with Google Drive API using Google API client library
+ * Uses Google Identity Services (GIS) and Google Picker API
  */
 
 class GoogleDriveService {
   constructor() {
     this.isInitialized = false;
     this.accessToken = null;
-    this.picker = null;
+    this.tokenClient = null;
   }
 
-  // Initialize Google API and Drive picker
+  // Initialize Google APIs and Identity Services
   async init() {
     if (this.isInitialized) return;
 
     // Check for required configuration
-    const apiKey = process.env.REACT_APP_GOOGLE_API_KEY;
-    const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+    const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     
-    if (!apiKey || apiKey === 'your-api-key' || !clientId || clientId === 'your-client-id') {
-      throw new Error('Google Drive API configuration missing. Please set REACT_APP_GOOGLE_API_KEY and REACT_APP_GOOGLE_CLIENT_ID environment variables.');
+    if (!apiKey || apiKey === 'your-api-key' || apiKey === 'your-actual-api-key-here' || 
+        !clientId || clientId === 'your-client-id' || clientId === 'your-actual-client-id.apps.googleusercontent.com') {
+      throw new Error('Google Drive API configuration missing. Please:\n1. Go to Google Cloud Console\n2. Enable Google Drive API & Google Picker API\n3. Create API Key and OAuth Client ID\n4. Set VITE_GOOGLE_API_KEY and VITE_GOOGLE_CLIENT_ID in .env.local');
     }
 
     try {
-      // Load Google API script dynamically
-      await this.loadGoogleAPI();
+      // Load Google API and Picker scripts
+      await this.loadGoogleScripts();
       
       // Initialize Google API client
       await new Promise((resolve, reject) => {
-        gapi.load('auth2:picker:client', {
+        gapi.load('client:picker', {
           callback: resolve,
           onerror: reject
         });
       });
 
-      // Initialize the API client
+      // Initialize the API client with minimal configuration
       await gapi.client.init({
-        apiKey: apiKey,
-        clientId: clientId,
-        discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
-        scope: 'https://www.googleapis.com/auth/drive.readonly'
+        apiKey: apiKey
+      });
+
+      // Initialize the token client for OAuth
+      this.tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/drive.readonly',
+        callback: (response) => {
+          if (response.access_token) {
+            this.accessToken = response.access_token;
+          }
+        },
+        error_callback: (error) => {
+          console.error('OAuth error:', error);
+        }
       });
 
       this.isInitialized = true;
@@ -50,32 +62,68 @@ class GoogleDriveService {
     }
   }
 
-  // Load Google API script
-  loadGoogleAPI() {
+  // Load Google scripts
+  loadGoogleScripts() {
     return new Promise((resolve, reject) => {
-      if (window.gapi) {
+      // Check if scripts are already loaded
+      if (window.gapi && window.google) {
         resolve();
         return;
       }
-
-      const script = document.createElement('script');
-      script.src = 'https://apis.google.com/js/api.js';
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.appendChild(script);
+      
+      // Wait for scripts to load with timeout
+      let attempts = 0;
+      const maxAttempts = 50; // 5 seconds max wait
+      
+      const checkScripts = () => {
+        if (window.gapi && window.google) {
+          resolve();
+        } else if (attempts < maxAttempts) {
+          attempts++;
+          setTimeout(checkScripts, 100);
+        } else {
+          reject(new Error('Google API scripts failed to load'));
+        }
+      };
+      
+      checkScripts();
     });
   }
 
-  // Authenticate user with Google
+  // Authenticate with Google using new Identity Services
   async authenticate() {
     try {
       await this.init();
-      
-      const authInstance = gapi.auth2.getAuthInstance();
-      const user = await authInstance.signIn();
-      
-      this.accessToken = user.getAuthResponse().access_token;
-      return user;
+
+      return new Promise((resolve, reject) => {
+        if (this.accessToken) {
+          resolve(this.accessToken);
+          return;
+        }
+
+        // Update the token client callback to resolve the promise
+        this.tokenClient.callback = (response) => {
+          if (response.error !== undefined) {
+            console.error('OAuth callback error:', response);
+            reject(new Error(`Authentication failed: ${response.error}`));
+            return;
+          }
+          this.accessToken = response.access_token;
+          console.log('Google Drive authentication successful');
+          resolve(this.accessToken);
+        };
+
+        try {
+          // Request access token with proper configuration
+          this.tokenClient.requestAccessToken({
+            prompt: '',  // Empty prompt for smoother flow
+            include_granted_scopes: true
+          });
+        } catch (authError) {
+          console.error('Token request error:', authError);
+          reject(authError);
+        }
+      });
     } catch (error) {
       console.error('Google authentication failed:', error);
       throw error;

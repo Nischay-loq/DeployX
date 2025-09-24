@@ -25,7 +25,7 @@ import {
 import groupsService from '../services/groups';
 import devicesService from '../services/devices';
 import filesService from '../services/files';
-import googleDriveService from '../services/googleDrive';
+import googleDriveService from '../services/workingGoogleDrive';
 import Notification from './jsx/Notification';
 
 export default function FileSystemManager() {
@@ -173,7 +173,10 @@ export default function FileSystemManager() {
       console.error('Google Drive picker error:', error);
       
       // Check if it's an authentication or API key issue
-      if (error.message?.includes('API key') || error.message?.includes('client ID')) {
+      if (error.message?.includes('API configuration missing') || error.message?.includes('Google Cloud Console')) {
+        addNotification('Google Drive setup required. Check console for setup instructions.', 'error');
+        console.error('Google Drive Setup Instructions:', error.message);
+      } else if (error.message?.includes('API key') || error.message?.includes('client ID')) {
         addNotification('Google Drive API configuration required. Please set up API keys.', 'error');
       } else if (error.message?.includes('auth')) {
         addNotification('Google Drive authentication failed. Please try again.', 'error');
