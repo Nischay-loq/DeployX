@@ -25,7 +25,7 @@ import {
 import groupsService from '../services/groups';
 import devicesService from '../services/devices';
 import filesService from '../services/files';
-import googleDriveService from '../services/workingGoogleDrive';
+import googleDriveService from '../services/manualGoogleDrive';
 import Notification from './jsx/Notification';
 
 export default function FileSystemManager() {
@@ -55,6 +55,12 @@ export default function FileSystemManager() {
   const [searchQuery, setSearchQuery] = useState('');
   const [notifications, setNotifications] = useState([]);
   const [error, setError] = useState('');
+  
+  // File preview states
+  const [showFilePreview, setShowFilePreview] = useState(false);
+  const [previewFile, setPreviewFile] = useState(null);
+  const [previewContent, setPreviewContent] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   // Refs
   const fileInputRef = useRef(null);
@@ -154,35 +160,104 @@ export default function FileSystemManager() {
     }
   };
 
+  // File preview functions
+  const handleFilePreview = async (uploadedFile) => {
+    setPreviewFile(uploadedFile);
+    setShowFilePreview(true);
+    setPreviewLoading(true);
+    setPreviewContent('');
+
+    try {
+      // Check if file can be previewed
+      const fileType = uploadedFile.type || 'application/octet-stream';
+      const fileName = uploadedFile.name.toLowerCase();
+      
+      if (fileType.startsWith('text/') || 
+          fileName.endsWith('.txt') || 
+          fileName.endsWith('.json') || 
+          fileName.endsWith('.xml') ||
+          fileName.endsWith('.csv') ||
+          fileName.endsWith('.md') ||
+          fileName.endsWith('.log') ||
+          fileName.endsWith('.yaml') ||
+          fileName.endsWith('.yml') ||
+          fileName.endsWith('.js') ||
+          fileName.endsWith('.css') ||
+          fileName.endsWith('.html') ||
+          fileName.endsWith('.py') ||
+          fileName.endsWith('.sh') ||
+          fileName.endsWith('.bat')) {
+        
+        // Read text content
+        const text = await readFileAsText(uploadedFile.file);
+        setPreviewContent(text);
+      } else if (fileType.startsWith('image/')) {
+        // For images, create data URL
+        const dataUrl = await readFileAsDataURL(uploadedFile.file);
+        setPreviewContent(dataUrl);
+      } else {
+        setPreviewContent('Preview not available for this file type.');
+      }
+    } catch (error) {
+      console.error('Error previewing file:', error);
+      setPreviewContent('Error loading file preview.');
+      addNotification('Failed to load file preview', 'error');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const readFileAsText = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsText(file);
+    });
+  };
+
+  const readFileAsDataURL = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const downloadFile = (uploadedFile) => {
+    if (uploadedFile.file) {
+      const url = URL.createObjectURL(uploadedFile.file);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = uploadedFile.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      addNotification(`Downloaded ${uploadedFile.name}`, 'success');
+    }
+  };
+
   // Google Drive integration functions
   const handleGoogleDriveUpload = async () => {
     try {
       setIsUploading(true);
-      addNotification('Opening Google Drive picker...', 'info');
+      addNotification('Opening Google Drive integration...', 'info');
       
-      // Initialize and use the official Google Drive picker
+      // Use the manual Google Drive process
       const selectedFiles = await googleDriveService.openFilePicker();
       
       if (selectedFiles && selectedFiles.length > 0) {
         handleSelectGoogleDriveFiles(selectedFiles);
         addNotification(`Selected ${selectedFiles.length} file(s) from Google Drive`, 'success');
       } else {
-        addNotification('No files selected from Google Drive', 'info');
+        // User will manually upload files using the upload button
+        addNotification('Google Drive opened! Download your files and use "Upload Files" button when ready.', 'success');
       }
     } catch (error) {
-      console.error('Google Drive picker error:', error);
-      
-      // Check if it's an authentication or API key issue
-      if (error.message?.includes('API configuration missing') || error.message?.includes('Google Cloud Console')) {
-        addNotification('Google Drive setup required. Check console for setup instructions.', 'error');
-        console.error('Google Drive Setup Instructions:', error.message);
-      } else if (error.message?.includes('API key') || error.message?.includes('client ID')) {
-        addNotification('Google Drive API configuration required. Please set up API keys.', 'error');
-      } else if (error.message?.includes('auth')) {
-        addNotification('Google Drive authentication failed. Please try again.', 'error');
-      } else {
-        addNotification('Failed to open Google Drive picker. Please try again.', 'error');
-      }
+      console.error('Google Drive integration error:', error);
+      addNotification('Google Drive integration not available. Please use the Upload Files button instead.', 'info');
     } finally {
       setIsUploading(false);
     }
@@ -238,7 +313,7 @@ export default function FileSystemManager() {
   const getTargetDevices = () => {
     const groupDevices = groups
       .filter(group => selectedGroups.includes(group.id))
-      .flatMap(group => group.device_ids || []);
+      .flatMap(group => (group.devices || []).map(device => device.id));
     
     const allTargetDeviceIds = [...new Set([...groupDevices, ...selectedDevices])];
     return devices.filter(device => allTargetDeviceIds.includes(device.id));
@@ -406,12 +481,12 @@ export default function FileSystemManager() {
   };
 
   const filteredGroups = groups.filter(group => 
-    group.name?.toLowerCase().includes(searchQuery.toLowerCase())
+    group.group_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const filteredDevices = devices.filter(device => 
-    (device.name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (device.hostname?.toLowerCase().includes(searchQuery.toLowerCase()))
+    (device.device_name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (device.ip_address?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
@@ -526,11 +601,11 @@ export default function FileSystemManager() {
                   Google Drive
                 </h4>
                 <p className="text-gray-400 mb-3">
-                  Import files from Google Drive
+                  Browse & download files from Drive
                 </p>
                 <button className="btn-secondary btn-sm">
                   <ExternalLink className="w-4 h-4 mr-2" />
-                  Connect Drive
+                  Open Drive
                 </button>
               </div>
             </div>
@@ -575,12 +650,29 @@ export default function FileSystemManager() {
                           </div>
                         </div>
                       </div>
-                      <button
-                        onClick={() => removeFile(uploadedFile.id)}
-                        className="text-red-400 hover:text-red-300 transition-colors p-1"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleFilePreview(uploadedFile)}
+                          className="text-blue-400 hover:text-blue-300 transition-colors p-1"
+                          title="Preview file"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => downloadFile(uploadedFile)}
+                          className="text-green-400 hover:text-green-300 transition-colors p-1"
+                          title="Download file"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => removeFile(uploadedFile.id)}
+                          className="text-red-400 hover:text-red-300 transition-colors p-1"
+                          title="Remove file"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -661,9 +753,9 @@ export default function FileSystemManager() {
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="font-medium text-white">{group.name}</div>
+                          <div className="font-medium text-white">{group.group_name}</div>
                           <div className="text-sm text-gray-400">
-                            {group.device_ids?.length || 0} devices
+                            {group.devices?.length || 0} devices
                           </div>
                         </div>
                         {selectedGroups.includes(group.id) && (
@@ -706,10 +798,13 @@ export default function FileSystemManager() {
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="font-medium text-white">
-                            {device.name || device.hostname}
+                            {device.device_name || `Device ${device.id}`}
                           </div>
                           <div className="text-sm text-gray-400">
-                            {device.hostname}
+                            {device.ip_address} • {device.os || 'Unknown OS'}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Status: {device.status} • {device.connection_type || 'Unknown'}
                           </div>
                         </div>
                         {selectedDevices.includes(device.id) && (
@@ -879,6 +974,83 @@ export default function FileSystemManager() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* File Preview Modal */}
+      {showFilePreview && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-700">
+              <div className="flex items-center gap-3">
+                <File className="w-5 h-5 text-blue-400" />
+                <div>
+                  <h3 className="text-lg font-semibold text-white">
+                    {previewFile?.name}
+                  </h3>
+                  <p className="text-sm text-gray-400">
+                    {formatFileSize(previewFile?.size || 0)} • {previewFile?.type || 'Unknown type'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => downloadFile(previewFile)}
+                  className="btn-secondary btn-sm"
+                  title="Download file"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download
+                </button>
+                <button
+                  onClick={() => setShowFilePreview(false)}
+                  className="text-gray-400 hover:text-white transition-colors p-1"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-auto p-4">
+              {previewLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <RefreshCw className="w-8 h-8 text-blue-400 animate-spin" />
+                  <span className="ml-3 text-gray-400">Loading preview...</span>
+                </div>
+              ) : previewContent ? (
+                <div className="space-y-4">
+                  {previewFile?.type?.startsWith('image/') && previewContent.startsWith('data:') ? (
+                    // Image preview
+                    <div className="text-center">
+                      <img
+                        src={previewContent}
+                        alt={previewFile.name}
+                        className="max-w-full max-h-96 mx-auto rounded-lg shadow-lg"
+                      />
+                    </div>
+                  ) : (
+                    // Text content preview
+                    <div className="bg-gray-900 rounded-lg p-4 overflow-auto">
+                      <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono">
+                        {previewContent.length > 10000 
+                          ? previewContent.slice(0, 10000) + '\n\n... (Content truncated. Download file to view complete content)'
+                          : previewContent
+                        }
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-gray-400">
+                  <File className="w-16 h-16 mx-auto mb-4 text-gray-600" />
+                  <p>Preview not available for this file type.</p>
+                  <p className="text-sm mt-2">You can still download the file to view it.</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

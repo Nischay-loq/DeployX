@@ -17,40 +17,52 @@ class ManualGoogleDriveService {
     return 'manual-mode';
   }
 
-  // Show instructions instead of picker
+  // Show instructions and open Google Drive
   async openFilePicker() {
-    const instructions = `
-MANUAL GOOGLE DRIVE INTEGRATION:
+    return new Promise((resolve) => {
+      // Create a more user-friendly modal experience
+      const userChoice = confirm(
+        "🔗 Google Drive Integration\n\n" +
+        "Due to Google's OAuth restrictions for new applications, we'll use a simple manual process:\n\n" +
+        "1️⃣ Click OK to open Google Drive in a new tab\n" +
+        "2️⃣ Browse and download the files you want to deploy\n" +
+        "3️⃣ Return here and use the 'Upload Files' button\n" +
+        "4️⃣ Select your downloaded files and proceed\n\n" +
+        "✅ This method is actually faster and more reliable!\n\n" +
+        "Click OK to open Google Drive, or Cancel to continue with local files only."
+      );
 
-Since Google OAuth is being restrictive, here's how to manually add files:
-
-1. Go to drive.google.com in another tab
-2. Find and download the files you want to deploy
-3. Come back to this tab
-4. Use the "Upload Files" button to select your downloaded files
-5. Proceed with deployment as normal
-
-This manual method works just as well and bypasses all OAuth restrictions!
-    `;
-
-    // Show instructions in console and alert
-    console.log(instructions);
-    
-    // Create a custom modal-like experience
-    const userWantsToTryAnyway = confirm(
-      "Google OAuth is restricted for new apps. Would you like to:\n\n" +
-      "✅ Click OK to manually upload files (recommended)\n" +
-      "❌ Click Cancel to try OAuth anyway (might fail)"
-    );
-
-    if (userWantsToTryAnyway) {
-      // Return empty array to let user upload manually
-      return [];
-    } else {
-      // Try to open drive.google.com in new tab
-      window.open('https://drive.google.com', '_blank');
-      return [];
-    }
+      if (userChoice) {
+        // Open Google Drive in new tab
+        const driveWindow = window.open('https://drive.google.com', '_blank', 'noopener,noreferrer');
+        
+        if (driveWindow) {
+          console.log('📁 Google Drive opened in new tab');
+          console.log('💡 Instructions:');
+          console.log('   1. Find your files in Google Drive');
+          console.log('   2. Right-click and select "Download"');
+          console.log('   3. Return to this tab when done');
+          console.log('   4. Use the "Upload Files" button to select downloaded files');
+          
+          // Show success message after a short delay
+          setTimeout(() => {
+            if (window.confirm("Google Drive opened! 🎉\n\nAfter downloading your files:\n• Return to this tab\n• Click 'Upload Files' to select them\n• Continue with deployment\n\nClick OK when you're ready to continue.")) {
+              resolve([]);
+            } else {
+              resolve([]);
+            }
+          }, 1000);
+        } else {
+          // Popup blocked or failed
+          alert("⚠️ Popup blocked!\n\nPlease manually go to: https://drive.google.com\n\nThen return here and use 'Upload Files' button.");
+          resolve([]);
+        }
+      } else {
+        // User cancelled
+        console.log('User chose to continue with local files only');
+        resolve([]);
+      }
+    });
   }
 
   async downloadFile(fileId, fileName) {
