@@ -10,7 +10,51 @@ export default function Navbar({ onLogout }) {
   return (
     <aside className="sidebar">
       <div className="logo">
-        <h2>DeployX</h2>
+        {/* DeployX Logo - Testing multiple paths */}
+        <img 
+          src="/deployx-logo.png" 
+          alt="DeployX Logo" 
+          style={{
+            height: '35px',
+            width: 'auto',
+            maxWidth: '140px',
+            objectFit: 'contain',
+            display: 'block',
+            margin: '0 auto',
+            backgroundColor: 'transparent'
+          }}
+          onError={(e) => {
+            console.error('❌ Image failed to load:', e.target.src);
+            // Hide the image and show text fallback
+            e.target.style.display = 'none';
+            const fallback = e.target.parentNode.querySelector('.logo-fallback');
+            if (fallback) fallback.style.display = 'block';
+          }}
+          onLoad={(e) => {
+            console.log('✅ DeployX logo loaded successfully from:', e.target.src);
+          }}
+        />
+        
+        {/* Fallback text that matches your cosmic design */}
+        <div 
+          className="logo-fallback"
+          style={{
+            display: 'none',
+            fontSize: '20px',
+            fontWeight: 'bold',
+            textAlign: 'center',
+            padding: '10px 0',
+            background: 'linear-gradient(45deg, #8B5CF6, #3B82F6, #06B6D4, #8B5CF6)',
+            backgroundSize: '300% 300%',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            letterSpacing: '2px',
+            animation: 'gradient-shift 3s ease infinite'
+          }}
+        >
+          DeployX
+        </div>
       </div>
       <nav className="nav">
         <Link to="/dashboard"><FaHome /> Dashboard</Link>

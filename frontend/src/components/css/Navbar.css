@@ -58,3 +58,33 @@
 .logout-btn:hover {
   color: #f09819; /* or your sidebar link hover color */
 }
+
+/* Logo Styles */
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 15px 10px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #3a3a3a;
+  min-height: 60px;
+}
+
+.logo img {
+  max-height: 35px;
+  width: auto;
+  object-fit: contain;
+  transition: all 0.3s ease;
+}
+
+.logo img:hover {
+  transform: scale(1.05);
+  filter: brightness(1.2);
+}
+
+/* Gradient animation for fallback text */
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
