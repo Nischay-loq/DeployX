@@ -1,67 +1,91 @@
-import { LayoutGrid, Users2, Activity, Boxes, Laptop2, Shield, Zap, Globe, Database, Cpu, ChevronLeft, ChevronRight, Play, Pause, Building2, TrendingUp, CheckCircle2, Star } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { LayoutGrid, Users2, Activity, Boxes, Laptop2, Shield, ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
 
 const services = [
   {
-    icon: Zap,
-    title: "Lightning Deployment",
-    desc: "Deploy in seconds, not hours. Zero downtime guaranteed.",
-    stats: "99.9% Uptime",
-    testimonial: "Reduced deployment time by 80%",
-    client: "TechCorp",
-    rating: 5,
-    color: "blue"
-  },
-  {
-    icon: Building2,
-    title: "Enterprise Scale",
-    desc: "Handle millions of requests with auto-scaling infrastructure.",
-    stats: "10M+ Requests/Day",
-    testimonial: "Seamlessly scaled to Black Friday traffic",
-    client: "RetailGiant",
-    rating: 5,
-    color: "purple"
-  },
-  {
-    icon: Shield,
-    title: "Fort Knox Security",
-    desc: "Military-grade encryption with SOC 2 compliance.",
-    stats: "Zero Breaches",
-    testimonial: "Most secure platform we've used",
-    client: "FinanceFirst",
-    rating: 5,
-    color: "emerald"
-  },
-  {
-    icon: TrendingUp,
-    title: "Smart Analytics",
-    desc: "AI-powered insights that predict and prevent issues.",
-    stats: "95% Issue Prevention",
-    testimonial: "Prevented 50+ critical incidents",
-    client: "DataDriven",
-    rating: 5,
-    color: "orange"
+    icon: LayoutGrid,
+    title: "Device Management",
+    desc: "Centralized control and monitoring of all your devices across networks.",
+    color: "blue",
+    leftPoints: [
+      "Real-time device status monitoring",
+      "Automated device discovery & onboarding"
+    ],
+    rightPoints: [
+      "Cross-platform compatibility support", 
+      "Advanced device grouping & filtering"
+    ]
   },
   {
     icon: Users2,
-    title: "Team Harmony",
-    desc: "Collaborate effortlessly with integrated workflows.",
-    stats: "5x Faster Delivery",
-    testimonial: "Our team productivity skyrocketed",
-    client: "AgileCorp",
-    rating: 5,
-    color: "cyan"
+    title: "User Management",  
+    desc: "Role-based access control and user authentication system.",
+    color: "purple",
+    leftPoints: [
+      "Multi-factor authentication support",
+      "Granular permission management"
+    ],
+    rightPoints: [
+      "Active Directory integration",
+      "Session management & audit logs"
+    ]
   },
   {
-    icon: Globe,
-    title: "Global Reach",
-    desc: "Deploy anywhere, instantly. 50+ regions worldwide.",
-    stats: "50+ Regions",
-    testimonial: "Expanded globally in just one week",
-    client: "WorldWide Inc",
-    rating: 5,
-    color: "pink"
+    icon: Activity,
+    title: "System Monitoring",
+    desc: "Real-time monitoring and performance analytics for all connected devices.",
+    color: "emerald",
+    leftPoints: [
+      "Live performance metrics dashboard",
+      "Customizable alert & notification system"
+    ],
+    rightPoints: [
+      "Historical data analysis & reporting",
+      "Predictive maintenance insights"
+    ]
+  },
+  {
+    icon: Boxes,
+    title: "Package Deployment",
+    desc: "Automated software deployment and package management across devices.",
+    color: "orange",
+    leftPoints: [
+      "Batch deployment across multiple devices",
+      "Rollback capabilities for failed deployments"
+    ],
+    rightPoints: [
+      "Scheduled deployment automation",
+      "Version control & dependency management"
+    ]
+  },
+  {
+    icon: Laptop2,
+    title: "Remote Control",
+    desc: "Secure remote access and control of devices from anywhere.",
+    color: "cyan",
+    leftPoints: [
+      "End-to-end encrypted connections",
+      "Cross-platform remote desktop access"
+    ],
+    rightPoints: [
+      "File transfer & synchronization",
+      "Remote command execution & scripting"
+    ]
+  },
+  {
+    icon: Shield,
+    title: "Security Center",
+    desc: "Advanced security features with encryption and compliance monitoring.",
+    color: "pink",
+    leftPoints: [
+      "Zero-trust security architecture",
+      "Compliance reporting & audit trails"
+    ],
+    rightPoints: [
+      "Threat detection & prevention",
+      "Data encryption at rest & in transit"
+    ]
   }
 ]
 
@@ -80,7 +104,15 @@ const colorMap = {
 
 export default function Services() {
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [isPlaying, setIsPlaying] = useState(true)
+
+  // Auto-advance slides
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % services.length)
+    }, 5000)
+    
+    return () => clearInterval(interval)
+  }, [])
 
   const nextSlide = () => {
     setCurrentIndex((prev) => (prev + 1) % services.length)
@@ -90,55 +122,33 @@ export default function Services() {
     setCurrentIndex((prev) => (prev - 1 + services.length) % services.length)
   }
 
-  // Auto-play functionality
-  useEffect(() => {
-    if (!isPlaying) return
-    
-    const interval = setInterval(() => {
-      nextSlide()
-    }, 4000)
-
-    return () => clearInterval(interval)
-  }, [isPlaying, currentIndex])
-
   return (
-    <section id="services" className="py-24 bg-gradient-to-b from-gray-900 to-gray-950 relative overflow-hidden">
-      {/* Background Elements */}
-      <div className="absolute inset-0">
-        <div className="absolute top-20 left-10 w-32 h-32 bg-primary-500/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-20 right-10 w-40 h-40 bg-accent-cyan/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-60 h-60 bg-accent-purple/5 rounded-full blur-3xl"></div>
-      </div>
-
-      <div className="relative z-10 max-w-7xl mx-auto px-6">
+    <section id="services" className="py-24 overflow-hidden">
+      <div className="max-w-7xl mx-auto px-6">
         {/* Section Header */}
         <motion.div 
-          initial={{ opacity: 0, y: 30 }} 
-          whileInView={{ opacity: 1, y: 0 }} 
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.8 }}
           className="text-center mb-16"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent-cyan/20 border border-accent-cyan/30 rounded-full text-accent-cyan text-sm font-medium mb-6">
-            <div className="w-2 h-2 bg-accent-cyan rounded-full animate-pulse"></div>
-            Professional Services
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500/20 border border-primary-500/30 rounded-full text-primary-400 text-sm font-medium mb-6">
+            <div className="w-2 h-2 bg-primary-400 rounded-full animate-pulse"></div>
+            Our Services
           </div>
           <h2 className="text-4xl md:text-5xl font-bold font-display text-white mb-6">
-            Trusted by <span className="bg-gradient-to-r from-primary-400 to-accent-cyan bg-clip-text text-transparent">Industry Leaders</span>
+            Complete <span className="bg-gradient-to-r from-primary-400 to-accent-cyan bg-clip-text text-transparent">Infrastructure Management</span>
           </h2>
           <p className="text-xl text-gray-400 max-w-3xl mx-auto">
-            See why companies worldwide choose DeployX for their mission-critical infrastructure
+            Comprehensive solutions for modern deployment and device management needs
           </p>
         </motion.div>
 
-        {/* Professional Horizontal Carousel */}
+        {/* Horizontal Carousel */}
         <div className="relative">
           {/* Carousel Container */}
-          <div 
-            className="overflow-hidden rounded-2xl"
-            onMouseEnter={() => setIsPlaying(false)}
-            onMouseLeave={() => setIsPlaying(true)}
-          >
+          <div className="overflow-hidden rounded-2xl">
             <motion.div
               className="flex"
               animate={{
@@ -150,7 +160,7 @@ export default function Services() {
                 damping: 30
               }}
             >
-              {services.map(({icon: Icon, title, desc, stats, testimonial, client, rating, color}, i) => (
+              {services.map(({icon: Icon, title, desc, color, leftPoints, rightPoints}, i) => (
                 <div
                   key={i}
                   className="w-full flex-shrink-0"
@@ -162,72 +172,99 @@ export default function Services() {
                     transition={{ duration: 0.3 }}
                   >
                     {/* Main Card */}
-                    <div className={`relative bg-gradient-to-br ${colorMap[color]} p-8 md:p-12 rounded-2xl overflow-hidden min-h-[500px] flex flex-col md:flex-row items-center gap-8`}>
-                      {/* Left Content */}
-                      <div className="flex-1 text-center md:text-left">
-                        {/* Icon */}
+                    <div className="relative card-dark border-glow hover-lift p-6 md:p-8 rounded-2xl overflow-hidden flex flex-col md:flex-row items-center gap-8 border border-gray-700/50 transition-all duration-500 hover:border-primary-400/60 hover:shadow-[0_0_20px_rgba(99,102,241,0.3),0_0_40px_rgba(99,102,241,0.1),inset_0_1px_0_rgba(255,255,255,0.1)] hover:shadow-primary-400/20 bg-gradient-to-br from-gray-900/90 to-gray-800/90 backdrop-blur-sm">
+                      
+                      {/* Left Side - Description Points */}
+                      <div className="flex-1">
+                        <motion.div
+                          initial={{ opacity: 0, x: -50 }}
+                          whileInView={{ opacity: 1, x: 0 }}
+                          viewport={{ once: true }}
+                          transition={{ duration: 0.6, delay: 0.2 }}
+                          className="space-y-6"
+                        >
+                          {leftPoints.map((point, idx) => (
+                            <motion.div
+                              key={idx}
+                              initial={{ opacity: 0, x: -30 }}
+                              whileInView={{ opacity: 1, x: 0 }}
+                              viewport={{ once: true }}
+                              transition={{ duration: 0.5, delay: 0.3 + idx * 0.1 }}
+                              className="flex items-start gap-4"
+                            >
+                              <div className="w-6 h-6 bg-primary-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                                <CheckCircle className="w-4 h-4 text-primary-400" />
+                              </div>
+                              <p className="text-gray-300 text-base leading-relaxed">{point}</p>
+                            </motion.div>
+                          ))}
+                        </motion.div>
+                      </div>
+
+                      {/* Center - Icon & Title */}
+                      <div className="flex-shrink-0 text-center">
                         <motion.div 
-                          className="inline-flex items-center justify-center w-20 h-20 bg-white/20 backdrop-blur-md rounded-2xl mb-6"
+                          className={`inline-flex items-center justify-center w-20 h-20 bg-gradient-to-r ${colorMap[color]} rounded-2xl mb-6 shadow-lg transition-all duration-300 group-hover:shadow-[0_0_25px_rgba(99,102,241,0.5)] group-hover:shadow-primary-400/40`}
                           whileHover={{ rotate: 5, scale: 1.1 }}
+                          initial={{ scale: 0 }}
+                          whileInView={{ scale: 1 }}
+                          viewport={{ once: true }}
+                          transition={{ type: "spring", duration: 0.8 }}
                         >
                           <Icon className="w-10 h-10 text-white" />
                         </motion.div>
 
-                        {/* Title & Description */}
-                        <h3 className="text-3xl md:text-4xl font-bold text-white mb-4">
+                        <motion.h3 
+                          className="text-2xl md:text-3xl font-bold text-white mb-4"
+                          initial={{ opacity: 0, y: 20 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          viewport={{ once: true }}
+                          transition={{ duration: 0.6, delay: 0.1 }}
+                        >
                           {title}
-                        </h3>
-                        <p className="text-xl text-white/90 mb-6 leading-relaxed">
+                        </motion.h3>
+                        
+                        <motion.p 
+                          className="text-lg text-gray-300 leading-relaxed max-w-md"
+                          initial={{ opacity: 0, y: 20 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          viewport={{ once: true }}
+                          transition={{ duration: 0.6, delay: 0.2 }}
+                        >
                           {desc}
-                        </p>
-
-                        {/* Stats */}
-                        <div className="inline-flex items-center gap-2 px-6 py-3 bg-white/20 backdrop-blur-md rounded-full mb-8">
-                          <TrendingUp className="w-5 h-5 text-white" />
-                          <span className="text-white font-semibold text-lg">{stats}</span>
-                        </div>
+                        </motion.p>
                       </div>
 
-                      {/* Right Content - Testimonial Card */}
-                      <div className="flex-1 max-w-md">
-                        <motion.div 
-                          className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-6"
-                          whileHover={{ y: -5 }}
+                      {/* Right Side - Description Points */}
+                      <div className="flex-1">
+                        <motion.div
+                          initial={{ opacity: 0, x: 50 }}
+                          whileInView={{ opacity: 1, x: 0 }}
+                          viewport={{ once: true }}
+                          transition={{ duration: 0.6, delay: 0.2 }}
+                          className="space-y-6"
                         >
-                          {/* Stars */}
-                          <div className="flex gap-1 mb-4">
-                            {[...Array(rating)].map((_, idx) => (
-                              <Star key={idx} className="w-5 h-5 text-yellow-400 fill-current" />
-                            ))}
-                          </div>
-
-                          {/* Testimonial */}
-                          <blockquote className="text-white/90 text-lg mb-4 font-medium">
-                            "{testimonial}"
-                          </blockquote>
-
-                          {/* Client */}
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                              <Building2 className="w-5 h-5 text-white" />
-                            </div>
-                            <div>
-                              <div className="text-white font-semibold">{client}</div>
-                              <div className="text-white/70 text-sm">Verified Client</div>
-                            </div>
-                          </div>
-
-                          {/* Success Badge */}
-                          <div className="flex items-center gap-2 mt-4 text-green-300">
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span className="text-sm font-medium">Verified Success Story</span>
-                          </div>
+                          {rightPoints.map((point, idx) => (
+                            <motion.div
+                              key={idx}
+                              initial={{ opacity: 0, x: 30 }}
+                              whileInView={{ opacity: 1, x: 0 }}
+                              viewport={{ once: true }}
+                              transition={{ duration: 0.5, delay: 0.3 + idx * 0.1 }}
+                              className="flex items-start gap-4"
+                            >
+                              <div className="w-6 h-6 bg-primary-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                                <CheckCircle className="w-4 h-4 text-primary-400" />
+                              </div>
+                              <p className="text-gray-300 text-base leading-relaxed">{point}</p>
+                            </motion.div>
+                          ))}
                         </motion.div>
                       </div>
 
                       {/* Decorative Elements */}
-                      <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full blur-3xl"></div>
-                      <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full blur-2xl"></div>
+                      <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-primary-500/10 to-transparent rounded-bl-2xl"></div>
+                      <div className="absolute bottom-0 left-0 w-16 h-16 bg-gradient-to-tr from-accent-cyan/10 to-transparent rounded-tr-2xl"></div>
                     </div>
                   </motion.div>
                 </div>
@@ -236,66 +273,35 @@ export default function Services() {
           </div>
 
           {/* Navigation Controls */}
-          <div className="flex items-center justify-between mt-8">
-            {/* Left Side - Play/Pause & Navigation */}
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setIsPlaying(!isPlaying)}
-                className="w-12 h-12 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/30 rounded-full flex items-center justify-center transition-all duration-300 hover:border-primary-400/50 backdrop-blur-sm"
-              >
-                {isPlaying ? 
-                  <Pause className="w-5 h-5 text-gray-300" /> : 
-                  <Play className="w-5 h-5 text-gray-300" />
-                }
-              </button>
+          <div className="flex items-center justify-center gap-6 mt-8">
+            <button
+              onClick={prevSlide}
+              className="w-12 h-12 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/30 rounded-full flex items-center justify-center transition-all duration-300 hover:border-primary-400/70 hover:scale-110 backdrop-blur-sm hover:shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:shadow-primary-400/30"
+            >
+              <ChevronLeft className="w-5 h-5 text-gray-300 hover:text-primary-400 transition-colors" />
+            </button>
 
-              <button
-                onClick={prevSlide}
-                className="w-12 h-12 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/30 rounded-full flex items-center justify-center transition-all duration-300 hover:border-primary-400/50 hover:scale-110 backdrop-blur-sm"
-              >
-                <ChevronLeft className="w-5 h-5 text-gray-300 hover:text-primary-400 transition-colors" />
-              </button>
-
-              <button
-                onClick={nextSlide}
-                className="w-12 h-12 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/30 rounded-full flex items-center justify-center transition-all duration-300 hover:border-primary-400/50 hover:scale-110 backdrop-blur-sm"
-              >
-                <ChevronRight className="w-5 h-5 text-gray-300 hover:text-primary-400 transition-colors" />
-              </button>
-            </div>
-
-            {/* Right Side - Progress Indicators */}
-            <div className="flex items-center gap-3">
+            {/* Progress Indicators */}
+            <div className="flex items-center gap-2">
               {services.map((_, idx) => (
                 <button
                   key={idx}
                   onClick={() => setCurrentIndex(idx)}
-                  className="group relative"
-                >
-                  {/* Progress Bar */}
-                  <div className="w-12 h-1 bg-gray-700 rounded-full overflow-hidden">
-                    <motion.div
-                      className={`h-full bg-gradient-to-r ${colorMap[services[idx].color]} rounded-full`}
-                      initial={{ width: "0%" }}
-                      animate={{ 
-                        width: idx === currentIndex ? "100%" : "0%" 
-                      }}
-                      transition={{ 
-                        duration: idx === currentIndex && isPlaying ? 4 : 0.3,
-                        ease: "linear"
-                      }}
-                    />
-                  </div>
-                  
-                  {/* Tooltip */}
-                  <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    <div className="bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
-                      {services[idx].title}
-                    </div>
-                  </div>
-                </button>
+                  className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                    idx === currentIndex 
+                      ? 'bg-primary-400 scale-125' 
+                      : 'bg-gray-600 hover:bg-gray-500'
+                  }`}
+                />
               ))}
             </div>
+
+            <button
+              onClick={nextSlide}
+              className="w-12 h-12 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/30 rounded-full flex items-center justify-center transition-all duration-300 hover:border-primary-400/70 hover:scale-110 backdrop-blur-sm hover:shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:shadow-primary-400/30"
+            >
+              <ChevronRight className="w-5 h-5 text-gray-300 hover:text-primary-400 transition-colors" />
+            </button>
           </div>
 
           {/* Current Slide Info */}

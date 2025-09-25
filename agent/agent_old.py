@@ -28,5 +28,5 @@ def run_command(command):
 def disconnect():
     print("Disconnected from server")
 
-sio.connect('http://localhost:3000')
+sio.connect('http://localhost:8000')
 sio.wait()

@@ -3,15 +3,15 @@ import asyncio
 import argparse
 import platform
 import logging
-from agent.core.connection import ConnectionManager
-from agent.core.shell_manager import ShellManager
-from agent.handlers.socket_handlers import SocketEventHandler
-from agent.handlers.signal_handlers import setup_signal_handlers
-from agent.utils.logging_config import setup_logging
-from agent.utils.shell_detector import detect_shells
-from agent.network.service_advertiser import ServiceAdvertiser
-from agent.network.server_discoverer import ServiceDiscoverer
-from agent.monitoring.system_info import get_system_info
+from core.connection import ConnectionManager
+from core.shell_manager import ShellManager
+from handlers.socket_handlers import SocketEventHandler
+from handlers.signal_handlers import setup_signal_handlers
+from utils.logging_config import setup_logging
+from utils.shell_detector import detect_shells
+from network.service_advertiser import ServiceAdvertiser
+from network.server_discoverer import ServiceDiscoverer
+from monitoring.system_info import get_system_info
 
 # Setup logging
 logger = setup_logging()

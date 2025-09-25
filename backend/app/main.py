@@ -461,10 +461,8 @@ async def get_agents_rest():
 async def root():
     return {"message": "Remote Terminal Server with Real CMD Running (Socket.IO)"}
 
-# Mount Socket.IO app
+# Create Socket.IO ASGI app (don't mount to avoid circular reference)
 socket_app = socketio.ASGIApp(sio, app)
-
-app.mount("/", socket_app)  # Mount Socket.IO app at the root
 
 def start():
     """Start the backend server."""

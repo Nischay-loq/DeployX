@@ -1,7 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from app.auth.database import Base  # assuming you have a common Base
-from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.sql import func  # <-- import func for default timestamp
 
 class DeviceGroup(Base):
@@ -30,7 +29,7 @@ class Device(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     device_name = Column(String(100))
-    ip_address = Column(INET, nullable=False)  # <-- use INET (all caps)
+    ip_address = Column(String(45), nullable=False)  # IP address as string (supports IPv4 and IPv6)
     mac_address = Column(String(17))
     os = Column(String(50))
     status = Column(String(20))
