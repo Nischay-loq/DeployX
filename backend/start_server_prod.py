@@ -12,10 +12,10 @@ if __name__ == '__main__':
         from app.main import app
         print("✅ App imported successfully")
         
-        # Start server
+        # Start server in production mode (no reload)
         import uvicorn
-        print("🚀 Starting server on http://127.0.0.1:8000")
-        uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+        print("🚀 Starting server in production mode on http://127.0.0.1:8000")
+        uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=False)
         
     except ImportError as e:
         print(f"❌ Import error: {e}")
