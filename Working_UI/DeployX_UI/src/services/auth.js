@@ -143,10 +143,43 @@ class AuthService {
     }
   }
 
-  // Signup function
+  // Step 1: Request signup and send OTP
+  async signupRequest(userData) {
+    try {
+      const response = await apiClient.signupRequest(userData);
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Step 2: Complete signup after OTP verification
+  async signupComplete(email, otp) {
+    try {
+      const response = await apiClient.signupComplete({ email, otp });
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Legacy signup function (direct, no OTP)
   async signup(userData) {
     try {
       const response = await apiClient.signup(userData);
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Signup with OTP verification (deprecated - use signupRequest + signupComplete)
+  async signupWithOTP(userData, otp) {
+    try {
+      const response = await apiClient.signupWithOTP({
+        ...userData,
+        otp: otp
+      });
       return response;
     } catch (error) {
       throw error;

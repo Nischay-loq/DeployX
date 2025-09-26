@@ -8,8 +8,11 @@ from .database import get_db
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
-# In-memory OTP store (temp solution) - stores {email: {"otp": code, "purpose": "signup"|"reset"}}
+# In-memory OTP store (temp solution) - stores {email: {"otp": code, "purpose": "signup"|"reset", "user_data": {...}}}
 otp_store = {}
+
+# Temporary user data store for signup process
+signup_pending_store = {}
 
 # ----------- OTP Request Schemas -------------
 class EmailRequest(BaseModel):
@@ -29,18 +32,122 @@ class PasswordResetRequest(BaseModel):
     new_password: str
 
 # ----------- AUTH ROUTES ---------------------
-@router.post("/signup", response_model=schemas.UserOut)
-def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
+@router.post("/signup-request")
+def signup_request(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    """
+    Step 1: Validate user data and send OTP (don't create user yet)
+    """
+    # Check if user data already exists
     if db.query(models.User).filter(models.User.email == user.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
     if db.query(models.User).filter(models.User.username == user.username).first():
         raise HTTPException(status_code=400, detail="Username already taken")
 
+    # Generate and send OTP
+    otp = utils.generate_otp()
+    
+    try:
+        utils.send_otp_email(user.email, otp)
+        
+        # Store user data temporarily along with OTP
+        signup_pending_store[user.email] = {
+            "otp": otp,
+            "username": user.username,
+            "email": user.email,
+            "password": user.password,  # Will be hashed when user is created
+            "timestamp": datetime.utcnow(),
+            "purpose": "signup"
+        }
+        
+        return {"msg": f"OTP sent to {user.email}. Please verify to complete signup."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send OTP: {str(e)}")
+
+@router.post("/signup-complete", response_model=schemas.UserOut)
+def signup_complete(request: schemas.OTPVerifyRequest, db: Session = Depends(get_db)):
+    """
+    Step 2: Verify OTP and create user account
+    """
+    # Get pending signup data
+    pending_data = signup_pending_store.get(request.email)
+    if not pending_data:
+        raise HTTPException(status_code=400, detail="No pending signup found. Please start signup process again.")
+    
+    # Verify OTP
+    if pending_data["otp"] != request.otp:
+        raise HTTPException(status_code=400, detail="Invalid OTP")
+    
+    # Check if OTP is expired (optional: 10 minutes expiry)
+    if (datetime.utcnow() - pending_data["timestamp"]).total_seconds() > 600:  # 10 minutes
+        signup_pending_store.pop(request.email, None)
+        raise HTTPException(status_code=400, detail="OTP expired. Please start signup process again.")
+    
+    # Double-check user doesn't exist (race condition protection)
+    if db.query(models.User).filter(models.User.email == request.email).first():
+        signup_pending_store.pop(request.email, None)
+        raise HTTPException(status_code=400, detail="Email already registered")
+    if db.query(models.User).filter(models.User.username == pending_data["username"]).first():
+        signup_pending_store.pop(request.email, None)
+        raise HTTPException(status_code=400, detail="Username already taken")
+
+    # Create user account
+    hashed_pw = utils.hash_password(pending_data["password"])
+    new_user = models.User(
+        username=pending_data["username"], 
+        email=pending_data["email"], 
+        password=hashed_pw
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    # Clear pending data
+    signup_pending_store.pop(request.email, None)
+    
+    return new_user
+
+@router.post("/signup", response_model=schemas.UserOut)
+def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    """
+    Legacy endpoint for direct signup (no OTP) - kept for backward compatibility
+    """
+    # Check if user data already exists
+    if db.query(models.User).filter(models.User.email == user.email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
+    if db.query(models.User).filter(models.User.username == user.username).first():
+        raise HTTPException(status_code=400, detail="Username already taken")
+
+    # Create user directly (no OTP verification)
     hashed_pw = utils.hash_password(user.password)
     new_user = models.User(username=user.username, email=user.email, password=hashed_pw)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    return new_user
+
+@router.post("/signup-with-otp", response_model=schemas.UserOut)
+def signup_with_otp(user: schemas.UserCreateWithOTP, db: Session = Depends(get_db)):
+    # Verify OTP first
+    stored_data = otp_store.get(user.email)
+    if not stored_data or stored_data["otp"] != user.otp or stored_data["purpose"] != "signup":
+        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+    
+    # Check if user data already exists
+    if db.query(models.User).filter(models.User.email == user.email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
+    if db.query(models.User).filter(models.User.username == user.username).first():
+        raise HTTPException(status_code=400, detail="Username already taken")
+
+    # Create user after OTP verification
+    hashed_pw = utils.hash_password(user.password)
+    new_user = models.User(username=user.username, email=user.email, password=hashed_pw)
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    # Clear OTP after successful signup
+    otp_store.pop(user.email, None)
+    
     return new_user
 
 @router.post("/login", response_model=schemas.Token)
@@ -87,6 +194,29 @@ def verify_otp(request: OTPVerifyRequest):
     if stored_data and stored_data["otp"] == request.otp:
         return {"msg": "OTP verified", "purpose": stored_data["purpose"]}
     raise HTTPException(status_code=400, detail="Invalid OTP")
+
+# Development only - Get OTP for testing
+@router.get("/get-otp/{email}")
+def get_otp_for_testing(email: str):
+    """Development endpoint to get OTP for testing. Remove in production."""
+    stored_data = otp_store.get(email)
+    if stored_data:
+        return {"email": email, "otp": stored_data["otp"], "purpose": stored_data["purpose"]}
+    raise HTTPException(status_code=404, detail="No OTP found for this email")
+
+# Development only - Get pending signup data
+@router.get("/get-pending-signup/{email}")
+def get_pending_signup_for_testing(email: str):
+    """Development endpoint to get pending signup data for testing. Remove in production."""
+    pending_data = signup_pending_store.get(email)
+    if pending_data:
+        return {
+            "email": email, 
+            "otp": pending_data["otp"], 
+            "username": pending_data["username"],
+            "purpose": pending_data["purpose"]
+        }
+    raise HTTPException(status_code=404, detail="No pending signup found for this email")
 
 @router.post("/google-auth", response_model=schemas.Token)
 def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db)):

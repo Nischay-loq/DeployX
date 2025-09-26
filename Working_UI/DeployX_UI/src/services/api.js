@@ -153,8 +153,29 @@ class ApiClient {
     });
   }
 
+  async signupRequest(userData) {
+    return this.request('/auth/signup-request', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+  }
+
+  async signupComplete(data) {
+    return this.request('/auth/signup-complete', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   async signup(userData) {
     return this.request('/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+  }
+
+  async signupWithOTP(userData) {
+    return this.request('/auth/signup-with-otp', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
