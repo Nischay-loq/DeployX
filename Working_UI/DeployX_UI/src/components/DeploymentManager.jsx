@@ -50,6 +50,8 @@ export default function DeploymentManager({
   isConnected = false,
   connectionError = null
 }) {
+  console.log('DeploymentManager: Received agents:', agents);
+  console.log('DeploymentManager: Current agent:', currentAgent);
   const [commands, setCommands] = useState([]);
   const [newCommand, setNewCommand] = useState('');
   const [selectedStrategy, setSelectedStrategy] = useState('transactional');
@@ -383,7 +385,9 @@ export default function DeploymentManager({
                 {!isConnected ? 'Not connected' : agents.length === 0 ? 'No agents available' : 'Select Agent'}
               </option>
               {agents.map(agent => (
-                <option key={agent} value={agent}>{agent}</option>
+                <option key={agent.agent_id} value={agent.agent_id}>
+                  {agent.hostname} ({agent.agent_id})
+                </option>
               ))}
             </select>
             {!isConnected && (

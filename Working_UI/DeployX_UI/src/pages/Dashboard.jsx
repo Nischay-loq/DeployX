@@ -5,7 +5,7 @@ import DeploymentManager from '../components/DeploymentManager.jsx';
 import io from 'socket.io-client';
 import { 
   Terminal as TerminalIcon, 
-  FolderOpen, 
+  FolderOpen,
   Monitor, 
   Network, 
   Activity, 
@@ -123,11 +123,11 @@ export default function Dashboard({ onLogout }) {
           // Auto-select first agent if none selected and agents available
           if (agentsList.length > 0 && !currentAgent) {
             const firstAgent = agentsList[0];
-            setCurrentAgent(firstAgent);
+            setCurrentAgent(firstAgent.agent_id);
             
             // Request shells for the first agent
             if (socketRef.current && socketRef.current.connected) {
-              socketRef.current.emit('get_shells', firstAgent);
+              socketRef.current.emit('get_shells', firstAgent.agent_id);
             }
           }
         } else {
@@ -314,6 +314,21 @@ export default function Dashboard({ onLogout }) {
 
           {activeSection === 'files' && (
             <FileSystemManager />
+          )}
+          {activeSection === 'deployment' && (
+            <>
+              {console.log('Dashboard: Rendering DeploymentManager with agents:', agents, 'currentAgent:', currentAgent)}
+              <DeploymentManager 
+                agents={agents}
+                currentAgent={currentAgent}
+                onSelectAgent={handleAgentSelect}
+                shells={shells}
+                currentShell={currentShell}
+                onSelectShell={handleShellSelect}
+                isConnected={isConnected}
+                connectionError={connectionError}
+              />
+            </>
           )}
 
           {activeSection === 'groups' && (

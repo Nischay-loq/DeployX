@@ -11,7 +11,7 @@ from agent.utils.logging_config import setup_logging
 from agent.utils.shell_detector import detect_shells
 from agent.network.service_advertiser import ServiceAdvertiser
 from agent.network.server_discoverer import ServiceDiscoverer
-from agent.monitoring.system_info import get_system_info
+from agent.utils.machine_id import generate_agent_id
 
 # Setup logging
 logger = setup_logging()
@@ -26,7 +26,7 @@ async def main():
     )
     parser.add_argument(
         "--agent-id",
-        help="Custom agent ID"
+        help="Custom agent ID (if not provided, will be generated from machine ID)"
     )
     parser.add_argument(
         "--advertise",
@@ -61,10 +61,6 @@ async def main():
     try:
         # Connect to backend
         if await connection.connect():
-            # Get system information
-            sys_info = get_system_info()
-            logger.info(f"System information: {sys_info}")
-            
             # Detect available shells
             shells = detect_shells()
             logger.info(f"Detected shells: {shells}")
