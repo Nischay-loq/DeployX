@@ -54,7 +54,18 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
     db.commit()
 
     access_token = utils.create_access_token(data={"sub": db_user.username})
-    return {"access_token": access_token, "token_type": "bearer"}
+    refresh_token = utils.create_refresh_token(data={"sub": db_user.username, "user_id": db_user.id})
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "user": {
+            "id": db_user.id,
+            "username": db_user.username,
+            "email": db_user.email
+        }
+    }
 
 # ----------- OTP Routes -----------------------
 @router.post("/send-otp")
@@ -124,6 +135,34 @@ def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Google authentication failed: {str(e)}")
 
+# Refresh token request schema
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+@router.post("/refresh", response_model=schemas.Token)
+def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):
+    try:
+        # Verify refresh token
+        username = utils.verify_token(request.refresh_token, token_type="refresh", raise_exception=False)
+        
+        if not username:
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+        
+        # Verify user still exists
+        db_user = db.query(models.User).filter(models.User.username == username).first()
+        if not db_user:
+            raise HTTPException(status_code=401, detail="User not found")
+        
+        # Generate new access token
+        new_access_token = utils.create_access_token(data={"sub": username})
+        
+        return {
+            "access_token": new_access_token,
+            "token_type": "bearer"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Token refresh failed")
+
 @router.post("/reset-password")
 def reset_password(request: PasswordResetRequest, db: Session = Depends(get_db)):
     # Verify OTP first
@@ -144,3 +183,12 @@ def reset_password(request: PasswordResetRequest, db: Session = Depends(get_db))
     otp_store.pop(request.email, None)
     
     return {"msg": "Password reset successfully"}
+
+@router.get("/me")
+def get_current_user_info(current_user: models.User = Depends(utils.get_current_user)):
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+        "created_at": current_user.created_at
+    }

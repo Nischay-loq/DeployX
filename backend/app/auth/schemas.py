@@ -14,6 +14,8 @@ class UserLogin(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    refresh_token: Optional[str] = None
+    user: Optional[dict] = None
 
 class UserOut(BaseModel):
     id: int
