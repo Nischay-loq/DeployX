@@ -164,3 +164,18 @@ def remove_device_from_group(db: Session, device_id: int, group_id: int, user_id
         db.delete(mapping)
         db.commit()
     return mapping
+
+def get_devices_in_groups(db: Session, group_ids: list):
+    """Get all devices that belong to the specified groups"""
+    devices = []
+    for group_id in group_ids:
+        device_maps = db.query(models.DeviceGroupMap).filter_by(group_id=group_id).all()
+        for dm in device_maps:
+            device = db.query(models.Device).filter_by(id=dm.device_id).first()
+            if device and device not in devices:
+                devices.append(device)
+    return devices
+
+def get_group(db: Session, group_id: int):
+    """Get a single group by ID"""
+    return db.query(models.DeviceGroup).filter(models.DeviceGroup.id == group_id).first()

@@ -19,6 +19,10 @@ import {
   RotateCcw,
   Command
 } from 'lucide-react';
+import GroupsManager from '../components/GroupsManager.jsx';
+import DeploymentsManager from '../components/DeploymentsManager.jsx';
+import FileSystemManager from '../components/FileSystemManager.jsx';
+import APITest from '../components/APITest.jsx';
 
 export default function Dashboard({ onLogout }) {
   const [activeSection, setActiveSection] = useState('shell');
@@ -33,15 +37,15 @@ export default function Dashboard({ onLogout }) {
   const user = authService.getCurrentUser();
 
   const sections = [
-    { id: 'shell', name: 'Remote Shell', color: 'text-cyan-400' },
-    { id: 'files', name: 'File System', color: 'text-blue-400' },
-    { id: 'groups', name: 'Device Groups', color: 'text-orange-400' },
-    { id: 'deployments', name: 'Deployments', color: 'text-purple-400' },
-    { id: 'system', name: 'System Info', color: 'text-green-400' },
-    { id: 'network', name: 'Network', color: 'text-indigo-400' },
-    { id: 'processes', name: 'Processes', color: 'text-yellow-400' },
-    { id: 'services', name: 'Services', color: 'text-red-400' },
-    { id: 'api-test', name: 'API Test', color: 'text-pink-400' }
+    { id: 'shell', name: 'Remote Shell', color: 'text-cyan-400', icon: TerminalIcon },
+    { id: 'files', name: 'File System', color: 'text-blue-400', icon: FolderOpen },
+    { id: 'groups', name: 'Device Groups', color: 'text-orange-400', icon: Monitor },
+    { id: 'deployments', name: 'Deployments', color: 'text-purple-400', icon: Play },
+    { id: 'system', name: 'System Info', color: 'text-green-400', icon: Activity },
+    { id: 'network', name: 'Network', color: 'text-indigo-400', icon: Network },
+    { id: 'processes', name: 'Processes', color: 'text-yellow-400', icon: Command },
+    { id: 'services', name: 'Services', color: 'text-red-400', icon: Settings },
+    { id: 'api-test', name: 'API Test', color: 'text-pink-400', icon: Search }
   ];
 
   // Initialize socket connection for agent management
@@ -308,56 +312,8 @@ export default function Dashboard({ onLogout }) {
             </div>
           )}
 
-          {activeSection === 'deployment' && (
-            <DeploymentManager 
-              agents={agents}
-              currentAgent={currentAgent}
-              onSelectAgent={handleAgentSelect}
-              shells={shells}
-              currentShell={currentShell}
-              onSelectShell={handleShellSelect}
-              isConnected={isConnected}
-              connectionError={connectionError}
-            />
-          )}
-
           {activeSection === 'files' && (
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-500/20 rounded-lg">
-                  <FolderOpen className="w-6 h-6 text-blue-400" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-white">File System Explorer</h2>
-                  <p className="text-gray-400">Browse and manage remote file systems</p>
-                </div>
-              </div>
-              
-              <div className="card-dark">
-                <div className="space-y-3">
-                  {[
-                    { name: 'home', type: 'folder', expanded: true },
-                    { name: 'user', type: 'folder', expanded: false, indent: 1 },
-                    { name: 'config', type: 'folder', expanded: false, indent: 1 },
-                    { name: 'documents', type: 'folder', expanded: false, indent: 1 },
-                    { name: 'downloads', type: 'folder', expanded: false, indent: 1 },
-                  ].map((item, index) => (
-                    <div 
-                      key={index}
-                      className={`flex items-center gap-3 py-2 px-3 hover:bg-gray-800/50 rounded-lg cursor-pointer transition-all ${
-                        item.indent ? 'ml-6' : ''
-                      }`}
-                    >
-                      <FolderOpen className="w-4 h-4 text-blue-400" />
-                      <span className="text-gray-200 font-medium">{item.name}</span>
-                      <span className="text-gray-500 text-xs ml-auto">
-                        {item.expanded ? '▼' : '▶'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <FileSystemManager />
           )}
 
           {activeSection === 'groups' && (

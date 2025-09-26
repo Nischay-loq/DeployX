@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from typing import List
 from app.grouping.models import Device, DeviceGroup
 
 def get_devices(db: Session):
@@ -26,3 +27,11 @@ def get_devices(db: Session):
             "group_name": group_name,
         })
     return devices
+
+def get_device(db: Session, device_id: int) -> Device:
+    """Get a single device by ID"""
+    return db.query(Device).filter(Device.id == device_id).first()
+
+def get_devices_by_ids(db: Session, device_ids: List[int]) -> List[Device]:
+    """Get multiple devices by their IDs"""
+    return db.query(Device).filter(Device.id.in_(device_ids)).all()

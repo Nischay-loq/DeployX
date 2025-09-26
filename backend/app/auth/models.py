@@ -10,3 +10,6 @@ class User(Base):
     password = Column(Text, nullable=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
     last_login = Column(TIMESTAMP)
+    
+    # Note: Relationships temporarily removed to fix import issues
+    # Will be added back when all models are properly configured
