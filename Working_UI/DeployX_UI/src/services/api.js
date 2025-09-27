@@ -66,12 +66,17 @@ class ApiClient {
 
   // Helper method to make API requests
   async request(endpoint, options = {}) {
-    const url = `${this.baseURL}${endpoint}`;
+    // Ensure proper URL construction without double slashes
+    const baseUrl = this.baseURL.endsWith('/') ? this.baseURL.slice(0, -1) : this.baseURL;
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = `${baseUrl}${cleanEndpoint}`;
     const token = this.getToken();
     
     const config = {
+      method: options.method || 'GET',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
         ...options.headers,
       },

@@ -49,6 +49,10 @@ import DeploymentsManager from '../components/DeploymentsManager.jsx';
 import FileSystemManager from '../components/FileSystemManager.jsx';
 import APITest from '../components/APITest.jsx';
 import GroupForm from '../components/GroupForm.jsx';
+import UsernameModal from '../components/UsernameModal.jsx';
+import PasswordModal from '../components/PasswordModal.jsx';
+import EmailModal from '../components/EmailModal.jsx';
+import DeleteAccountModal from '../components/DeleteAccountModal.jsx';
 import groupsService from '../services/groups.js';
 
 export default function Dashboard({ onLogout }) {
@@ -120,6 +124,7 @@ export default function Dashboard({ onLogout }) {
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   
   // Password visibility states
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
@@ -1151,6 +1156,9 @@ export default function Dashboard({ onLogout }) {
       case 'logout':
         handleDisconnect();
         break;
+      case 'delete-account':
+        setShowDeleteAccountModal(true);
+        break;
     }
   };
 
@@ -1460,6 +1468,14 @@ export default function Dashboard({ onLogout }) {
                       >
                         <LogOut className="w-4 h-4" />
                         <span>Logout</span>
+                      </button>
+                      
+                      <button
+                        onClick={() => handleProfileOptionClick('delete-account')}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete Account</span>
                       </button>
                     </div>
                   </div>
@@ -3483,6 +3499,34 @@ export default function Dashboard({ onLogout }) {
               onCancel={closeGroupCreateModal}
             />
           </div>
+        </div>
+      )}
+
+      {/* Username Change Modal */}
+      {showUsernameModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <UsernameModal onClose={() => setShowUsernameModal(false)} />
+        </div>
+      )}
+
+      {/* Password Change Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <PasswordModal onClose={() => setShowPasswordModal(false)} />
+        </div>
+      )}
+
+      {/* Email Change Modal */}
+      {showEmailModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <EmailModal onClose={() => setShowEmailModal(false)} />
+        </div>
+      )}
+
+      {/* Delete Account Modal */}
+      {showDeleteAccountModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <DeleteAccountModal onClose={() => setShowDeleteAccountModal(false)} />
         </div>
       )}
     </div>

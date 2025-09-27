@@ -5,7 +5,7 @@ import os
 
 load_dotenv()
 
-DATABASE_URL = os.getenv('DB_URL')
+DATABASE_URL = os.getenv('DATABASE_URL')
 connect_args = {
     "sslmode": "require",
     "keepalives": 1,

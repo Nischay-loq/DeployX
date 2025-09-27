@@ -53,6 +53,24 @@ def send_otp_email(to_email: str, otp: str):
         smtp.login("parthshikhare21@gmail.com", "hjav tipn ucog mmyy")
         smtp.send_message(msg)
 
+def send_email(to_email: str, subject: str, html_content: str):
+    """Generic email sending function"""
+    msg = EmailMessage()
+    msg.set_content(html_content, subtype='html')
+    msg["Subject"] = subject
+    msg["From"] = "parthshikhare21@gmail.com"
+    msg["To"] = to_email
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login("parthshikhare21@gmail.com", "hjav tipn ucog mmyy")
+            smtp.send_message(msg)
+        print(f"Email sent successfully to {to_email}")
+    except Exception as e:
+        print(f"Failed to send email to {to_email}: {e}")
+        # For development, continue without failing
+        pass
+
 def create_password_reset_token(email: str, expires_minutes: int = RESET_TOKEN_EXPIRE_MINUTES) -> str:
     to_encode = {
         "sub": email,

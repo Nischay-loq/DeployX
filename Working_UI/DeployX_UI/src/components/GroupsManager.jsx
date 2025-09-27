@@ -19,7 +19,20 @@ export default function GroupsManager() {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  // Update selectedGroup when groups data changes
+  useEffect(() => {
+    if (selectedGroup && groups.length > 0) {
+      const updatedGroup = groups.find(g => g.id === selectedGroup.id);
+      if (updatedGroup) {
+        console.log(`🔄 Updating selected group: ${updatedGroup.group_name} (${updatedGroup.devices?.length || 0} devices)`);
+        setSelectedGroup(updatedGroup);
+      } else {
+        console.log('⚠️ Selected group not found in updated groups list');
+      }
+    }
+  }, [groups, selectedGroup?.id]);
+
+  const loadData = async (forceRefresh = false) => {
     setLoading(true);
     setError(null);
     try {
@@ -28,13 +41,18 @@ export default function GroupsManager() {
 
       // Only fetch groups if logged in (avoids 401/CORS preflight issues when unauthenticated)
       const shouldFetchGroups = authService.isLoggedIn();
-      const groupsPromise = shouldFetchGroups ? groupsService.fetchGroups() : Promise.resolve([]);
+      const groupsPromise = shouldFetchGroups ? groupsService.fetchGroups(forceRefresh) : Promise.resolve([]);
 
       const results = await Promise.allSettled([groupsPromise, devicesPromise]);
 
       // groups result
       if (results[0].status === 'fulfilled') {
-        setGroups(results[0].value);
+        const groupsData = results[0].value;
+        console.log('📦 Loaded groups:', groupsData.length, 'groups');
+        groupsData.forEach(group => {
+          console.log(`   - ${group.group_name}: ${group.devices?.length || 0} devices`);
+        });
+        setGroups(groupsData);
       } else {
         // Log and set empty groups so UI still works
         console.warn('Failed to fetch groups:', results[0].reason);
@@ -67,7 +85,7 @@ export default function GroupsManager() {
   const handleCreateGroup = async (groupData) => {
     try {
       await groupsService.createGroup(groupData);
-      await loadData(); // Refresh data
+      await loadData(true); // Force refresh data
       setShowCreateForm(false);
     } catch (err) {
       setError('Failed to create group: ' + err.message);
@@ -77,7 +95,7 @@ export default function GroupsManager() {
   const handleUpdateGroup = async (groupData) => {
     try {
       await groupsService.updateGroup(editingGroup.id, groupData);
-      await loadData(); // Refresh data
+      await loadData(true); // Force refresh data
       setEditingGroup(null);
     } catch (err) {
       setError('Failed to update group: ' + err.message);
@@ -89,7 +107,7 @@ export default function GroupsManager() {
     
     try {
       await groupsService.deleteGroup(groupId);
-      await loadData(); // Refresh data
+      await loadData(true); // Force refresh data
       if (selectedGroup?.id === groupId) {
         setSelectedGroup(null);
       }
@@ -100,18 +118,38 @@ export default function GroupsManager() {
 
   const handleAssignDevice = async (groupId, deviceId) => {
     try {
+      console.log(`🔄 Assigning device ${deviceId} to group ${groupId}`);
       await groupsService.assignDevice(groupId, deviceId);
-      await loadData(); // Refresh data
+      console.log('✅ Device assigned, refreshing data...');
+      
+      // Force refresh data
+      await loadData(true);
+      
+      // Small delay to ensure state has updated
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      console.log('✅ Data refreshed');
     } catch (err) {
+      console.error('❌ Failed to assign device:', err);
       setError('Failed to assign device: ' + err.message);
     }
   };
 
   const handleRemoveDevice = async (groupId, deviceId) => {
     try {
+      console.log(`🔄 Removing device ${deviceId} from group ${groupId}`);
       await groupsService.removeDevice(groupId, deviceId);
-      await loadData(); // Refresh data
+      console.log('✅ Device removed, refreshing data...');
+      
+      // Force refresh data
+      await loadData(true);
+      
+      // Small delay to ensure state has updated
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      console.log('✅ Data refreshed');
     } catch (err) {
+      console.error('❌ Failed to remove device:', err);
       setError('Failed to remove device: ' + err.message);
     }
   };

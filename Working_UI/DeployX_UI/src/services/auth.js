@@ -68,7 +68,22 @@ class AuthService {
     
     if (token && username) {
       this.token = token;
-      this.user = { username };
+      
+      // Load full user data if available
+      const storage = rememberMe ? localStorage : sessionStorage;
+      const storedUserData = storage.getItem('user');
+      
+      if (storedUserData) {
+        try {
+          this.user = JSON.parse(storedUserData);
+        } catch (e) {
+          console.warn('Failed to parse stored user data:', e);
+          this.user = { username };
+        }
+      } else {
+        this.user = { username };
+      }
+      
       this.isAuthenticated = true;
       
       // If it's a session token (not remember me), ensure session is marked as active
@@ -225,6 +240,21 @@ class AuthService {
   // Get current user
   getCurrentUser() {
     return this.user;
+  }
+
+  // Update current user data
+  updateUserData(userData) {
+    this.user = { ...this.user, ...userData };
+    
+    // Also update stored user data
+    const isRememberMe = localStorage.getItem('access_token') || localStorage.getItem('token');
+    const storage = isRememberMe ? localStorage : sessionStorage;
+    
+    if (storage.getItem('user')) {
+      storage.setItem('user', JSON.stringify(this.user));
+    }
+    
+    this.notifyAuthChange();
   }
 
   // Get token

@@ -5,9 +5,10 @@ const API_BASE = '/groups';
 // Groups API service
 export const groupsService = {
   // Get all groups
-  async fetchGroups() {
+  async fetchGroups(forceRefresh = false) {
     try {
-      const data = await api.get(`${API_BASE}/`);
+      const endpoint = forceRefresh ? `${API_BASE}/?force_refresh=true` : `${API_BASE}/`;
+      const data = await api.get(endpoint);
       return data;
     } catch (error) {
       console.error('Failed to fetch groups:', error);
