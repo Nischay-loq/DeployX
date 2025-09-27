@@ -432,7 +432,7 @@ const TerminalComponent = ({ height = '70vh' }) => {
     console.log('Attempting to connect to backend...');
     
     try {
-      socketRef.current = io('http://localhost:8000', {
+      socketRef.current = io('https://deployx-server.onrender.com', {
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionDelay: 1000,

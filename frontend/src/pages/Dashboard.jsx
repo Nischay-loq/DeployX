@@ -117,7 +117,7 @@ export default function Dashboard({ onLogout }) {
       };
       
       // Fetch dashboard stats
-      const statsResponse = await fetch('http://localhost:8000/api/dashboard/stats', {
+      const statsResponse = await fetch('https://deployx-server.onrender.com/api/dashboard/stats', {
         headers
       });
       
@@ -144,7 +144,7 @@ export default function Dashboard({ onLogout }) {
       }
       
       // Fetch recent activity
-      const activityResponse = await fetch('http://localhost:8000/api/dashboard/recent-activity', {
+      const activityResponse = await fetch('https://deployx-server.onrender.com/api/dashboard/recent-activity', {
         headers
       });
       
@@ -162,7 +162,7 @@ export default function Dashboard({ onLogout }) {
       }
       
       // Fetch device chart data
-      const chartResponse = await fetch('http://localhost:8000/api/dashboard/device-status-chart', {
+      const chartResponse = await fetch('https://deployx-server.onrender.com/api/dashboard/device-status-chart', {
         headers
       });
       
@@ -180,7 +180,7 @@ export default function Dashboard({ onLogout }) {
       }
       
       // Fetch system metrics
-      const metricsResponse = await fetch('http://localhost:8000/api/dashboard/system-metrics', {
+      const metricsResponse = await fetch('https://deployx-server.onrender.com/api/dashboard/system-metrics', {
         headers
       });
       
@@ -193,7 +193,7 @@ export default function Dashboard({ onLogout }) {
       }
       
       // Fetch deployment trends
-      const trendsResponse = await fetch('http://localhost:8000/api/dashboard/deployment-trends', {
+      const trendsResponse = await fetch('https://deployx-server.onrender.com/api/dashboard/deployment-trends', {
         headers
       });
       
@@ -227,7 +227,7 @@ export default function Dashboard({ onLogout }) {
       
       console.log('Dashboard: Initializing socket connection...');
       
-      socketRef.current = io('http://localhost:8000', {
+      socketRef.current = io('https://deployx-server.onrender.com', {
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionDelay: 1000,

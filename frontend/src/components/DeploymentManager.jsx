@@ -62,11 +62,11 @@ export default function DeploymentManager({
   const [batchCommands, setBatchCommands] = useState(['']);
 
   // API base URL - adjust as needed
-  const API_BASE = 'http://localhost:8000/api/deployment';
+  const API_BASE = 'https://deployx-server.onrender.com/api/deployment';
 
   useEffect(() => {
     // Initialize socket.io connection
-    const newSocket = io('http://localhost:8000');
+    const newSocket = io('https://deployx-server.onrender.com');
     setSocket(newSocket);
 
     // Listen for real-time deployment updates

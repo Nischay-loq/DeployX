@@ -40,7 +40,7 @@ export default function APITest() {
       <div className="space-y-4">
         <div>
           <p className="text-sm text-gray-600 mb-2">
-            API Base URL: {import.meta.env.VITE_API_URL || 'http://localhost:8000'}
+            API Base URL: {import.meta.env.VITE_API_URL || 'https://deployx-server.onrender.com'}
           </p>
         </div>
         

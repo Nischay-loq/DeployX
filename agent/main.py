@@ -21,7 +21,7 @@ async def main():
     parser = argparse.ArgumentParser(description="DeployX Remote Command Execution Agent")
     parser.add_argument(
         "--server", 
-        default="http://localhost:8000",
+        default="https://deployx-server.onrender.com",
         help="Backend server URL"
     )
     parser.add_argument(
