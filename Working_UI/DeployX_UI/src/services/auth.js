@@ -242,6 +242,18 @@ class AuthService {
     return apiClient.verifyOTP(email, otp);
   }
 
+  async requestPasswordReset(email) {
+    return apiClient.requestPasswordReset(email);
+  }
+
+  async validatePasswordResetToken(token) {
+    return apiClient.validatePasswordResetToken(token);
+  }
+
+  async confirmPasswordReset(token, newPassword) {
+    return apiClient.confirmPasswordReset(token, newPassword);
+  }
+
   // Google OAuth login
   async googleLogin(token, rememberMe = false) {
     try {

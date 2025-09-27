@@ -195,6 +195,27 @@ class ApiClient {
     });
   }
 
+  async requestPasswordReset(email) {
+    return this.request('/auth/password-reset-request', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async validatePasswordResetToken(token) {
+    const params = new URLSearchParams({ token });
+    return this.request(`/auth/password-reset-validate?${params.toString()}`, {
+      method: 'GET',
+    });
+  }
+
+  async confirmPasswordReset(token, newPassword) {
+    return this.request('/auth/password-reset-confirm', {
+      method: 'POST',
+      body: JSON.stringify({ token, new_password: newPassword }),
+    });
+  }
+
   async googleAuth(token) {
     return this.request('/auth/google-auth', {
       method: 'POST',
@@ -203,6 +224,7 @@ class ApiClient {
   }
 
   async resetPassword(email, otp, newPassword) {
+    // Backward compatibility: fall back to OTP-based flow if needed
     return this.request('/auth/reset-password', {
       method: 'POST',
       body: JSON.stringify({ email, otp, new_password: newPassword }),

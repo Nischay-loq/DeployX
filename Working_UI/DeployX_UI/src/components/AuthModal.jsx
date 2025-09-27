@@ -135,8 +135,8 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
 
     try {
       if (mode === 'forgot') {
-        await authService.sendOTP(formData.email);
-        setSuccess('Password reset link sent to your email address.');
+        await authService.requestPasswordReset(formData.email);
+        setSuccess('If an account exists for this email, a reset link has been sent. Please check your inbox.');
       } else if (mode === 'signup') {
         if (signupStep === 'form') {
           // Step 1: Send OTP (don't create user yet)

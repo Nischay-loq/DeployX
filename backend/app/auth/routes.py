@@ -31,6 +31,13 @@ class PasswordResetRequest(BaseModel):
     otp: str
     new_password: str
 
+class PasswordResetLinkRequest(BaseModel):
+    email: EmailStr
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str
+    new_password: str
+
 # ----------- AUTH ROUTES ---------------------
 @router.post("/signup-request")
 def signup_request(user: schemas.UserCreate, db: Session = Depends(get_db)):
@@ -312,6 +319,40 @@ def reset_password(request: PasswordResetRequest, db: Session = Depends(get_db))
     # Clear OTP after successful reset
     otp_store.pop(request.email, None)
     
+    return {"msg": "Password reset successfully"}
+
+@router.post("/password-reset-request")
+def password_reset_request(request: PasswordResetLinkRequest, db: Session = Depends(get_db)):
+    # Always respond with success message to prevent email enumeration attacks
+    generic_response = {"msg": "If an account exists for this email, a reset link has been sent."}
+
+    user = db.query(models.User).filter(models.User.email == request.email).first()
+    if not user:
+        return generic_response
+
+    try:
+        token = utils.create_password_reset_token(request.email)
+        reset_link = utils.build_password_reset_link(token)
+        utils.send_password_reset_email(request.email, reset_link)
+        return generic_response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send password reset email: {str(e)}")
+
+@router.get("/password-reset-validate")
+def password_reset_validate(token: str):
+    email = utils.verify_password_reset_token(token)
+    return {"email": email}
+
+@router.post("/password-reset-confirm")
+def password_reset_confirm(request: PasswordResetConfirmRequest, db: Session = Depends(get_db)):
+    email = utils.verify_password_reset_token(request.token)
+    db_user = db.query(models.User).filter(models.User.email == email).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    db_user.password = utils.hash_password(request.new_password)
+    db.commit()
+
     return {"msg": "Password reset successfully"}
 
 @router.get("/me")
