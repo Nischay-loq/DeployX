@@ -15,6 +15,7 @@ from app.files.routes import router as files_router
 from app.auth import routes, models
 from app.auth.database import engine
 from app.command_deployment.routes import router as deployment_router
+from app.dashboard.routes import router as dashboard_router
 from app.command_deployment.executor import command_executor
 from app.grouping import models as grouping_models  # Import grouping models
 from app.Deployments import models as deployment_models  # Import deployment models
@@ -71,6 +72,7 @@ app.include_router(devices_router)
 app.include_router(deployment_router)
 app.include_router(deployments_router)
 app.include_router(files_router)
+app.include_router(dashboard_router)
 
 # Health check endpoint
 @app.get("/health")
