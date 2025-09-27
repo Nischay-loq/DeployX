@@ -78,12 +78,17 @@ export default function Dashboard({ onLogout }) {
     { id: 'shell', name: 'Remote Shell', color: 'text-cyan-400', icon: TerminalIcon },
     { id: 'files', name: 'File System', color: 'text-green-400', icon: FolderOpen },
     { id: 'groups', name: 'Device Groups', color: 'text-orange-400', icon: Monitor },
+<<<<<<< HEAD:Working_UI/DeployX_UI/src/pages/Dashboard.jsx
     { id: 'deployments', name: 'Deployments', color: 'text-purple-400', icon: Play },
     { id: 'system', name: 'System Info', color: 'text-emerald-400', icon: Activity },
     { id: 'network', name: 'Network', color: 'text-indigo-400', icon: Network },
     { id: 'processes', name: 'Processes', color: 'text-yellow-400', icon: Command },
     { id: 'services', name: 'Services', color: 'text-red-400', icon: Settings },
     { id: 'api-test', name: 'API Test', color: 'text-pink-400', icon: Search }
+=======
+    { id: 'deployment', name: 'Command Execution', color: 'text-teal-400', icon: Command },
+    { id: 'deployments', name: 'Software Deployments', color: 'text-purple-400', icon: Play },
+>>>>>>> chetan:frontend/src/pages/Dashboard.jsx
   ];
 
   // Fetch dashboard data from API
@@ -1274,214 +1279,6 @@ export default function Dashboard({ onLogout }) {
 
           {activeSection === 'deployments' && (
             <DeploymentsManager />
-          )}
-
-          {activeSection === 'system' && (
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-500/20 rounded-lg">
-                  <Monitor className="w-6 h-6 text-green-400" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-white">System Information</h2>
-                  <p className="text-gray-400">Monitor system resources and performance</p>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {[
-                  { label: 'CPU Usage', value: '23.4%', color: 'green' },
-                  { label: 'Memory Usage', value: '67.8%', color: 'blue' },
-                  { label: 'Disk Usage', value: '45.2%', color: 'yellow' },
-                  { label: 'Network I/O', value: '12.3 MB/s', color: 'purple' }
-                ].map((metric, index) => (
-                  <div key={index} className="card-dark">
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-gray-400 text-sm font-medium">{metric.label}</span>
-                      <MoreHorizontal className="w-4 h-4 text-gray-500" />
-                    </div>
-                    <div className="text-3xl font-bold text-white mb-2">{metric.value}</div>
-                    <div className="w-full bg-gray-700 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full transition-all duration-300 ${
-                          metric.color === 'green' ? 'bg-green-400' :
-                          metric.color === 'blue' ? 'bg-blue-400' :
-                          metric.color === 'yellow' ? 'bg-yellow-400' : 'bg-purple-400'
-                        }`} 
-                        style={{ width: metric.value && metric.value.includes('%') ? metric.value : '60%' }}
-                      ></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="card-dark">
-                <h3 className="text-lg font-semibold text-white mb-4">System Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div><span className="text-gray-400">OS:</span> <span className="text-white">Ubuntu 22.04.3 LTS</span></div>
-                  <div><span className="text-gray-400">Kernel:</span> <span className="text-white">5.15.0-91-generic</span></div>
-                  <div><span className="text-gray-400">Uptime:</span> <span className="text-white">15 days, 4 hours</span></div>
-                  <div><span className="text-gray-400">Architecture:</span> <span className="text-white">x86_64</span></div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeSection === 'services' && (
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-red-500/20 rounded-lg">
-                  <Settings className="w-6 h-6 text-red-400" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-white">Service Manager</h2>
-                  <p className="text-gray-400">Control and monitor system services</p>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {[
-                  { name: 'nginx', description: 'Web Server', status: 'active', pid: '1234' },
-                  { name: 'mysql', description: 'Database Server', status: 'active', pid: '1235' },
-                  { name: 'redis', description: 'Cache Server', status: 'inactive', pid: null },
-                  { name: 'docker', description: 'Container Runtime', status: 'active', pid: '1236' },
-                ].map((service, index) => (
-                  <div key={index} className="card-dark">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <h3 className="font-semibold text-white text-lg">{service.name}</h3>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          service.status === 'active' 
-                            ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
-                            : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                        }`}>
-                          {service.status}
-                        </span>
-                      </div>
-                      <MoreHorizontal className="w-4 h-4 text-gray-500" />
-                    </div>
-                    
-                    <p className="text-gray-400 text-sm mb-4">{service.description}</p>
-                    
-                    {service.pid && (
-                      <p className="text-gray-500 text-xs mb-4">PID: {service.pid}</p>
-                    )}
-                    
-                    <div className="flex gap-2">
-                      <button className="flex items-center gap-2 px-3 py-2 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 hover:bg-red-500/30 transition-all text-sm">
-                        <Square className="w-3 h-3" />
-                        Stop
-                      </button>
-                      <button className="flex items-center gap-2 px-3 py-2 bg-blue-500/20 border border-blue-500/30 rounded-lg text-blue-400 hover:bg-blue-500/30 transition-all text-sm">
-                        <RotateCcw className="w-3 h-3" />
-                        Restart
-                      </button>
-                      {service.status === 'inactive' && (
-                        <button className="flex items-center gap-2 px-3 py-2 bg-green-500/20 border border-green-500/30 rounded-lg text-green-400 hover:bg-green-500/30 transition-all text-sm">
-                          <Play className="w-3 h-3" />
-                          Start
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Other sections would follow similar patterns */}
-          {activeSection === 'network' && (
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-500/20 rounded-lg">
-                  <Network className="w-6 h-6 text-purple-400" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-white">Network Overview</h2>
-                  <p className="text-gray-400">Monitor network interfaces and connections</p>
-                </div>
-              </div>
-              
-              <div className="card-dark">
-                <h3 className="text-lg font-semibold text-white mb-4">Network Interfaces</h3>
-                <div className="space-y-4">
-                  {[
-                    { name: 'eth0', ip: '192.168.1.100', status: 'up', speed: '1 Gbps' },
-                    { name: 'wlan0', ip: '10.0.0.15', status: 'up', speed: '150 Mbps' },
-                    { name: 'lo', ip: '127.0.0.1', status: 'up', speed: 'Virtual' },
-                  ].map((networkInterface, index) => (
-                    <div key={index} className="flex items-center justify-between py-3 border-b border-gray-700 last:border-0">
-                      <div className="flex items-center gap-4">
-                        <div className="font-medium text-white">{networkInterface.name}</div>
-                        <div className="text-sm text-gray-400">{networkInterface.ip}</div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-sm text-gray-400">{networkInterface.speed}</div>
-                        <span className="status-online">{networkInterface.status}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeSection === 'processes' && (
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-yellow-500/20 rounded-lg">
-                  <Activity className="w-6 h-6 text-yellow-400" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-white">Process Manager</h2>
-                  <p className="text-gray-400">Monitor and manage running processes</p>
-                </div>
-              </div>
-              
-              <div className="card-dark">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-700">
-                        <th className="text-left py-3 text-gray-400">PID</th>
-                        <th className="text-left py-3 text-gray-400">Name</th>
-                        <th className="text-left py-3 text-gray-400">CPU %</th>
-                        <th className="text-left py-3 text-gray-400">Memory</th>
-                        <th className="text-left py-3 text-gray-400">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[
-                        { pid: '1234', name: 'nginx', cpu: '2.1', memory: '45 MB', status: 'running' },
-                        { pid: '1235', name: 'mysql', cpu: '5.8', memory: '128 MB', status: 'running' },
-                        { pid: '1236', name: 'node', cpu: '12.3', memory: '89 MB', status: 'running' },
-                        { pid: '1237', name: 'python3', cpu: '0.8', memory: '34 MB', status: 'sleeping' },
-                      ].map((process, index) => (
-                        <tr key={index} className="border-b border-gray-800 hover:bg-gray-800/30">
-                          <td className="py-3 text-gray-300">{process.pid}</td>
-                          <td className="py-3 text-white font-medium">{process.name}</td>
-                          <td className="py-3 text-gray-300">{process.cpu}%</td>
-                          <td className="py-3 text-gray-300">{process.memory}</td>
-                          <td className="py-3">
-                            <span className={`px-2 py-1 rounded-full text-xs ${
-                              process.status === 'running' 
-                                ? 'bg-green-500/20 text-green-400' 
-                                : 'bg-yellow-500/20 text-yellow-400'
-                            }`}>
-                              {process.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeSection === 'api-test' && (
-            <APITest />
           )}
         </main>
       </div>
