@@ -38,7 +38,7 @@ sio = socketio.AsyncServer(
         "http://127.0.0.1:3000",
         "http://localhost:8000",
         "http://127.0.0.1:8000",
-        "https://deployx.vercel.app"
+        "https://deployx-nu.vercel.app"
     ],
     logger=False,  # Disable verbose socket.io logging
     engineio_logger=False,  # Disable verbose engine.io logging
@@ -65,7 +65,7 @@ app.add_middleware(
         "https://accounts.google.com/gsi",  # Google Sign-In domain
         "http://localhost:8000",
         "http://127.0.0.1:8000",
-        "https://deployx.vercel.app"  # Production frontend
+        "https://deployx-nu.vercel.app"  # Production frontend
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
