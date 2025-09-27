@@ -26,7 +26,14 @@ export default function OTPVerification({
   }, [countdown]);
 
   const handleOtpChange = (index, value) => {
-    if (value.length > 1) return; // Only allow single digits
+    // Only allow single digits
+    if (value.length > 1) return;
+    
+    // Only allow numeric characters
+    if (value && !/^\d$/.test(value)) {
+      setError('Verification code must contain only numbers');
+      return;
+    }
     
     const newOtp = [...otp];
     newOtp[index] = value;
@@ -54,8 +61,20 @@ export default function OTPVerification({
     e.preventDefault();
     
     const otpString = otp.join('');
+    
+    // Validate OTP format
+    if (!otpString.trim()) {
+      setError('Verification code is required');
+      return;
+    }
+    
     if (otpString.length !== 6) {
-      setError('Please enter the complete 6-digit OTP');
+      setError('Verification code must be exactly 6 digits');
+      return;
+    }
+    
+    if (!/^\d{6}$/.test(otpString)) {
+      setError('Verification code must contain only numbers');
       return;
     }
 
@@ -65,7 +84,7 @@ export default function OTPVerification({
     try {
       await onVerify(otpString);
     } catch (error) {
-      setError(error.message || 'Invalid OTP. Please try again.');
+      setError(error.message || 'Invalid verification code. Please check the code sent to your email and try again.');
     } finally {
       setIsVerifying(false);
     }

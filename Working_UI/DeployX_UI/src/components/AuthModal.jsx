@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../services/auth.js';
@@ -19,6 +19,11 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isGoogleReady, setIsGoogleReady] = useState(false);
+  const [googleReady, setGoogleReady] = useState(false);
+  const [googleError, setGoogleError] = useState('');
+  const [currentGoogleRequest, setCurrentGoogleRequest] = useState(null);
+  const googleRequestRef = useRef(null);
   const navigate = useNavigate();
 
   // Reset form when modal opens/closes or mode changes
@@ -62,6 +67,102 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
     };
   }, [isOpen]);
 
+  // Load Google Identity Services script once
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (window.google?.accounts?.id) {
+      setIsGoogleReady(true);
+      return;
+    }
+
+    const existingScript = document.getElementById('google-identity-services');
+
+    const handleLoad = () => setIsGoogleReady(true);
+    const handleError = () => setError('Failed to load Google Sign-In. Please refresh and try again.');
+
+    if (existingScript) {
+      existingScript.addEventListener('load', handleLoad);
+      existingScript.addEventListener('error', handleError);
+      return () => {
+        existingScript.removeEventListener('load', handleLoad);
+        existingScript.removeEventListener('error', handleError);
+      };
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.id = 'google-identity-services';
+    script.onload = handleLoad;
+    script.onerror = handleError;
+    document.body.appendChild(script);
+
+    return () => {
+      script.onload = null;
+      script.onerror = null;
+    };
+  }, []);
+
+  const handleGoogleCredentialResponse = useCallback(async (response) => {
+    if (!response.credential) {
+      setGoogleError('No credential received from Google');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setGoogleError('');
+      setError('');
+      
+      const result = await authService.googleLogin(response.credential, currentGoogleRequest?.rememberMe || false);
+      
+      if (result.access_token) {
+        setSuccess('Successfully signed in with Google!');
+        setTimeout(() => {
+          onClose();
+          navigate('/dashboard');
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Google login error:', error);
+      setGoogleError(error.message || 'Google sign-in failed');
+    } finally {
+      setIsLoading(false);
+      setCurrentGoogleRequest(null);
+    }
+  }, [navigate, onClose, currentGoogleRequest]);
+
+  const initializeGoogleSignIn = useCallback(() => {
+    if (window.google && window.google.accounts && !googleReady) {
+      try {
+        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+        if (!clientId) {
+          setGoogleError('Google client ID is missing. Please contact the administrator.');
+          return;
+        }
+
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleCredentialResponse,
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        });
+        setGoogleReady(true);
+      } catch (error) {
+        console.error('Failed to initialize Google Sign-In:', error);
+        setGoogleError('Failed to initialize Google Sign-In');
+      }
+    }
+  }, [googleReady, handleGoogleCredentialResponse]);
+
+  useEffect(() => {
+    if (isGoogleReady) {
+      initializeGoogleSignIn();
+    }
+  }, [isGoogleReady, initializeGoogleSignIn]);
+
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
@@ -74,46 +175,82 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
   const validateForm = () => {
     if (mode === 'forgot') {
       if (!formData.email.trim()) {
-        setError('Email is required');
+        setError('Email address is required');
         return false;
       }
-      if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
         setError('Please enter a valid email address');
         return false;
       }
     } else if (mode === 'signup') {
       if (signupStep === 'form') {
+        // Username validation
         if (!formData.username.trim()) {
           setError('Username is required');
           return false;
         }
-        if (!formData.email.trim()) {
-          setError('Email is required');
+        if (formData.username.length < 3) {
+          setError('Username must be at least 3 characters long');
           return false;
         }
-        if (!/\S+@\S+\.\S+/.test(formData.email)) {
+        if (formData.username.length > 50) {
+          setError('Username must not exceed 50 characters');
+          return false;
+        }
+        if (!/^[a-zA-Z0-9_]+$/.test(formData.username)) {
+          setError('Username can only contain letters, numbers, and underscores');
+          return false;
+        }
+        
+        // Email validation
+        if (!formData.email.trim()) {
+          setError('Email address is required');
+          return false;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
           setError('Please enter a valid email address');
           return false;
         }
+        
+        // Password validation
+        if (!formData.password) {
+          setError('Password is required');
+          return false;
+        }
         if (formData.password.length < 6) {
-          setError('Password must be at least 6 characters');
+          setError('Password must be at least 6 characters long');
+          return false;
+        }
+        if (formData.password.length > 128) {
+          setError('Password must not exceed 128 characters');
+          return false;
+        }
+        
+        // Confirm password validation
+        if (!formData.confirmPassword) {
+          setError('Please confirm your password');
           return false;
         }
         if (formData.password !== formData.confirmPassword) {
-          setError('Passwords do not match');
+          setError('Passwords do not match. Please make sure both passwords are identical.');
           return false;
         }
       } else if (signupStep === 'otp') {
         if (!formData.otp.trim()) {
-          setError('OTP is required');
+          setError('Verification code is required');
           return false;
         }
         if (formData.otp.length !== 6) {
-          setError('Please enter the complete 6-digit OTP');
+          setError('Verification code must be exactly 6 digits');
+          return false;
+        }
+        if (!/^\d{6}$/.test(formData.otp)) {
+          setError('Verification code must contain only numbers');
           return false;
         }
       }
     } else {
+      // Sign in validation - only check if fields are provided
       if (!formData.username.trim()) {
         setError('Username or email is required');
         return false;
@@ -172,6 +309,65 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
     }
   };
 
+  const handleGoogleAuth = useCallback(async (isSignUp = false) => {
+    if (!googleReady) {
+      setGoogleError('Google Sign-In not ready yet');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setGoogleError('');
+      setError('');
+      
+      setCurrentGoogleRequest({
+        isSignUp,
+        rememberMe: isSignUp ? true : formData.rememberMe
+      });
+
+      const buttonContainer = document.createElement('div');
+      buttonContainer.style.position = 'absolute';
+      buttonContainer.style.left = '-9999px';
+      buttonContainer.style.top = '-9999px';
+      document.body.appendChild(buttonContainer);
+
+      window.google.accounts.id.renderButton(buttonContainer, {
+        theme: 'filled_blue',
+        size: 'large',
+        type: 'standard',
+        shape: 'rectangular',
+        logo_alignment: 'left',
+        width: 300,
+        locale: 'en'
+      });
+
+      setTimeout(() => {
+        const button = buttonContainer.querySelector('[role="button"]');
+        if (button) {
+          button.click();
+        } else {
+          setGoogleError('Failed to create Google sign-in button');
+          setIsLoading(false);
+        }
+        
+        setTimeout(() => {
+          if (document.body.contains(buttonContainer)) {
+            document.body.removeChild(buttonContainer);
+          }
+        }, 1000);
+      }, 100);
+
+    } catch (error) {
+      console.error('Google auth error:', error);
+      setGoogleError('Failed to start Google sign-in');
+      setIsLoading(false);
+    }
+  }, [googleReady, formData.rememberMe]);
+
+  const handleGoogleSignup = () => handleGoogleAuth(true);
+
+  const handleGoogleSignin = () => handleGoogleAuth(false);
+
   if (!isOpen) return null;
 
   return (
@@ -209,6 +405,12 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
           {error && (
             <div className="mb-6 p-4 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 text-sm">
               {error}
+            </div>
+          )}
+
+          {googleError && (
+            <div className="mb-6 p-4 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 text-sm">
+              {googleError}
             </div>
           )}
 
@@ -441,6 +643,48 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
                 mode === 'signup' ? (signupStep === 'otp' ? 'Verify & Create Account' : 'Send OTP') : 'Send Reset Link'
               )}
             </button>
+
+            {mode === 'signin' && (
+              <>
+                <div className="flex items-center my-4">
+                  <span className="flex-grow h-px bg-gray-700"></span>
+                  <span className="px-3 text-xs uppercase tracking-widest text-gray-500">Or</span>
+                  <span className="flex-grow h-px bg-gray-700"></span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGoogleSignin}
+                  disabled={isLoading}
+                  className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg bg-white text-gray-900 font-semibold shadow-sm hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <img src="https://www.svgrepo.com/show/355037/google.svg" alt="Google logo" className="w-5 h-5" />
+                  {isLoading ? 'Connecting…' : 'Sign in with Google'}
+                </button>
+              </>
+            )}
+
+            {mode === 'signup' && signupStep === 'form' && (
+              <>
+                <div className="flex items-center my-4">
+                  <span className="flex-grow h-px bg-gray-700"></span>
+                  <span className="px-3 text-xs uppercase tracking-widest text-gray-500">Or</span>
+                  <span className="flex-grow h-px bg-gray-700"></span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGoogleSignup}
+                  disabled={isLoading}
+                  className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg bg-white text-gray-900 font-semibold shadow-sm hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <img
+                    src="https://www.svgrepo.com/show/355037/google.svg"
+                    alt="Google logo"
+                    className="w-5 h-5"
+                  />
+                  {isLoading ? 'Connecting…' : 'Sign up with Google'}
+                </button>
+              </>
+            )}
           </form>
 
           {/* Mode Switch */}

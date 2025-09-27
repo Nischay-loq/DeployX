@@ -38,8 +38,28 @@ export default function ResetPassword() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate new password
+    if (!newPassword) {
+      setMessage("New password is required.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setMessage("Password must be at least 6 characters long.");
+      return;
+    }
+    if (newPassword.length > 128) {
+      setMessage("Password must not exceed 128 characters.");
+      return;
+    }
+    
+    // Validate confirm password
+    if (!confirmPassword) {
+      setMessage("Please confirm your new password.");
+      return;
+    }
     if (newPassword !== confirmPassword) {
-      setMessage("Passwords do not match.");
+      setMessage("Passwords do not match. Please make sure both passwords are identical.");
       return;
     }
 
