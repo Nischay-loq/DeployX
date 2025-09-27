@@ -1,93 +1,36 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X, Shield } from "lucide-react";
 import authService from "../services/auth.js";
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(1);
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [notification, setNotification] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSent, setIsSent] = useState(false);
 
   const handleClose = () => {
     navigate("/");
   };
 
-  const handleEmailSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setNotification(null);
 
     try {
-      await authService.sendOTP(email, "reset");
+      await authService.requestPasswordReset(email);
+      setIsSent(true);
       setNotification({
         type: "success",
-        message: "OTP sent to your email successfully!"
+        message:
+          "If an account exists for this email, a password reset link has been sent. Please check your inbox."
       });
-      setStep(2);
     } catch (error) {
       setNotification({
         type: "error",
-        message: error.message || "Failed to send OTP. Please try again."
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleOtpSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setNotification(null);
-
-    try {
-      await authService.verifyOTP(email, otp);
-      setNotification({
-        type: "success",
-        message: "OTP verified successfully!"
-      });
-      setStep(3);
-    } catch (error) {
-      setNotification({
-        type: "error",
-        message: error.message || "Invalid OTP. Please try again."
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handlePasswordSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (newPassword !== confirmPassword) {
-      setNotification({
-        type: "error",
-        message: "Passwords do not match."
-      });
-      return;
-    }
-
-    setIsLoading(true);
-    setNotification(null);
-
-    try {
-      await authService.resetPassword(email, newPassword);
-      setNotification({
-        type: "success",
-        message: "Password reset successfully! You can now login."
-      });
-      setTimeout(() => {
-        navigate("/login");
-      }, 2000);
-    } catch (error) {
-      setNotification({
-        type: "error",
-        message: error.message || "Failed to reset password. Please try again."
+        message: error.message || "Failed to send password reset link. Please try again."
       });
     } finally {
       setIsLoading(false);
@@ -158,83 +101,27 @@ export default function ForgotPassword() {
             </div>
           )}
 
-          {/* Form */}
-          {step === 1 && (
-            <form onSubmit={handleEmailSubmit} className="space-y-6">
-              <input
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full px-4 py-3 rounded-xl bg-cyberBlue/60 border border-neonAqua/40 text-softWhite focus:outline-none focus:ring-2 focus:ring-neonAqua/70 transition-all cursor-text"
-              />
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full mt-2 relative overflow-hidden px-6 py-3 rounded-xl bg-electricBlue text-cyberBlue font-semibold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                <span className="relative z-10">
-                  {isLoading ? "Sending..." : "Send OTP"}
-                </span>
-                <span className="absolute inset-0 rounded-xl blur-xl opacity-70 btn-pulse bg-neonAqua"></span>
-              </button>
-            </form>
-          )}
-
-          {step === 2 && (
-            <form onSubmit={handleOtpSubmit} className="space-y-6">
-              <input
-                type="text"
-                placeholder="Enter OTP"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                required
-                className="w-full px-4 py-3 rounded-xl bg-cyberBlue/60 border border-neonAqua/40 text-softWhite focus:outline-none focus:ring-2 focus:ring-neonAqua/70 transition-all cursor-text"
-              />
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full mt-2 relative overflow-hidden px-6 py-3 rounded-xl bg-electricBlue text-cyberBlue font-semibold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                <span className="relative z-10">
-                  {isLoading ? "Verifying..." : "Verify OTP"}
-                </span>
-                <span className="absolute inset-0 rounded-xl blur-xl opacity-70 btn-pulse bg-neonAqua"></span>
-              </button>
-            </form>
-          )}
-
-          {step === 3 && (
-            <form onSubmit={handlePasswordSubmit} className="space-y-6">
-              <input
-                type="password"
-                placeholder="New Password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                className="w-full px-4 py-3 rounded-xl bg-cyberBlue/60 border border-neonAqua/40 text-softWhite focus:outline-none focus:ring-2 focus:ring-neonAqua/70 transition-all cursor-text"
-              />
-              <input
-                type="password"
-                placeholder="Confirm Password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                className="w-full px-4 py-3 rounded-xl bg-cyberBlue/60 border border-neonAqua/40 text-softWhite focus:outline-none focus:ring-2 focus:ring-neonAqua/70 transition-all cursor-text"
-              />
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full mt-2 relative overflow-hidden px-6 py-3 rounded-xl bg-electricBlue text-cyberBlue font-semibold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                <span className="relative z-10">
-                  {isLoading ? "Resetting..." : "Reset Password"}
-                </span>
-                <span className="absolute inset-0 rounded-xl blur-xl opacity-70 btn-pulse bg-neonAqua"></span>
-              </button>
-            </form>
-          )}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <input
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={isSent}
+              className="w-full px-4 py-3 rounded-xl bg-cyberBlue/60 border border-neonAqua/40 text-softWhite focus:outline-none focus:ring-2 focus:ring-neonAqua/70 transition-all cursor-text disabled:opacity-60"
+            />
+            <button
+              type="submit"
+              disabled={isLoading || isSent}
+              className="w-full mt-2 relative overflow-hidden px-6 py-3 rounded-xl bg-electricBlue text-cyberBlue font-semibold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <span className="relative z-10">
+                {isLoading ? "Sending..." : isSent ? "Link Sent" : "Send Reset Link"}
+              </span>
+              <span className="absolute inset-0 rounded-xl blur-xl opacity-70 btn-pulse bg-neonAqua"></span>
+            </button>
+          </form>
 
           {/* Links */}
           <div className="text-center space-y-2 mt-6">
@@ -253,7 +140,7 @@ export default function ForgotPassword() {
           <div className="mt-8 text-center">
             <div className="flex items-center justify-center gap-2 text-green-400 text-sm">
               <Shield size={16} />
-              <span>Secured by TLS 1.3 Encryption</span>
+              <span>Reset link expires in 30 minutes</span>
             </div>
           </div>
         </div>

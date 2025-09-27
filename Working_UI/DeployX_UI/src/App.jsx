@@ -2,6 +2,7 @@ import { Routes, Route, Link, Navigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import Home from './pages/Home.jsx'
 import ForgotPassword from './pages/ForgotPassword.jsx'
+import ResetPassword from './pages/ResetPassword.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import authService from './services/auth.js'
 
@@ -55,6 +56,10 @@ export default function App() {
         <Route 
           path="/forgot-password" 
           element={isAuthenticated ? <Navigate to="/dashboard" /> : <ForgotPassword />} 
+        />
+        <Route 
+          path="/reset-password" 
+          element={isAuthenticated ? <Navigate to="/dashboard" /> : <ResetPassword />} 
         />
         
         {/* Protected Routes */}

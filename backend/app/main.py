@@ -17,6 +17,7 @@ from app.auth import routes, models
 from app.agents import models as agent_models, crud as agent_crud, schemas as agent_schemas
 from app.auth.database import engine, get_db
 from app.command_deployment.routes import router as deployment_router
+from app.dashboard.routes import router as dashboard_router
 from app.command_deployment.executor import command_executor
 from app.grouping import models as grouping_models  # Import grouping models
 from app.Deployments import models as deployment_models  # Import deployment models
@@ -52,10 +53,21 @@ app.add_middleware(
         "http://127.0.0.1:5173",  # Alternative localhost
         "http://localhost:3000",  # Alternative React dev server
         "http://127.0.0.1:3000",  # Alternative React dev server
+        "https://accounts.google.com",  # Google OAuth domain
+        "https://accounts.google.com/gsi",  # Google Sign-In domain
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
-    allow_headers=["*"],
+    allow_headers=[
+        "*",
+        "Authorization",
+        "Content-Type",
+        "X-Requested-With",
+        "Accept",
+        "Origin",
+        "Access-Control-Request-Method",
+        "Access-Control-Request-Headers",
+    ],
     expose_headers=["*"],
 )
 
@@ -66,6 +78,7 @@ app.include_router(agents_router)
 app.include_router(deployment_router)
 app.include_router(deployments_router)
 app.include_router(files_router)
+app.include_router(dashboard_router)
 
 # Health check endpoint
 @app.get("/health")
@@ -131,7 +144,16 @@ def test_devices():
 # Add explicit OPTIONS handler for CORS preflight
 @app.options("/{path:path}")
 async def options_handler(path: str):
-    return {"message": "OK"}
+    from fastapi import Response
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
 
 # Store connected agents and frontends
 class ConnectionManager:

@@ -132,7 +132,7 @@ export default function Navbar({ onOpenAuth }) {
                   }}
                   className="block w-full text-center py-3 px-4 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg font-medium transition-all duration-200"
                 >
-                  Sign In
+                  Sign in
                 </button>
                 <button 
                   onClick={() => {

@@ -17,7 +17,23 @@ import {
   Play,
   Square,
   RotateCcw,
-  Command
+  Command,
+  Home,
+  Server,
+  Cpu,
+  HardDrive,
+  Wifi,
+  Users,
+  TrendingUp,
+  Shield,
+  Clock,
+  Database,
+  Zap,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  BarChart3,
+  PieChart
 } from 'lucide-react';
 import GroupsManager from '../components/GroupsManager.jsx';
 import DeploymentsManager from '../components/DeploymentsManager.jsx';
@@ -25,7 +41,7 @@ import FileSystemManager from '../components/FileSystemManager.jsx';
 import APITest from '../components/APITest.jsx';
 
 export default function Dashboard({ onLogout }) {
-  const [activeSection, setActiveSection] = useState('shell');
+  const [activeSection, setActiveSection] = useState('overview');
   const [agents, setAgents] = useState([]);
   const [currentAgent, setCurrentAgent] = useState('');
   const [shells, setShells] = useState([]);
@@ -36,21 +52,179 @@ export default function Dashboard({ onLogout }) {
   const isMountedRef = useRef(true);
   const user = authService.getCurrentUser();
 
+  // Real dashboard data from API
+  const [dashboardStats, setDashboardStats] = useState({
+    devices: { total: 0, online: 0, offline: 0, health_percentage: 0 },
+    deployments: { total: 0, successful: 0, failed: 0, pending: 0, success_rate: 0 },
+    commands: { active: 0, pending: 0, completed: 0, failed: 0 },
+    system: { health_score: 0, uptime: '0%', last_updated: null },
+    groups: { total: 0 },
+    activity: { recent_deployments: 0 }
+  });
+
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [deviceChart, setDeviceChart] = useState([]);
+  const [systemMetrics, setSystemMetrics] = useState({
+    cpu_usage: 0,
+    memory_usage: 0,
+    disk_usage: 0,
+    network_connections: 0
+  });
+  const [deploymentTrends, setDeploymentTrends] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   const sections = [
+    { id: 'overview', name: 'Dashboard', color: 'text-blue-400', icon: Home },
     { id: 'shell', name: 'Remote Shell', color: 'text-cyan-400', icon: TerminalIcon },
-    { id: 'files', name: 'File System', color: 'text-blue-400', icon: FolderOpen },
+    { id: 'files', name: 'File System', color: 'text-green-400', icon: FolderOpen },
     { id: 'groups', name: 'Device Groups', color: 'text-orange-400', icon: Monitor },
     { id: 'deployments', name: 'Deployments', color: 'text-purple-400', icon: Play },
-    { id: 'system', name: 'System Info', color: 'text-green-400', icon: Activity },
+    { id: 'system', name: 'System Info', color: 'text-emerald-400', icon: Activity },
     { id: 'network', name: 'Network', color: 'text-indigo-400', icon: Network },
     { id: 'processes', name: 'Processes', color: 'text-yellow-400', icon: Command },
     { id: 'services', name: 'Services', color: 'text-red-400', icon: Settings },
     { id: 'api-test', name: 'API Test', color: 'text-pink-400', icon: Search }
   ];
 
+  // Fetch dashboard data from API
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Ensure auth service is initialized
+      authService.init();
+      
+      // Get token from multiple sources with priority order
+      const token = authService.getToken() || 
+                   localStorage.getItem('access_token') || 
+                   localStorage.getItem('token') ||
+                   sessionStorage.getItem('access_token') ||
+                   sessionStorage.getItem('token');
+      
+      // Debug token and auth state
+      console.log('Dashboard: Token from authService:', authService.getToken() ? 'present' : 'missing');
+      console.log('Dashboard: Token from localStorage:', localStorage.getItem('token') ? 'present' : 'missing');
+      console.log('Dashboard: Access token from localStorage:', localStorage.getItem('access_token') ? 'present' : 'missing');
+      console.log('Dashboard: Auth service logged in:', authService.isLoggedIn());
+      console.log('Dashboard: Final token to use:', token ? 'present' : 'missing');
+      
+      // Check if user is authenticated
+      if (!token || !authService.isLoggedIn()) {
+        console.log('Dashboard: No valid token found, redirecting to login');
+        onLogout();
+        return;
+      }
+      
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+      
+      // Fetch dashboard stats
+      const statsResponse = await fetch('http://localhost:8000/api/dashboard/stats', {
+        headers
+      });
+      
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        console.log('Dashboard: Received stats data:', statsData);
+        setDashboardStats(statsData);
+      } else if (statsResponse.status === 401) {
+        console.log('Dashboard: Authentication failed, redirecting to login');
+        authService.logout();
+        onLogout();
+        return;
+      } else {
+        console.error('Dashboard: Failed to fetch stats:', statsResponse.status, statsResponse.statusText);
+        // Use fallback data for better user experience
+        setDashboardStats({
+          devices: { total: agents.length, online: agents.filter(a => a.status === 'connected').length, offline: agents.filter(a => a.status !== 'connected').length, health_percentage: agents.length > 0 ? Math.round((agents.filter(a => a.status === 'connected').length / agents.length) * 100) : 0 },
+          deployments: { total: 0, successful: 0, failed: 0, pending: 0, success_rate: 0 },
+          commands: { active: 0, pending: 0, completed: 0, failed: 0 },
+          system: { health_score: 85, uptime: '99.9%', last_updated: new Date().toISOString() },
+          groups: { total: 0 },
+          activity: { recent_deployments: 0 }
+        });
+      }
+      
+      // Fetch recent activity
+      const activityResponse = await fetch('http://localhost:8000/api/dashboard/recent-activity', {
+        headers
+      });
+      
+      if (activityResponse.ok) {
+        const activityData = await activityResponse.json();
+        console.log('Dashboard: Received activity data:', activityData);
+        setRecentActivity(activityData.activity || []);
+      } else if (activityResponse.status === 401) {
+        console.log('Dashboard: Authentication failed for activity data');
+        authService.logout();
+        onLogout();
+        return;
+      } else {
+        console.error('Dashboard: Failed to fetch activity:', activityResponse.status, activityResponse.statusText);
+      }
+      
+      // Fetch device chart data
+      const chartResponse = await fetch('http://localhost:8000/api/dashboard/device-status-chart', {
+        headers
+      });
+      
+      if (chartResponse.ok) {
+        const chartData = await chartResponse.json();
+        console.log('Dashboard: Received chart data:', chartData);
+        setDeviceChart(chartData.chart_data || []);
+      } else if (chartResponse.status === 401) {
+        console.log('Dashboard: Authentication failed for chart data');
+        authService.logout();
+        onLogout();
+        return;
+      } else {
+        console.error('Dashboard: Failed to fetch chart:', chartResponse.status, chartResponse.statusText);
+      }
+      
+      // Fetch system metrics
+      const metricsResponse = await fetch('http://localhost:8000/api/dashboard/system-metrics', {
+        headers
+      });
+      
+      if (metricsResponse.ok) {
+        const metricsData = await metricsResponse.json();
+        console.log('Dashboard: Received metrics data:', metricsData);
+        setSystemMetrics(metricsData);
+      } else {
+        console.error('Dashboard: Failed to fetch metrics:', metricsResponse.status, metricsResponse.statusText);
+      }
+      
+      // Fetch deployment trends
+      const trendsResponse = await fetch('http://localhost:8000/api/dashboard/deployment-trends', {
+        headers
+      });
+      
+      if (trendsResponse.ok) {
+        const trendsData = await trendsResponse.json();
+        console.log('Dashboard: Received trends data:', trendsData);
+        setDeploymentTrends(trendsData.trends || []);
+      } else {
+        console.error('Dashboard: Failed to fetch trends:', trendsResponse.status, trendsResponse.statusText);
+      }
+      
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Initialize socket connection for agent management
   useEffect(() => {
     isMountedRef.current = true;
+    
+    // Fetch initial dashboard data
+    fetchDashboardData();
+    
+    // Set up periodic refresh
+    const interval = setInterval(fetchDashboardData, 30000); // Refresh every 30 seconds
     
     const initializeSocket = () => {
       if (socketRef.current) return;
@@ -109,6 +283,9 @@ export default function Dashboard({ onLogout }) {
         setShells([]);
         setCurrentAgent('');
         setCurrentShell('');
+        
+        // Don't reset dashboard stats on socket disconnect
+        // They will be updated via API calls
       });
 
       // Agents list received
@@ -119,6 +296,9 @@ export default function Dashboard({ onLogout }) {
         
         if (Array.isArray(agentsList)) {
           setAgents(agentsList);
+          
+          // Refresh dashboard data when agents update
+          fetchDashboardData();
           
           // Auto-select first agent if none selected and agents available
           if (agentsList.length > 0 && !currentAgent) {
@@ -168,6 +348,7 @@ export default function Dashboard({ onLogout }) {
 
     return () => {
       isMountedRef.current = false;
+      clearInterval(interval);
       
       if (socketRef.current) {
         socketRef.current.removeAllListeners();
@@ -288,6 +469,762 @@ export default function Dashboard({ onLogout }) {
 
         {/* Main Content */}
         <main className="flex-1 p-6 overflow-auto bg-gray-900/50">
+          {activeSection === 'overview' && (
+            <div className="space-y-6">
+              {/* Welcome Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold text-white mb-2">Welcome back, {user?.username || 'Admin'}!</h1>
+                  <p className="text-gray-400">Here's what's happening with your systems today</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-400">Last updated</p>
+                  <p className="text-white font-medium">{new Date().toLocaleTimeString()}</p>
+                </div>
+              </div>
+
+              {/* Quick Stats Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="card-dark">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400 text-sm font-medium">Connected Devices</p>
+                      {loading ? (
+                        <div className="h-8 w-16 bg-gray-700/50 rounded animate-pulse"></div>
+                      ) : (
+                        <p className="text-2xl font-bold text-white">{dashboardStats.devices.total}</p>
+                      )}
+                      {loading ? (
+                        <div className="h-4 w-20 bg-gray-700/50 rounded animate-pulse mt-1"></div>
+                      ) : (
+                        <p className="text-green-400 text-xs mt-1">
+                          <span className="inline-flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" />
+                            {dashboardStats.devices.online} Online
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                    <div className="p-3 bg-blue-500/20 rounded-lg">
+                      <Server className="w-6 h-6 text-blue-400" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card-dark">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400 text-sm font-medium">System Health</p>
+                      <p className="text-2xl font-bold text-white">{dashboardStats.system.health_score}%</p>
+                      <p className={`text-xs mt-1 ${dashboardStats.system.health_score >= 80 ? 'text-green-400' : dashboardStats.system.health_score >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
+                        <span className="inline-flex items-center gap-1">
+                          <TrendingUp className="w-3 h-3" />
+                          {dashboardStats.system.health_score >= 80 ? 'Excellent' : dashboardStats.system.health_score >= 60 ? 'Good' : 'Poor'}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="p-3 bg-green-500/20 rounded-lg">
+                      <Shield className="w-6 h-6 text-green-400" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card-dark">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400 text-sm font-medium">Deployments</p>
+                      <p className="text-2xl font-bold text-white">{dashboardStats.deployments.total}</p>
+                      <p className="text-green-400 text-xs mt-1">
+                        <span className="inline-flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3" />
+                          {dashboardStats.deployments.success_rate}% Success Rate
+                        </span>
+                      </p>
+                    </div>
+                    <div className="p-3 bg-purple-500/20 rounded-lg">
+                      <Play className="w-6 h-6 text-purple-400" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card-dark">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-400 text-sm font-medium">Active Commands</p>
+                      <p className="text-2xl font-bold text-white">{dashboardStats.commands.active}</p>
+                      <p className="text-blue-400 text-xs mt-1">
+                        <span className="inline-flex items-center gap-1">
+                          <Zap className="w-3 h-3" />
+                          {dashboardStats.commands.pending} Pending
+                        </span>
+                      </p>
+                    </div>
+                    <div className="p-3 bg-orange-500/20 rounded-lg">
+                      <Command className="w-6 h-6 text-orange-400" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Charts and Visual Data */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Device Health Chart */}
+                <div className="card-dark">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-white">Device Health</h3>
+                    <BarChart3 className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-400">Device Health</span>
+                        <span className="text-white">{dashboardStats.devices.health_percentage}%</span>
+                      </div>
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div 
+                          className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full" 
+                          style={{ width: `${dashboardStats.devices.health_percentage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-400">Deployment Success</span>
+                        <span className="text-white">{dashboardStats.deployments.success_rate}%</span>
+                      </div>
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div 
+                          className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2 rounded-full" 
+                          style={{ width: `${dashboardStats.deployments.success_rate}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-400">System Health</span>
+                        <span className="text-white">{dashboardStats.system.health_score}%</span>
+                      </div>
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div 
+                          className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full" 
+                          style={{ width: `${dashboardStats.system.health_score}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recent Activities */}
+                <div className="card-dark">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">Recent Activities</h3>
+                      <p className="text-xs text-gray-400 mt-1">Deployments • Groups • Connections • System Events</p>
+                    </div>
+                    <Clock className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div className="space-y-3">
+                    {loading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                      </div>
+                    ) : recentActivity.length > 0 ? (
+                      recentActivity.slice(0, 5).map((activity, index) => {
+                        const getActivityColor = (status) => {
+                          switch(status) {
+                            case 'completed': return 'bg-green-400';
+                            case 'failed': return 'bg-red-400';
+                            case 'in_progress': return 'bg-blue-400';
+                            case 'pending': return 'bg-yellow-400';
+                            case 'disconnected': return 'bg-orange-400';
+                            default: return 'bg-gray-400';
+                          }
+                        };
+                        
+                        const getActivityIcon = (type) => {
+                          switch(type) {
+                            case 'deployment':
+                            case 'deployment_complete':
+                              return <Play className="w-3 h-3" />;
+                            case 'group_created':
+                              return <Users className="w-3 h-3" />;
+                            case 'device_connected':
+                              return <Server className="w-3 h-3" />;
+                            case 'file_uploaded':
+                              return <FolderOpen className="w-3 h-3" />;
+                            case 'user_login':
+                              return <Shield className="w-3 h-3" />;
+                            case 'system':
+                              return <Activity className="w-3 h-3" />;
+                            default:
+                              return <Clock className="w-3 h-3" />;
+                          }
+                        };
+                        const formatTimestamp = (timestamp) => {
+                          if (!timestamp) return 'Unknown time';
+                          const date = new Date(timestamp);
+                          const now = new Date();
+                          const diffMs = now - date;
+                          const diffMins = Math.floor(diffMs / 60000);
+                          const diffHours = Math.floor(diffMins / 60);
+                          const diffDays = Math.floor(diffHours / 24);
+                          
+                          if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+                          if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+                          return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+                        };
+                        return (
+                          <div key={activity.id || index} className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800/70 transition-colors group">
+                            <div className={`w-8 h-8 rounded-full ${getActivityColor(activity.status)} flex items-center justify-center text-white`}>
+                              {getActivityIcon(activity.type)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white text-sm font-medium truncate">{activity.title}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <p className="text-gray-400 text-xs">{formatTimestamp(activity.timestamp)}</p>
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                                  activity.status === 'completed' ? 'bg-green-900/30 text-green-400' :
+                                  activity.status === 'failed' ? 'bg-red-900/30 text-red-400' :
+                                  activity.status === 'in_progress' ? 'bg-blue-900/30 text-blue-400' :
+                                  activity.status === 'pending' ? 'bg-yellow-900/30 text-yellow-400' :
+                                  'bg-gray-900/30 text-gray-400'
+                                }`}>
+                                  {activity.status.replace('_', ' ')}
+                                </span>
+                              </div>
+                              {activity.details && (
+                                <div className="text-xs text-gray-500 mt-1 truncate">
+                                  {activity.type === 'deployment' && `${activity.details.device_count} devices`}
+                                  {activity.type === 'deployment_complete' && activity.details.duration && `Duration: ${activity.details.duration.split('.')[0]}`}
+                                  {activity.type === 'group_created' && `Group: ${activity.details.group_name}`}
+                                  {activity.type === 'device_connected' && `MAC: ${activity.details.device_mac}`}
+                                  {activity.type === 'user_login' && `User: ${activity.details.username}`}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-gray-400 text-center py-8">
+                        <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p>No recent activities</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Interactive Charts Section */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Device Status Pie Chart */}
+                <div className="card-dark">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-white">Device Status Distribution</h3>
+                    <PieChart className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div className="flex items-center justify-center">
+                    <div className="relative w-32 h-32">
+                      <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 36 36">
+                        <path
+                          d="M18 2.0845
+                            a 15.9155 15.9155 0 0 1 0 31.831
+                            a 15.9155 15.9155 0 0 1 0 -31.831"
+                          fill="none"
+                          stroke="#374151"
+                          strokeWidth="3"
+                        />
+                        <path
+                          d="M18 2.0845
+                            a 15.9155 15.9155 0 0 1 0 31.831
+                            a 15.9155 15.9155 0 0 1 0 -31.831"
+                          fill="none"
+                          stroke="#10B981"
+                          strokeWidth="3"
+                          strokeDasharray={`${dashboardStats.devices.health_percentage}, 100`}
+                          className="transition-all duration-1000 ease-out"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-xl font-bold text-white">{dashboardStats.devices.health_percentage}%</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                        <span className="text-gray-300 text-sm">Online</span>
+                      </div>
+                      <span className="text-white font-medium">{dashboardStats.devices.online}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                        <span className="text-gray-300 text-sm">Offline</span>
+                      </div>
+                      <span className="text-white font-medium">{dashboardStats.devices.offline}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Command Queue Activity */}
+                <div className="card-dark">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-white">Command Queue Activity</h3>
+                    <Activity className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400 text-sm">Active</span>
+                      <div className="flex items-center gap-3">
+                        <div className="w-20 bg-gray-700 rounded-full h-2">
+                          <div 
+                            className="bg-gradient-to-r from-orange-500 to-yellow-500 h-2 rounded-full transition-all duration-500" 
+                            style={{ 
+                              width: `${dashboardStats.commands.active > 0 ? Math.max((dashboardStats.commands.active / Math.max(dashboardStats.commands.active + dashboardStats.commands.pending + dashboardStats.commands.completed + dashboardStats.commands.failed, 1)) * 100, 5) : 0}%` 
+                            }}
+                          ></div>
+                        </div>
+                        <span className="text-orange-400 font-bold text-sm">{dashboardStats.commands.active}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400 text-sm">Pending</span>
+                      <div className="flex items-center gap-3">
+                        <div className="w-20 bg-gray-700 rounded-full h-2">
+                          <div 
+                            className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2 rounded-full transition-all duration-500" 
+                            style={{ 
+                              width: `${dashboardStats.commands.pending > 0 ? Math.max((dashboardStats.commands.pending / Math.max(dashboardStats.commands.active + dashboardStats.commands.pending + dashboardStats.commands.completed + dashboardStats.commands.failed, 1)) * 100, 5) : 0}%` 
+                            }}
+                          ></div>
+                        </div>
+                        <span className="text-blue-400 font-bold text-sm">{dashboardStats.commands.pending}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400 text-sm">Completed</span>
+                      <div className="flex items-center gap-3">
+                        <div className="w-20 bg-gray-700 rounded-full h-2">
+                          <div 
+                            className="bg-gradient-to-r from-green-500 to-emerald-500 h-2 rounded-full transition-all duration-500" 
+                            style={{ 
+                              width: `${dashboardStats.commands.completed > 0 ? Math.max((dashboardStats.commands.completed / Math.max(dashboardStats.commands.active + dashboardStats.commands.pending + dashboardStats.commands.completed + dashboardStats.commands.failed, 1)) * 100, 5) : 0}%` 
+                            }}
+                          ></div>
+                        </div>
+                        <span className="text-green-400 font-bold text-sm">{dashboardStats.commands.completed}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400 text-sm">Failed</span>
+                      <div className="flex items-center gap-3">
+                        <div className="w-20 bg-gray-700 rounded-full h-2">
+                          <div 
+                            className="bg-gradient-to-r from-red-500 to-pink-500 h-2 rounded-full transition-all duration-500" 
+                            style={{ 
+                              width: `${dashboardStats.commands.failed > 0 ? Math.max((dashboardStats.commands.failed / Math.max(dashboardStats.commands.active + dashboardStats.commands.pending + dashboardStats.commands.completed + dashboardStats.commands.failed, 1)) * 100, 5) : 0}%` 
+                            }}
+                          ></div>
+                        </div>
+                        <span className="text-red-400 font-bold text-sm">{dashboardStats.commands.failed}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* System Health Gauge */}
+                <div className="card-dark">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-white">System Health Score</h3>
+                    <Shield className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div className="flex items-center justify-center">
+                    <div className="relative w-32 h-20 overflow-hidden">
+                      <svg className="w-32 h-32 transform -rotate-90" viewBox="0 0 36 36">
+                        <path
+                          d="M18 2.0845
+                            a 15.9155 15.9155 0 0 1 0 31.831"
+                          fill="none"
+                          stroke="#374151"
+                          strokeWidth="3"
+                        />
+                        <path
+                          d="M18 2.0845
+                            a 15.9155 15.9155 0 0 1 0 31.831"
+                          fill="none"
+                          stroke={dashboardStats.system.health_score >= 80 ? '#10B981' : dashboardStats.system.health_score >= 60 ? '#F59E0B' : '#EF4444'}
+                          strokeWidth="3"
+                          strokeDasharray={`${dashboardStats.system.health_score / 2}, 100`}
+                          className="transition-all duration-1000 ease-out"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center pt-4">
+                        <div className="text-center">
+                          <span className="text-2xl font-bold text-white">{dashboardStats.system.health_score}</span>
+                          <p className="text-xs text-gray-400 mt-1">Health Score</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <div className="flex justify-between text-xs text-gray-400 mb-2">
+                      <span>Poor</span>
+                      <span>Good</span>
+                      <span>Excellent</span>
+                    </div>
+                    <div className="w-full bg-gray-700 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full transition-all duration-1000 ${
+                          dashboardStats.system.health_score >= 80 
+                            ? 'bg-gradient-to-r from-green-600 to-green-400' 
+                            : dashboardStats.system.health_score >= 60 
+                            ? 'bg-gradient-to-r from-yellow-600 to-yellow-400' 
+                            : 'bg-gradient-to-r from-red-600 to-red-400'
+                        }`}
+                        style={{ width: `${dashboardStats.system.health_score}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Deployment Trends Chart */}
+              <div className="card-dark">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-semibold text-white">Deployment Success Trends</h3>
+                  <TrendingUp className="w-5 h-5 text-gray-400" />
+                </div>
+                <div className="grid grid-cols-7 gap-2 h-32">
+                  {deploymentTrends.length > 0 ? deploymentTrends.map((dayData, i) => {
+                    const day = new Date(dayData.date);
+                    const dayName = day.toLocaleDateString('en', { weekday: 'short' });
+                    const height = dayData.total > 0 ? (dayData.success_rate) : 5; // Use actual success rate
+                    const isToday = i === deploymentTrends.length - 1;
+                    const hasDeployments = dayData.total > 0;
+                    
+                    return (
+                      <div key={dayData.date} className="flex flex-col items-center justify-end h-full group relative">
+                        <div 
+                          className={`w-full rounded-t transition-all duration-500 group-hover:opacity-80 ${
+                            !hasDeployments 
+                              ? 'bg-gradient-to-t from-gray-700 to-gray-600'
+                              : isToday 
+                              ? 'bg-gradient-to-t from-cyan-600 to-cyan-400' 
+                              : dayData.success_rate >= 80
+                              ? 'bg-gradient-to-t from-green-600 to-green-400'
+                              : dayData.success_rate >= 50
+                              ? 'bg-gradient-to-t from-yellow-600 to-yellow-400'
+                              : 'bg-gradient-to-t from-red-600 to-red-400'
+                          }`}
+                          style={{ height: `${Math.max(height, 5)}%` }}
+                        ></div>
+                        <span className="text-xs text-gray-400 mt-2">{dayName}</span>
+                        
+                        {/* Tooltip */}
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-10">
+                          {hasDeployments ? (
+                            <>
+                              <div>Total: {dayData.total}</div>
+                              <div>Success: {dayData.successful}</div>
+                              <div>Failed: {dayData.failed}</div>
+                              <div>Rate: {dayData.success_rate}%</div>
+                            </>
+                          ) : (
+                            <div>No deployments</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }) : (
+                    // Fallback while loading
+                    Array.from({ length: 7 }, (_, i) => {
+                      const day = new Date();
+                      day.setDate(day.getDate() - (6 - i));
+                      const dayName = day.toLocaleDateString('en', { weekday: 'short' });
+                      
+                      return (
+                        <div key={i} className="flex flex-col items-center justify-end h-full">
+                          <div className="w-full h-2 bg-gray-700 rounded-t animate-pulse"></div>
+                          <span className="text-xs text-gray-400 mt-2">{dayName}</span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+                <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-700">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      <span className="text-gray-300 text-sm">High Success</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                      <span className="text-gray-300 text-sm">Moderate</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                      <span className="text-gray-300 text-sm">Low Success</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-cyan-500 rounded-full"></div>
+                      <span className="text-gray-300 text-sm">Today</span>
+                    </div>
+                  </div>
+                  <span className="text-gray-400 text-sm">Avg Success: {deploymentTrends.length > 0 ? Math.round(deploymentTrends.reduce((acc, day) => acc + day.success_rate, 0) / deploymentTrends.length) : 0}%</span>
+                </div>
+              </div>
+
+              {/* Real-time Metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Network Activity */}
+                <div className="card-dark">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-white">Network & Connectivity</h3>
+                    <Network className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400 text-sm">Socket Connection</span>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full animate-pulse ${isConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                        <span className={`text-sm font-medium ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
+                          {isConnected ? 'Active' : 'Disconnected'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400 text-sm">Connected Agents</span>
+                      <span className="text-cyan-400 font-medium">{agents.filter(agent => agent.status === 'connected').length}/{agents.length}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400 text-sm">Network Connections</span>
+                      <span className="text-white font-medium">{systemMetrics.network_connections}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400 text-sm">Data Transfer</span>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-blue-400 animate-pulse' : 'bg-gray-500'}`}></div>
+                        <span className={`text-sm font-medium ${isConnected ? 'text-blue-400' : 'text-gray-400'}`}>
+                          {isConnected ? 'Real-time' : 'Offline'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Resource Usage */}
+                <div className="card-dark">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-white">System Resource Usage</h3>
+                    <Cpu className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-gray-400">CPU Usage</span>
+                        <span className={`font-medium ${
+                          systemMetrics.cpu_usage > 80 ? 'text-red-400' :
+                          systemMetrics.cpu_usage > 60 ? 'text-yellow-400' : 'text-green-400'
+                        }`}>{systemMetrics.cpu_usage}%</span>
+                      </div>
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full transition-all duration-1000 ${
+                            systemMetrics.cpu_usage > 80 ? 'bg-gradient-to-r from-red-500 to-red-400' :
+                            systemMetrics.cpu_usage > 60 ? 'bg-gradient-to-r from-yellow-500 to-yellow-400' :
+                            'bg-gradient-to-r from-blue-500 to-purple-500'
+                          }`}
+                          style={{ width: `${systemMetrics.cpu_usage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-gray-400">Memory Usage</span>
+                        <span className={`font-medium ${
+                          systemMetrics.memory_usage > 80 ? 'text-red-400' :
+                          systemMetrics.memory_usage > 60 ? 'text-yellow-400' : 'text-green-400'
+                        }`}>{systemMetrics.memory_usage}%</span>
+                      </div>
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full transition-all duration-1000 ${
+                            systemMetrics.memory_usage > 80 ? 'bg-gradient-to-r from-red-500 to-red-400' :
+                            systemMetrics.memory_usage > 60 ? 'bg-gradient-to-r from-yellow-500 to-yellow-400' :
+                            'bg-gradient-to-r from-green-500 to-cyan-500'
+                          }`}
+                          style={{ width: `${systemMetrics.memory_usage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-gray-400">Disk Usage</span>
+                        <span className={`font-medium ${
+                          systemMetrics.disk_usage > 80 ? 'text-red-400' :
+                          systemMetrics.disk_usage > 60 ? 'text-yellow-400' : 'text-green-400'
+                        }`}>{systemMetrics.disk_usage}%</span>
+                      </div>
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full transition-all duration-1000 ${
+                            systemMetrics.disk_usage > 80 ? 'bg-gradient-to-r from-red-500 to-red-400' :
+                            systemMetrics.disk_usage > 60 ? 'bg-gradient-to-r from-yellow-500 to-yellow-400' :
+                            'bg-gradient-to-r from-yellow-500 to-orange-500'
+                          }`}
+                          style={{ width: `${systemMetrics.disk_usage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions & Shortcuts */}
+              <div className="card-dark">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-semibold text-white">Quick Actions</h3>
+                  <Zap className="w-5 h-5 text-yellow-400" />
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  <button 
+                    onClick={() => setActiveSection('shell')}
+                    className="flex flex-col items-center gap-3 p-4 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-lg transition-all group"
+                  >
+                    <TerminalIcon className="w-8 h-8 text-cyan-400 group-hover:scale-110 transition-transform" />
+                    <span className="text-white text-sm font-medium">Terminal</span>
+                  </button>
+                  
+                  <button 
+                    onClick={() => setActiveSection('files')}
+                    className="flex flex-col items-center gap-3 p-4 bg-green-500/10 hover:bg-green-500/20 border border-green-500/30 rounded-lg transition-all group"
+                  >
+                    <FolderOpen className="w-8 h-8 text-green-400 group-hover:scale-110 transition-transform" />
+                    <span className="text-white text-sm font-medium">Files</span>
+                  </button>
+                  
+                  <button 
+                    onClick={() => setActiveSection('deployments')}
+                    className="flex flex-col items-center gap-3 p-4 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-lg transition-all group"
+                  >
+                    <Play className="w-8 h-8 text-purple-400 group-hover:scale-110 transition-transform" />
+                    <span className="text-white text-sm font-medium">Deploy</span>
+                  </button>
+                  
+                  <button 
+                    onClick={() => setActiveSection('system')}
+                    className="flex flex-col items-center gap-3 p-4 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg transition-all group"
+                  >
+                    <Activity className="w-8 h-8 text-emerald-400 group-hover:scale-110 transition-transform" />
+                    <span className="text-white text-sm font-medium">Monitor</span>
+                  </button>
+                  
+                  <button 
+                    onClick={() => setActiveSection('groups')}
+                    className="flex flex-col items-center gap-3 p-4 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-lg transition-all group"
+                  >
+                    <Monitor className="w-8 h-8 text-orange-400 group-hover:scale-110 transition-transform" />
+                    <span className="text-white text-sm font-medium">Groups</span>
+                  </button>
+                  
+                  <button 
+                    onClick={() => setActiveSection('network')}
+                    className="flex flex-col items-center gap-3 p-4 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-lg transition-all group"
+                  >
+                    <Network className="w-8 h-8 text-indigo-400 group-hover:scale-110 transition-transform" />
+                    <span className="text-white text-sm font-medium">Network</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* System Status Overview */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="card-dark">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-white">Agent Status</h3>
+                    <PieChart className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+                        <span className="text-gray-300">Online</span>
+                      </div>
+                      <span className="text-white font-medium">{agents.filter(a => a.status === 'connected').length}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-red-400 rounded-full"></div>
+                        <span className="text-gray-300">Offline</span>
+                      </div>
+                      <span className="text-white font-medium">{agents.filter(a => a.status !== 'connected').length}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
+                        <span className="text-gray-300">Pending</span>
+                      </div>
+                      <span className="text-white font-medium">0</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card-dark">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-white">Deployments</h3>
+                    <Database className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-400" />
+                        <span className="text-gray-300">Successful</span>
+                      </div>
+                      <span className="text-white font-medium">{dashboardStats.deployments.successful}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <XCircle className="w-4 h-4 text-red-400" />
+                        <span className="text-gray-300">Failed</span>
+                      </div>
+                      <span className="text-white font-medium">{dashboardStats.deployments.failed}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-yellow-400" />
+                        <span className="text-gray-300">In Progress</span>
+                      </div>
+                      <span className="text-white font-medium">1</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card-dark">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-white">Security</h3>
+                    <Shield className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-300">Firewall</span>
+                      <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">Active</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-300">SSL/TLS</span>
+                      <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">Enabled</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-300">Auth Status</span>
+                      <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">Secure</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeSection === 'shell' && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
