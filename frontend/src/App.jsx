@@ -1,112 +1,97 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import { useState, useEffect } from "react";
-import Login from "./components/jsx/login";
-import Signup from "./components/jsx/signup";
-import Dashboard from "./components/jsx/dashboard";
-import Terminal from "./components/jsx/Terminal";
-import Navbar from "./components/jsx/Navbar";
-import DeploymentPage from "./components/jsx/DeploymentPage";
+import { Routes, Route, Link, Navigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import Home from './pages/Home.jsx'
+import ForgotPassword from './pages/ForgotPassword.jsx'
+import Dashboard from './pages/Dashboard.jsx'
+import authService from './services/auth.js'
 
-// Groups feature import
-import GroupsPage from "./components/jsx/GroupList.jsx"; // Our GroupsPage is the GroupList component
-
-import api from "./services/api";
-import authService from "./services/auth";
-import "./App.css";
-
-function PrivateLayout({ onLogout, username }) {
-  return (
-    <div style={{ display: "flex", height: "100vh" }}>
-      {/* Navbar full height */}
-      <div style={{ width: "220px", backgroundColor: "#333", color: "#fff" }}>
-        <Navbar onLogout={onLogout} />
-      </div>
-
-      {/* Content */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
-        <Routes>
-          <Route path="/dashboard" element={<Dashboard username={username} />} />
-          <Route path="/terminal" element={<Terminal />} />
-          <Route path="/groups" element={<GroupsPage />} /> {/* Groups route */}
-           <Route path="/deployments" element={<DeploymentPage />} />
-          <Route path="*" element={<Navigate to="/dashboard" />} />
-        </Routes>
-      </div>
-    </div>
-  );
-}
-
-function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [username, setUsername] = useState("");
+export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const validateToken = async () => {
-      const token = authService.getAccessToken();
-      if (token) {
-        try {
-          // Validate token by calling /auth/me endpoint
-          const response = await api.get('/auth/me');
-          if (response.data) {
-            setIsLoggedIn(true);
-            setUsername(response.data.username);
-            // Update stored username if it's different
-            const storage = authService.getRememberMe() ? localStorage : sessionStorage;
-            storage.setItem('username', response.data.username);
-          }
-        } catch (error) {
-          console.log('Token validation failed:', error);
-          // Token is invalid, clear auth data
-          authService.clearAllTokens();
-          setIsLoggedIn(false);
-          setUsername('');
-        }
-      }
-    };
+    // Initialize authentication state on app load
+    authService.init();
+    setIsAuthenticated(authService.isLoggedIn());
+    setIsLoading(false);
 
-    validateToken();
+    // Subscribe to auth change events instead of polling
+    const handler = () => setIsAuthenticated(authService.isLoggedIn());
+    window.addEventListener('auth:changed', handler);
+    return () => {
+      window.removeEventListener('auth:changed', handler);
+    };
   }, []);
 
-  const handleLoginSuccess = (usernameFromLogin) => {
-    setIsLoggedIn(true);
-    setUsername(usernameFromLogin);
-    localStorage.setItem("username", usernameFromLogin);
+  // Handle logout
+  const handleLogout = () => {
+    authService.logout();
+    setIsAuthenticated(false);
   };
 
-  const handleLogout = () => {
-    authService.clearAllTokens();
-    setIsLoggedIn(false);
-    setUsername("");
-  };
+  // Professional loading screen
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-primary-500 to-accent-cyan rounded-2xl mb-6 shadow-lg">
+            <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          <h2 className="text-2xl font-semibold text-white mb-2">DeployX</h2>
+          <p className="text-gray-400 animate-pulse">Initializing platform...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <Router>
+    <div className="min-h-screen bg-gray-900 transition-colors duration-300">
       <Routes>
         {/* Public Routes */}
-        <Route
-          path="/login"
-          element={
-            isLoggedIn ? (
-              <Navigate to="/dashboard" />
-            ) : (
-              <Login onLoginSuccess={handleLoginSuccess} />
-            )
-          }
+        <Route 
+          path="/" 
+          element={isAuthenticated ? <Navigate to="/dashboard" /> : <Home />} 
         />
-        <Route path="/signup" element={<Signup onSignupSuccess={() => {}} />} />
-
-        {/* Private Routes */}
-        {isLoggedIn ? (
-          <Route
-            path="/*"
-            element={<PrivateLayout onLogout={handleLogout} username={username} />}
-          />
-        ) : (
-          <Route path="/*" element={<Navigate to="/login" />} />
-        )}
+        <Route 
+          path="/forgot-password" 
+          element={isAuthenticated ? <Navigate to="/dashboard" /> : <ForgotPassword />} 
+        />
+        
+        {/* Protected Routes */}
+        <Route 
+          path="/dashboard" 
+          element={isAuthenticated ? <Dashboard onLogout={handleLogout} /> : <Navigate to="/" />} 
+        />
+        
+        {/* Catch all route - Professional 404 */}
+        <Route path="*" element={
+          <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-6">
+            <div className="text-center max-w-md">
+              <div className="mb-8">
+                <h1 className="text-9xl font-bold text-primary-500 mb-4">404</h1>
+                <h2 className="text-2xl font-semibold text-white mb-2">Page Not Found</h2>
+                <p className="text-gray-400 mb-8">
+                  The page you're looking for doesn't exist or has been moved.
+                </p>
+              </div>
+              <div className="space-y-4">
+                <Link 
+                  to="/" 
+                  className="btn-primary inline-flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                  Go Home
+                </Link>
+                <div className="text-sm text-gray-500">
+                  or <Link to="/" className="text-primary-400 hover:text-primary-300 transition-colors">return to homepage</Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        } />
       </Routes>
-    </Router>
-  );
+    </div>
+  )
 }
-
-export default App;

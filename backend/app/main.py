@@ -30,7 +30,14 @@ logger = logging.getLogger(__name__)
 
 # Create Socket.IO server with better configuration
 sio = socketio.AsyncServer(
-    cors_allowed_origins="*",
+    cors_allowed_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000"
+    ],
     logger=False,  # Disable verbose socket.io logging
     engineio_logger=False,  # Disable verbose engine.io logging
     async_mode='asgi',
@@ -52,6 +59,8 @@ app.add_middleware(
         "http://127.0.0.1:5173",  # Alternative localhost
         "http://localhost:3000",  # Alternative React dev server
         "http://127.0.0.1:3000",  # Alternative React dev server
+        "http://localhost:8000",
+        "http://127.0.0.1:8000"
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
@@ -576,12 +585,8 @@ async def get_agents_rest():
 async def root():
     return {"message": "Remote Terminal Server with Real CMD Running (Socket.IO)"}
 
-# Mount Socket.IO app
+# Mount Socket.IO app - This creates the combined app
 socket_app = socketio.ASGIApp(sio, app)
-
-# This was the original mounting point, but it's better to mount at the root
-# to align with standard practices and simplify client connection URLs.
-# app.mount("/socket.io", socket_app)
 
 def start():
     """Start the backend server."""

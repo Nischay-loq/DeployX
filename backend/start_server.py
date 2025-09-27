@@ -9,13 +9,13 @@ sys.path.insert(0, os.getcwd())
 if __name__ == '__main__':
     try:
         # Simple test of the FastAPI app
-        from app.main import app
+        from app.main import socket_app
         print("✅ App imported successfully")
             
-        # Start server
+        # Start server with Socket.IO support
         import uvicorn
         print("🚀 Starting server on http://127.0.0.1:8000")
-        uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+        uvicorn.run("app.main:socket_app", host="127.0.0.1", port=8000, reload=True)
             
     except ImportError as e:
         print(f"❌ Import error: {e}")
