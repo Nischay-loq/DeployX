@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AuthModal Debug Test</title>
+</head>
+<body>
+    <h1>AuthModal Debug Test</h1>
+    <p>Open your browser console (F12) and run these commands to test the signup flow:</p>
+    
+    <div style="font-family: monospace; background: #f5f5f5; padding: 20px; margin: 20px 0;">
+        <h3>Step 1: Fill the signup form and submit</h3>
+        <p>1. Open your DeployX frontend in another tab</p>
+        <p>2. Click "Get Started" to open AuthModal</p>
+        <p>3. Click "Sign up" to switch to signup mode</p>
+        <p>4. Fill in the form fields:</p>
+        <ul>
+            <li>Username: testuser</li>
+            <li>Email: test@example.com</li>
+            <li>Password: password123</li>
+            <li>Confirm Password: password123</li>
+        </ul>
+        <p>5. Click "Send OTP" - the modal should switch to OTP input view</p>
+        
+        <h3>Step 2: Check if OTP field appears</h3>
+        <p>After clicking "Send OTP", you should see:</p>
+        <ul>
+            <li>✅ Modal title changes to "Verify Email"</li>
+            <li>✅ Form shows email confirmation message</li>
+            <li>✅ 6-digit OTP input field appears</li>
+            <li>✅ "Back to Form" button appears</li>
+            <li>✅ Submit button text changes to "Verify & Create Account"</li>
+        </ul>
+        
+        <h3>Step 3: Get OTP via browser console</h3>
+        <p>Run this in browser console to get the OTP:</p>
+        <code>
+            fetch('http://localhost:8000/auth/get-pending-signup/test@example.com')
+            .then(r => r.json())
+            .then(data => console.log('OTP:', data.otp))
+        </code>
+        
+        <h3>Step 4: Enter OTP and complete</h3>
+        <p>Enter the OTP from console and click "Verify & Create Account"</p>
+    </div>
+    
+    <script>
+        console.log('🔍 AuthModal Debug Helper Loaded');
+        console.log('📋 Instructions displayed above - follow them to test the OTP flow');
+        
+        // Helper function to check if we can reach the backend
+        fetch('http://localhost:8000/auth/test-connection')
+        .then(response => {
+            if (response.ok) {
+                console.log('✅ Backend connection successful');
+            } else {
+                console.log('⚠️ Backend connection issue - status:', response.status);
+            }
+        })
+        .catch(error => {
+            console.log('❌ Backend connection failed:', error.message);
+            console.log('Make sure backend is running on localhost:8000');
+        });
+    </script>
+</body>
+</html>

@@ -22,8 +22,26 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
     setNotification(null);
+
+    // Validate input fields - only check if they are provided
+    if (!username.trim()) {
+      setNotification({
+        type: "error",
+        message: "Username or email is required",
+      });
+      return;
+    }
+
+    if (!password) {
+      setNotification({
+        type: "error",
+        message: "Password is required",
+      });
+      return;
+    }
+
+    setIsLoading(true);
 
     try {
       await authService.login({ username, password }, rememberMe);

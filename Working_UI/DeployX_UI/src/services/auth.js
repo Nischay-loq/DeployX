@@ -242,22 +242,57 @@ class AuthService {
     return apiClient.verifyOTP(email, otp);
   }
 
+  async requestPasswordReset(email) {
+    return apiClient.requestPasswordReset(email);
+  }
+
+  async validatePasswordResetToken(token) {
+    return apiClient.validatePasswordResetToken(token);
+  }
+
+  async confirmPasswordReset(token, newPassword) {
+    return apiClient.confirmPasswordReset(token, newPassword);
+  }
+
   // Google OAuth login
   async googleLogin(token, rememberMe = false) {
     try {
       const response = await apiClient.googleAuth(token);
       
       this.token = response.access_token;
-      this.user = { username: 'google_user' }; // Will be updated with actual user info
+      this.user = response.user || { username: response.user?.username || 'google_user' };
       this.isAuthenticated = true;
+
+      // Clear any existing tokens first
+      this.clearAllTokens();
 
       // Store tokens based on remember me preference
       if (rememberMe) {
+        localStorage.setItem('access_token', response.access_token);
         localStorage.setItem('token', response.access_token);
-        localStorage.setItem('username', 'google_user');
+        localStorage.setItem('username', this.user.username);
+        
+        if (response.refresh_token) {
+          localStorage.setItem('refresh_token', response.refresh_token);
+        }
+        
+        if (response.user) {
+          localStorage.setItem('user', JSON.stringify(response.user));
+        }
       } else {
+        sessionStorage.setItem('access_token', response.access_token);
         sessionStorage.setItem('token', response.access_token);
-        sessionStorage.setItem('username', 'google_user');
+        sessionStorage.setItem('username', this.user.username);
+        sessionStorage.setItem('sessionActive', 'true');
+        sessionStorage.setItem('sessionLastActive', Date.now().toString());
+        
+        if (response.refresh_token) {
+          localStorage.setItem('refresh_token', response.refresh_token);
+        }
+        
+        if (response.user) {
+          sessionStorage.setItem('user', JSON.stringify(response.user));
+        }
       }
 
       this.notifyAuthChange();

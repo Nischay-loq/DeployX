@@ -3,6 +3,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from datetime import datetime
+import jwt
+import requests
 from . import models, schemas, utils
 from .database import get_db
 
@@ -31,17 +33,46 @@ class PasswordResetRequest(BaseModel):
     otp: str
     new_password: str
 
+class PasswordResetLinkRequest(BaseModel):
+    email: EmailStr
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str
+    new_password: str
+
 # ----------- AUTH ROUTES ---------------------
 @router.post("/signup-request")
 def signup_request(user: schemas.UserCreate, db: Session = Depends(get_db)):
     """
     Step 1: Validate user data and send OTP (don't create user yet)
     """
-    # Check if user data already exists
-    if db.query(models.User).filter(models.User.email == user.email).first():
-        raise HTTPException(status_code=400, detail="Email already registered")
-    if db.query(models.User).filter(models.User.username == user.username).first():
-        raise HTTPException(status_code=400, detail="Username already taken")
+    # Validate username format
+    if not user.username or len(user.username.strip()) < 3:
+        raise HTTPException(status_code=400, detail="Username must be at least 3 characters long")
+    if len(user.username) > 50:
+        raise HTTPException(status_code=400, detail="Username must not exceed 50 characters")
+    if not user.username.replace('_', '').isalnum():
+        raise HTTPException(status_code=400, detail="Username can only contain letters, numbers, and underscores")
+    
+    # Validate email format (additional validation beyond Pydantic)
+    if not user.email or len(user.email.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Email address is required")
+    
+    # Validate password strength
+    if not user.password or len(user.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters long")
+    if len(user.password) > 128:
+        raise HTTPException(status_code=400, detail="Password must not exceed 128 characters")
+    
+    # Check if email is already registered
+    existing_email = db.query(models.User).filter(models.User.email == user.email).first()
+    if existing_email:
+        raise HTTPException(status_code=400, detail="This email address is already registered. Please use a different email or try signing in.")
+    
+    # Check if username is already taken
+    existing_username = db.query(models.User).filter(models.User.username == user.username).first()
+    if existing_username:
+        raise HTTPException(status_code=400, detail="This username is already taken. Please choose a different username.")
 
     # Generate and send OTP
     otp = utils.generate_otp()
@@ -68,14 +99,22 @@ def signup_complete(request: schemas.OTPVerifyRequest, db: Session = Depends(get
     """
     Step 2: Verify OTP and create user account
     """
+    # Validate OTP format
+    if not request.otp or len(request.otp.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Verification code is required")
+    if len(request.otp) != 6:
+        raise HTTPException(status_code=400, detail="Verification code must be exactly 6 digits")
+    if not request.otp.isdigit():
+        raise HTTPException(status_code=400, detail="Verification code must contain only numbers")
+    
     # Get pending signup data
     pending_data = signup_pending_store.get(request.email)
     if not pending_data:
-        raise HTTPException(status_code=400, detail="No pending signup found. Please start signup process again.")
+        raise HTTPException(status_code=400, detail="No pending signup found for this email. Please start the signup process again.")
     
     # Verify OTP
     if pending_data["otp"] != request.otp:
-        raise HTTPException(status_code=400, detail="Invalid OTP")
+        raise HTTPException(status_code=400, detail="Invalid verification code. Please check the code sent to your email and try again.")
     
     # Check if OTP is expired (optional: 10 minutes expiry)
     if (datetime.utcnow() - pending_data["timestamp"]).total_seconds() > 600:  # 10 minutes
@@ -111,11 +150,33 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
     """
     Legacy endpoint for direct signup (no OTP) - kept for backward compatibility
     """
-    # Check if user data already exists
-    if db.query(models.User).filter(models.User.email == user.email).first():
-        raise HTTPException(status_code=400, detail="Email already registered")
-    if db.query(models.User).filter(models.User.username == user.username).first():
-        raise HTTPException(status_code=400, detail="Username already taken")
+    # Validate username format
+    if not user.username or len(user.username.strip()) < 3:
+        raise HTTPException(status_code=400, detail="Username must be at least 3 characters long")
+    if len(user.username) > 50:
+        raise HTTPException(status_code=400, detail="Username must not exceed 50 characters")
+    if not user.username.replace('_', '').isalnum():
+        raise HTTPException(status_code=400, detail="Username can only contain letters, numbers, and underscores")
+    
+    # Validate email format (additional validation beyond Pydantic)
+    if not user.email or len(user.email.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Email address is required")
+    
+    # Validate password strength
+    if not user.password or len(user.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters long")
+    if len(user.password) > 128:
+        raise HTTPException(status_code=400, detail="Password must not exceed 128 characters")
+    
+    # Check if email is already registered
+    existing_email = db.query(models.User).filter(models.User.email == user.email).first()
+    if existing_email:
+        raise HTTPException(status_code=400, detail="This email address is already registered. Please use a different email or try signing in.")
+    
+    # Check if username is already taken
+    existing_username = db.query(models.User).filter(models.User.username == user.username).first()
+    if existing_username:
+        raise HTTPException(status_code=400, detail="This username is already taken. Please choose a different username.")
 
     # Create user directly (no OTP verification)
     hashed_pw = utils.hash_password(user.password)
@@ -127,16 +188,46 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/signup-with-otp", response_model=schemas.UserOut)
 def signup_with_otp(user: schemas.UserCreateWithOTP, db: Session = Depends(get_db)):
-    # Verify OTP first
+    # Validate OTP format
+    if not user.otp or len(user.otp.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Verification code is required")
+    if len(user.otp) != 6:
+        raise HTTPException(status_code=400, detail="Verification code must be exactly 6 digits")
+    if not user.otp.isdigit():
+        raise HTTPException(status_code=400, detail="Verification code must contain only numbers")
+    
+    # Validate username format
+    if not user.username or len(user.username.strip()) < 3:
+        raise HTTPException(status_code=400, detail="Username must be at least 3 characters long")
+    if len(user.username) > 50:
+        raise HTTPException(status_code=400, detail="Username must not exceed 50 characters")
+    if not user.username.replace('_', '').isalnum():
+        raise HTTPException(status_code=400, detail="Username can only contain letters, numbers, and underscores")
+    
+    # Validate email format
+    if not user.email or len(user.email.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Email address is required")
+    
+    # Validate password strength
+    if not user.password or len(user.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters long")
+    if len(user.password) > 128:
+        raise HTTPException(status_code=400, detail="Password must not exceed 128 characters")
+    
+    # Verify OTP
     stored_data = otp_store.get(user.email)
     if not stored_data or stored_data["otp"] != user.otp or stored_data["purpose"] != "signup":
-        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+        raise HTTPException(status_code=400, detail="Invalid verification code. Please check the code sent to your email and try again.")
     
-    # Check if user data already exists
-    if db.query(models.User).filter(models.User.email == user.email).first():
-        raise HTTPException(status_code=400, detail="Email already registered")
-    if db.query(models.User).filter(models.User.username == user.username).first():
-        raise HTTPException(status_code=400, detail="Username already taken")
+    # Check if email is already registered
+    existing_email = db.query(models.User).filter(models.User.email == user.email).first()
+    if existing_email:
+        raise HTTPException(status_code=400, detail="This email address is already registered. Please use a different email or try signing in.")
+    
+    # Check if username is already taken
+    existing_username = db.query(models.User).filter(models.User.username == user.username).first()
+    if existing_username:
+        raise HTTPException(status_code=400, detail="This username is already taken. Please choose a different username.")
 
     # Create user after OTP verification
     hashed_pw = utils.hash_password(user.password)
@@ -152,10 +243,20 @@ def signup_with_otp(user: schemas.UserCreateWithOTP, db: Session = Depends(get_d
 
 @router.post("/login", response_model=schemas.Token)
 def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
-    db_user = db.query(models.User).filter(models.User.username == user.username).first()
+    # Basic input validation - only check if fields are provided
+    if not user.username or len(user.username.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Username or email is required")
+    if not user.password or len(user.password.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Password is required")
+    
+    # Try to find user by username or email
+    db_user = db.query(models.User).filter(
+        (models.User.username == user.username.strip()) | (models.User.email == user.username.strip())
+    ).first()
 
+    # Check if user exists and password is correct - only show generic error
     if not db_user or not utils.verify_password(user.password, db_user.password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail="Incorrect username/email or password. Please check your credentials and try again.")
 
     db_user.last_login = datetime.utcnow()
     db.commit()
@@ -176,7 +277,21 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
 
 # ----------- OTP Routes -----------------------
 @router.post("/send-otp")
-def send_otp(request: EmailRequest):
+def send_otp(request: EmailRequest, db: Session = Depends(get_db)):
+    # Validate email format
+    if not request.email or len(request.email.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Email address is required")
+    
+    # Validate purpose
+    if request.purpose not in ["signup", "reset"]:
+        raise HTTPException(status_code=400, detail="Invalid purpose. Must be 'signup' or 'reset'")
+    
+    # For password reset, check if email exists
+    if request.purpose == "reset":
+        user = db.query(models.User).filter(models.User.email == request.email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="No account found with this email address. Please check your email or create a new account.")
+    
     email = request.email
     purpose = request.purpose
     otp = utils.generate_otp()
@@ -184,16 +299,28 @@ def send_otp(request: EmailRequest):
     try:
         utils.send_otp_email(email, otp)
         otp_store[email] = {"otp": otp, "purpose": purpose}
-        return {"msg": f"OTP sent to {email}"}
+        return {"msg": f"Verification code sent to {email}. Please check your inbox."}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to send OTP: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to send verification code: {str(e)}")
 
 @router.post("/verify-otp")
 def verify_otp(request: OTPVerifyRequest):
+    # Validate email format
+    if not request.email or len(request.email.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Email address is required")
+    
+    # Validate OTP format
+    if not request.otp or len(request.otp.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Verification code is required")
+    if len(request.otp) != 6:
+        raise HTTPException(status_code=400, detail="Verification code must be exactly 6 digits")
+    if not request.otp.isdigit():
+        raise HTTPException(status_code=400, detail="Verification code must contain only numbers")
+    
     stored_data = otp_store.get(request.email)
     if stored_data and stored_data["otp"] == request.otp:
-        return {"msg": "OTP verified", "purpose": stored_data["purpose"]}
-    raise HTTPException(status_code=400, detail="Invalid OTP")
+        return {"msg": "Verification code verified successfully", "purpose": stored_data["purpose"]}
+    raise HTTPException(status_code=400, detail="Invalid verification code. Please check the code sent to your email and try again.")
 
 # Development only - Get OTP for testing
 @router.get("/get-otp/{email}")
@@ -221,23 +348,18 @@ def get_pending_signup_for_testing(email: str):
 @router.post("/google-auth", response_model=schemas.Token)
 def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db)):
     try:
-        # In a real implementation, you would verify the Google token here
-        # For now, we'll create a mock implementation
-        # You would use google.auth.transport.requests and google.oauth2.id_token
+        # Verify Google ID token
+        google_user = verify_google_token(request.token)
         
-        # Mock Google user info (in real implementation, extract from token)
-        google_user = {
-            "email": "user@gmail.com",
-            "name": "Google User",
-            "sub": "google_user_id_123"
-        }
+        if not google_user:
+            raise HTTPException(status_code=400, detail="Invalid Google token")
         
         # Check if user exists
         db_user = db.query(models.User).filter(models.User.email == google_user["email"]).first()
         
         if not db_user:
-            # Create new user
-            username = google_user["email"].split("@")[0]
+            # Create new user with real Google info
+            username = google_user.get("name", google_user["email"].split("@")[0])
             # Ensure username is unique
             counter = 1
             original_username = username
@@ -258,9 +380,20 @@ def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db)):
         db_user.last_login = datetime.utcnow()
         db.commit()
         
-        # Create access token
+        # Create access and refresh tokens
         access_token = utils.create_access_token(data={"sub": db_user.username})
-        return {"access_token": access_token, "token_type": "bearer"}
+        refresh_token = utils.create_refresh_token(data={"sub": db_user.username, "user_id": db_user.id})
+        
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "user": {
+                "id": db_user.id,
+                "username": db_user.username,
+                "email": db_user.email
+            }
+        }
         
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Google authentication failed: {str(e)}")
@@ -295,15 +428,37 @@ def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):
 
 @router.post("/reset-password")
 def reset_password(request: PasswordResetRequest, db: Session = Depends(get_db)):
-    # Verify OTP first
+    # Validate OTP format
+    if not request.otp or len(request.otp.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Verification code is required")
+    if len(request.otp) != 6:
+        raise HTTPException(status_code=400, detail="Verification code must be exactly 6 digits")
+    if not request.otp.isdigit():
+        raise HTTPException(status_code=400, detail="Verification code must contain only numbers")
+    
+    # Validate email format
+    if not request.email or len(request.email.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Email address is required")
+    
+    # Validate new password
+    if not request.new_password or len(request.new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters long")
+    if len(request.new_password) > 128:
+        raise HTTPException(status_code=400, detail="New password must not exceed 128 characters")
+    
+    # Verify OTP
     stored_data = otp_store.get(request.email)
     if not stored_data or stored_data["otp"] != request.otp or stored_data["purpose"] != "reset":
-        raise HTTPException(status_code=400, detail="Invalid OTP")
+        raise HTTPException(status_code=400, detail="Invalid verification code. Please check the code sent to your email and try again.")
     
     # Find user by email
     db_user = db.query(models.User).filter(models.User.email == request.email).first()
     if not db_user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="No account found with this email address. Please check your email or create a new account.")
+    
+    # Check if new password is same as old password
+    if utils.verify_password(request.new_password, db_user.password):
+        raise HTTPException(status_code=400, detail="New password cannot be the same as your current password. Please choose a different password.")
     
     # Update password
     db_user.password = utils.hash_password(request.new_password)
@@ -312,7 +467,94 @@ def reset_password(request: PasswordResetRequest, db: Session = Depends(get_db))
     # Clear OTP after successful reset
     otp_store.pop(request.email, None)
     
-    return {"msg": "Password reset successfully"}
+    return {"msg": "Password reset successfully! You can now sign in with your new password."}
+
+@router.post("/password-reset-request")
+def password_reset_request(request: PasswordResetLinkRequest, db: Session = Depends(get_db)):
+    # Validate email format
+    if not request.email or len(request.email.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Email address is required")
+    
+    # Check if email exists in our system
+    user = db.query(models.User).filter(models.User.email == request.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found with this email address. Please check your email or create a new account.")
+
+    try:
+        token = utils.create_password_reset_token(request.email)
+        reset_link = utils.build_password_reset_link(token)
+        utils.send_password_reset_email(request.email, reset_link)
+        return {"msg": "Password reset link has been sent to your email address. Please check your inbox and follow the instructions."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send password reset email: {str(e)}")
+
+@router.get("/password-reset-validate")
+def password_reset_validate(token: str):
+    email = utils.verify_password_reset_token(token)
+    return {"email": email}
+
+@router.post("/password-reset-confirm")
+def password_reset_confirm(request: PasswordResetConfirmRequest, db: Session = Depends(get_db)):
+    # Validate new password
+    if not request.new_password or len(request.new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters long")
+    if len(request.new_password) > 128:
+        raise HTTPException(status_code=400, detail="New password must not exceed 128 characters")
+    
+    # Verify token and get email
+    try:
+        email = utils.verify_password_reset_token(request.token)
+    except HTTPException as e:
+        if "expired" in str(e.detail).lower():
+            raise HTTPException(status_code=400, detail="Password reset link has expired. Please request a new one.")
+        else:
+            raise HTTPException(status_code=400, detail="Invalid or malformed reset link. Please request a new password reset.")
+    
+    # Find user
+    db_user = db.query(models.User).filter(models.User.email == email).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="Account not found. The user may have been deleted.")
+
+    # Check if new password is same as old password
+    if utils.verify_password(request.new_password, db_user.password):
+        raise HTTPException(status_code=400, detail="New password cannot be the same as your current password. Please choose a different password.")
+
+    # Update password
+    db_user.password = utils.hash_password(request.new_password)
+    db.commit()
+
+    return {"msg": "Password reset successfully! You can now sign in with your new password."}
+
+def verify_google_token(token: str):
+    """Verify Google ID token and extract user info"""
+    try:
+        # Verify the token with Google's public keys
+        # This is a simplified verification - in production, you should use Google's official library
+        response = requests.get(f"https://oauth2.googleapis.com/tokeninfo?id_token={token}")
+        
+        if response.status_code != 200:
+            return None
+            
+        token_info = response.json()
+        
+        # Verify the token is for our application
+        expected_client_id = "301868766960-n563prdnpkudkp6jg0pugpt6ati0fciq.apps.googleusercontent.com"
+        if token_info.get("aud") != expected_client_id:
+            return None
+            
+        # Extract user information
+        return {
+            "email": token_info.get("email"),
+            "name": token_info.get("name"),
+            "given_name": token_info.get("given_name"),
+            "family_name": token_info.get("family_name"),
+            "picture": token_info.get("picture"),
+            "sub": token_info.get("sub")
+        }
+        
+    except Exception as e:
+        print(f"Error verifying Google token: {e}")
+        return None
 
 @router.get("/me")
 def get_current_user_info(current_user: models.User = Depends(utils.get_current_user)):
