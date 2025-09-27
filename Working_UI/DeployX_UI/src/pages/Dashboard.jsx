@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import authService from '../services/auth.js';
 import Terminal from '../components/Terminal.jsx';
+import DeploymentManager from '../components/DeploymentManager.jsx';
 import io from 'socket.io-client';
 import { 
   Terminal as TerminalIcon, 
