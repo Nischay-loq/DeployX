@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import authService from '../services/auth.js'
+import GoogleAuthButton from '../components/GoogleAuthButton'
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -78,6 +79,40 @@ export default function Signup() {
         [e.target.name]: ''
       });
     }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      setIsLoading(true);
+      // In a real implementation, send the credential to your backend
+      console.log('Google Sign-Up Success:', credentialResponse);
+      
+      // For now, simulate success and redirect
+      // You would typically:
+      // 1. Send the credential to your backend
+      // 2. Backend verifies the token with Google
+      // 3. Create user account if new, or sign in if existing
+      // 4. Return JWT token and user data
+      
+      localStorage.setItem('token', 'temp-google-token');
+      localStorage.setItem('user', JSON.stringify({
+        id: 'google-user-id',
+        email: 'user@gmail.com',
+        name: 'Google User'
+      }));
+      
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Google sign-up error:', error);
+      setErrors({ general: 'Google sign-up failed. Please try again.' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleError = (error) => {
+    console.error('Google Sign-Up Error:', error);
+    setErrors({ general: 'Google sign-up failed. Please try again.' });
   };
 
   return (
@@ -196,29 +231,24 @@ export default function Signup() {
                   <span className="relative z-10">{isLoading ? "Creating Account..." : "Create Account"}</span>
                   <span className="absolute inset-0 rounded-xl blur-xl opacity-70 btn-pulse bg-neonAqua"></span>
                 </button>
-                {/* Divider */}
-                <div className="flex items-center my-4">
-                  <hr className="flex-grow border-gray-600" />
-                  <span className="px-3 text-gray-400 text-sm">OR</span>
-                  <hr className="flex-grow border-gray-600" />
-                </div>
-
-                 {/* Google Button */}
-                  <button
-                    type="button"
-                    onClick={() => console.log("Google Sign Up")}
-                    className="w-full px-6 py-3 rounded-xl bg-white text-gray-800 font-semibold flex items-center justify-center gap-3
-                              hover:shadow-lg transition-all cursor-pointer"
-                  >
-                    <img
-                      src="https://www.svgrepo.com/show/355037/google.svg"
-                      alt="Google"
-                      className="w-5 h-5"
-                    />
-                    Continue with Google
-                  </button>
-
               </form>
+
+              {/* Divider */}
+              <div className="flex items-center my-6">
+                <hr className="flex-grow border-gray-600" />
+                <span className="px-4 text-gray-400 text-sm">Or continue with Google</span>
+                <hr className="flex-grow border-gray-600" />
+              </div>
+
+              {/* Google Sign-Up Button */}
+              <div className="mb-6">
+                <GoogleAuthButton
+                  text="Sign up with Google"
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  disabled={isLoading}
+                />
+              </div>
             </>
           )}
         </div>

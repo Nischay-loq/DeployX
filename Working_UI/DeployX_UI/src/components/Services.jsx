@@ -6,27 +6,25 @@ const services = [
   {
     icon: LayoutGrid,
     title: "Device Management",
-    desc: "Centralized control and monitoring of all your devices across networks.",
+    subtitle: "Centralized Control Platform",
+    desc: "Comprehensive device control and monitoring system with real-time insights across all your network infrastructure.",
     color: "blue",
-    leftPoints: [
+    features: [
       "Real-time device status monitoring",
-      "Automated device discovery & onboarding"
-    ],
-    rightPoints: [
+      "Automated device discovery & onboarding",
       "Cross-platform compatibility support", 
       "Advanced device grouping & filtering"
     ]
   },
   {
     icon: Users2,
-    title: "User Management",  
-    desc: "Role-based access control and user authentication system.",
+    title: "User Management",
+    subtitle: "Enterprise Access Control",
+    desc: "Advanced role-based access control system with multi-factor authentication and comprehensive user management.",
     color: "purple",
-    leftPoints: [
+    features: [
       "Multi-factor authentication support",
-      "Granular permission management"
-    ],
-    rightPoints: [
+      "Granular permission management",
       "Active Directory integration",
       "Session management & audit logs"
     ]
@@ -34,13 +32,12 @@ const services = [
   {
     icon: Activity,
     title: "System Monitoring",
-    desc: "Real-time monitoring and performance analytics for all connected devices.",
+    subtitle: "Real-Time Analytics",
+    desc: "Comprehensive monitoring and performance analytics platform for all connected devices with predictive insights.",
     color: "emerald",
-    leftPoints: [
+    features: [
       "Live performance metrics dashboard",
-      "Customizable alert & notification system"
-    ],
-    rightPoints: [
+      "Customizable alert & notification system",
       "Historical data analysis & reporting",
       "Predictive maintenance insights"
     ]
@@ -48,13 +45,12 @@ const services = [
   {
     icon: Boxes,
     title: "Package Deployment",
-    desc: "Automated software deployment and package management across devices.",
+    subtitle: "Automated Distribution",
+    desc: "Advanced software deployment and package management system with batch processing and rollback capabilities.",
     color: "orange",
-    leftPoints: [
+    features: [
       "Batch deployment across multiple devices",
-      "Rollback capabilities for failed deployments"
-    ],
-    rightPoints: [
+      "Rollback capabilities for failed deployments",
       "Scheduled deployment automation",
       "Version control & dependency management"
     ]
@@ -62,13 +58,12 @@ const services = [
   {
     icon: Laptop2,
     title: "Remote Control",
-    desc: "Secure remote access and control of devices from anywhere.",
+    subtitle: "Secure Access Gateway",
+    desc: "Enterprise-grade remote access and control platform with end-to-end encryption and cross-platform support.",
     color: "cyan",
-    leftPoints: [
+    features: [
       "End-to-end encrypted connections",
-      "Cross-platform remote desktop access"
-    ],
-    rightPoints: [
+      "Cross-platform remote desktop access",
       "File transfer & synchronization",
       "Remote command execution & scripting"
     ]
@@ -76,13 +71,12 @@ const services = [
   {
     icon: Shield,
     title: "Security Center",
-    desc: "Advanced security features with encryption and compliance monitoring.",
+    subtitle: "Zero-Trust Architecture",
+    desc: "Advanced security platform with military-grade encryption, compliance monitoring, and threat detection capabilities.",
     color: "pink",
-    leftPoints: [
+    features: [
       "Zero-trust security architecture",
-      "Compliance reporting & audit trails"
-    ],
-    rightPoints: [
+      "Compliance reporting & audit trails",
       "Threat detection & prevention",
       "Data encryption at rest & in transit"
     ]
@@ -145,8 +139,8 @@ export default function Services() {
           </p>
         </motion.div>
 
-        {/* Horizontal Carousel */}
-        <div className="relative">
+        {/* Single Card Carousel */}
+        <div className="relative max-w-4xl mx-auto">
           {/* Carousel Container */}
           <div className="overflow-hidden rounded-2xl">
             <motion.div
@@ -160,137 +154,96 @@ export default function Services() {
                 damping: 30
               }}
             >
-              {services.map(({icon: Icon, title, desc, color, leftPoints, rightPoints}, i) => (
-                <div
+              {services.map(({icon: Icon, title, subtitle, desc, color, features}, i) => (
+                <motion.div
                   key={i}
-                  className="w-full flex-shrink-0"
-                  style={{ minWidth: '100%' }}
+                  className="w-full flex-shrink-0 group"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.6 }}
+                  whileHover={{ scale: 1.02 }}
                 >
-                  <motion.div
-                    className="group relative"
-                    whileHover={{ scale: 1.02 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    {/* Main Card */}
-                    <div className="relative card-dark border-glow hover-lift p-6 md:p-8 rounded-2xl overflow-hidden flex flex-col md:flex-row items-center gap-8 border border-gray-700/50 transition-all duration-500 hover:border-primary-400/60 hover:shadow-[0_0_20px_rgba(99,102,241,0.3),0_0_40px_rgba(99,102,241,0.1),inset_0_1px_0_rgba(255,255,255,0.1)] hover:shadow-primary-400/20 bg-gradient-to-br from-gray-900/90 to-gray-800/90 backdrop-blur-sm">
+                  <div className="card-dark hover-lift border-glow relative overflow-hidden p-8 md:p-10">
+                    {/* Main Content Layout */}
+                    <div className="flex flex-col md:flex-row items-center gap-8">
                       
-                      {/* Left Side - Description Points */}
-                      <div className="flex-1">
-                        <motion.div
-                          initial={{ opacity: 0, x: -50 }}
-                          whileInView={{ opacity: 1, x: 0 }}
-                          viewport={{ once: true }}
-                          transition={{ duration: 0.6, delay: 0.2 }}
-                          className="space-y-6"
-                        >
-                          {leftPoints.map((point, idx) => (
-                            <motion.div
-                              key={idx}
-                              initial={{ opacity: 0, x: -30 }}
-                              whileInView={{ opacity: 1, x: 0 }}
-                              viewport={{ once: true }}
-                              transition={{ duration: 0.5, delay: 0.3 + idx * 0.1 }}
-                              className="flex items-start gap-4"
-                            >
-                              <div className="w-6 h-6 bg-primary-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                                <CheckCircle className="w-4 h-4 text-primary-400" />
-                              </div>
-                              <p className="text-gray-300 text-base leading-relaxed">{point}</p>
-                            </motion.div>
-                          ))}
-                        </motion.div>
-                      </div>
-
-                      {/* Center - Icon & Title */}
-                      <div className="flex-shrink-0 text-center">
+                      {/* Left Side - Icon and Title */}
+                      <div className="flex-shrink-0 text-center md:text-left">
                         <motion.div 
-                          className={`inline-flex items-center justify-center w-20 h-20 bg-gradient-to-r ${colorMap[color]} rounded-2xl mb-6 shadow-lg transition-all duration-300 group-hover:shadow-[0_0_25px_rgba(99,102,241,0.5)] group-hover:shadow-primary-400/40`}
-                          whileHover={{ rotate: 5, scale: 1.1 }}
-                          initial={{ scale: 0 }}
-                          whileInView={{ scale: 1 }}
-                          viewport={{ once: true }}
-                          transition={{ type: "spring", duration: 0.8 }}
+                          className={`inline-flex items-center justify-center w-24 h-24 bg-gradient-to-r ${colorMap[color]} rounded-3xl mb-6 shadow-2xl group-hover:scale-110 transition-all duration-300`}
+                          whileHover={{ rotate: 5 }}
                         >
-                          <Icon className="w-10 h-10 text-white" />
+                          <Icon className="w-12 h-12 text-white" />
                         </motion.div>
-
-                        <motion.h3 
-                          className="text-2xl md:text-3xl font-bold text-white mb-4"
-                          initial={{ opacity: 0, y: 20 }}
-                          whileInView={{ opacity: 1, y: 0 }}
-                          viewport={{ once: true }}
-                          transition={{ duration: 0.6, delay: 0.1 }}
-                        >
-                          {title}
-                        </motion.h3>
                         
-                        <motion.p 
-                          className="text-lg text-gray-300 leading-relaxed max-w-md"
-                          initial={{ opacity: 0, y: 20 }}
-                          whileInView={{ opacity: 1, y: 0 }}
-                          viewport={{ once: true }}
-                          transition={{ duration: 0.6, delay: 0.2 }}
-                        >
-                          {desc}
-                        </motion.p>
+                        <div className="mb-6">
+                          <h3 className="text-3xl md:text-4xl font-bold text-white group-hover:text-primary-400 transition-colors mb-2 leading-tight">
+                            {title}
+                          </h3>
+                          <p className="text-sm text-gray-400 font-medium uppercase tracking-wider">{subtitle}</p>
+                        </div>
                       </div>
 
-                      {/* Right Side - Description Points */}
-                      <div className="flex-1">
-                        <motion.div
-                          initial={{ opacity: 0, x: 50 }}
-                          whileInView={{ opacity: 1, x: 0 }}
-                          viewport={{ once: true }}
-                          transition={{ duration: 0.6, delay: 0.2 }}
-                          className="space-y-6"
-                        >
-                          {rightPoints.map((point, idx) => (
+                      {/* Right Side - Content */}
+                      <div className="flex-1 space-y-6">
+                        {/* Description */}
+                        <div>
+                          <p className="text-gray-300 text-lg leading-relaxed">
+                            {desc}
+                          </p>
+                        </div>
+
+                        {/* Features Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {features.map((feature, idx) => (
                             <motion.div
                               key={idx}
-                              initial={{ opacity: 0, x: 30 }}
+                              initial={{ opacity: 0, x: 20 }}
                               whileInView={{ opacity: 1, x: 0 }}
                               viewport={{ once: true }}
-                              transition={{ duration: 0.5, delay: 0.3 + idx * 0.1 }}
-                              className="flex items-start gap-4"
+                              transition={{ duration: 0.4, delay: idx * 0.1 }}
+                              className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg border border-gray-700/50 hover:border-gray-600/50 transition-colors"
                             >
-                              <div className="w-6 h-6 bg-primary-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
-                                <CheckCircle className="w-4 h-4 text-primary-400" />
-                              </div>
-                              <p className="text-gray-300 text-base leading-relaxed">{point}</p>
+                              <div className={`w-3 h-3 bg-gradient-to-r ${colorMap[color]} rounded-full flex-shrink-0`}></div>
+                              <span className="text-gray-300 font-medium">{feature}</span>
                             </motion.div>
                           ))}
-                        </motion.div>
+                        </div>
                       </div>
-
-                      {/* Decorative Elements */}
-                      <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-primary-500/10 to-transparent rounded-bl-2xl"></div>
-                      <div className="absolute bottom-0 left-0 w-16 h-16 bg-gradient-to-tr from-accent-cyan/10 to-transparent rounded-tr-2xl"></div>
                     </div>
-                  </motion.div>
-                </div>
+
+                    {/* Decorative Elements */}
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary-500/10 to-transparent rounded-bl-3xl"></div>
+                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-accent-cyan/10 to-transparent rounded-tr-3xl"></div>
+                    
+                    {/* Hover Gradient Overlay */}
+                    <div className={`absolute inset-0 bg-gradient-to-br ${colorMap[color]} opacity-0 group-hover:opacity-5 transition-opacity duration-300 rounded-xl pointer-events-none`}></div>
+                  </div>
+                </motion.div>
               ))}
             </motion.div>
           </div>
 
           {/* Navigation Controls */}
-          <div className="flex items-center justify-center gap-6 mt-8">
+          <div className="flex items-center justify-center gap-8 mt-10">
             <button
               onClick={prevSlide}
-              className="w-12 h-12 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/30 rounded-full flex items-center justify-center transition-all duration-300 hover:border-primary-400/70 hover:scale-110 backdrop-blur-sm hover:shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:shadow-primary-400/30"
+              className="w-14 h-14 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/30 rounded-full flex items-center justify-center transition-all duration-300 hover:border-primary-400/70 hover:scale-110 backdrop-blur-sm hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]"
             >
-              <ChevronLeft className="w-5 h-5 text-gray-300 hover:text-primary-400 transition-colors" />
+              <ChevronLeft className="w-6 h-6 text-gray-300 hover:text-primary-400 transition-colors" />
             </button>
 
             {/* Progress Indicators */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               {services.map((_, idx) => (
                 <button
                   key={idx}
                   onClick={() => setCurrentIndex(idx)}
-                  className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                  className={`transition-all duration-300 ${
                     idx === currentIndex 
-                      ? 'bg-primary-400 scale-125' 
-                      : 'bg-gray-600 hover:bg-gray-500'
+                      ? 'w-8 h-3 bg-primary-400 rounded-full' 
+                      : 'w-3 h-3 bg-gray-600 hover:bg-gray-500 rounded-full'
                   }`}
                 />
               ))}
@@ -298,17 +251,26 @@ export default function Services() {
 
             <button
               onClick={nextSlide}
-              className="w-12 h-12 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/30 rounded-full flex items-center justify-center transition-all duration-300 hover:border-primary-400/70 hover:scale-110 backdrop-blur-sm hover:shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:shadow-primary-400/30"
+              className="w-14 h-14 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/30 rounded-full flex items-center justify-center transition-all duration-300 hover:border-primary-400/70 hover:scale-110 backdrop-blur-sm hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]"
             >
-              <ChevronRight className="w-5 h-5 text-gray-300 hover:text-primary-400 transition-colors" />
+              <ChevronRight className="w-6 h-6 text-gray-300 hover:text-primary-400 transition-colors" />
             </button>
           </div>
 
-          {/* Current Slide Info */}
-          <div className="text-center mt-6">
-            <span className="text-gray-400 text-sm">
-              {currentIndex + 1} of {services.length}
-            </span>
+          {/* Current Service Info */}
+          <div className="text-center mt-8 space-y-2">
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-primary-400 font-semibold">
+                {String(currentIndex + 1).padStart(2, '0')}
+              </span>
+              <span className="text-gray-500">/</span>
+              <span className="text-gray-400">
+                {String(services.length).padStart(2, '0')}
+              </span>
+            </div>
+            <p className="text-gray-500 text-sm">
+              {services[currentIndex]?.title} - {services[currentIndex]?.subtitle}
+            </p>
           </div>
         </div>
       </div>

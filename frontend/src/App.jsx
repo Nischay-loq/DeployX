@@ -2,6 +2,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { useState, useEffect } from "react";
 import Login from "./components/jsx/login";
 import Signup from "./components/jsx/signup";
+import ForgotPassword from "./components/jsx/ForgotPassword";
+import ResetPassword from "./components/jsx/ResetPassword";
 import Dashboard from "./components/jsx/dashboard";
 import Terminal from "./components/jsx/Terminal";
 import Navbar from "./components/jsx/Navbar";
@@ -77,6 +79,8 @@ function App() {
           }
         />
         <Route path="/signup" element={<Signup onSignupSuccess={() => {}} />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
 
         {/* Private Routes */}
         {isLoggedIn ? (

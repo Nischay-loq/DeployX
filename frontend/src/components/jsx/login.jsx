@@ -87,6 +87,24 @@ function Login({ onLoginSuccess }) {
 
         <button type="submit">Login</button>
 
+        <div style={{ textAlign: 'center', marginTop: '10px' }}>
+          <button
+            type="button"
+            onClick={() => navigate('/forgot-password')}
+            style={{ 
+              background: 'none', 
+              border: 'none', 
+              color: '#007bff', 
+              cursor: 'pointer', 
+              padding: '5px',
+              textDecoration: 'underline',
+              fontSize: '14px'
+            }}
+          >
+            Forgot Password?
+          </button>
+        </div>
+
        <button
       type="button"
     onClick={() => {

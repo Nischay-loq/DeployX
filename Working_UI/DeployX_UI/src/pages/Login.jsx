@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, Shield, X } from "lucide-react";
 import authService from "../services/auth.js";
+import GoogleAuthButton from "../components/GoogleAuthButton.jsx";
 
 export default function Login() {
   const location = useLocation();
@@ -43,10 +44,39 @@ export default function Login() {
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleSuccess = async (data) => {
+    try {
+      // Store the token and user data
+      if (data.access_token) {
+        localStorage.setItem('token', data.access_token);
+        localStorage.setItem('username', data.user.email);
+        authService.token = data.access_token;
+        authService.user = data.user;
+        authService.isAuthenticated = true;
+        
+        setNotification({
+          type: "success",
+          message: "Google login successful! Redirecting to dashboard...",
+        });
+        
+        setTimeout(() => {
+          navigate("/dashboard");
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Google login success handler error:', error);
+      setNotification({
+        type: "error",
+        message: "Login processing failed. Please try again.",
+      });
+    }
+  };
+
+  const handleGoogleError = (error) => {
+    console.error('Google login error:', error);
     setNotification({
       type: "error",
-      message: "Google login will be implemented in a future update.",
+      message: typeof error === 'string' ? error : "Google login failed. Please try again.",
     });
   };
 
@@ -118,8 +148,55 @@ export default function Login() {
             </div>
           )}
 
+          {/* Google Sign-In Button */}
+          <div className="mb-6">
+            <GoogleAuthButton
+              text="Sign in with Google"
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              disabled={isLoading}
+            />
+          </div>
+
+          {/* Divider */}
+          <div className="flex items-center my-6">
+            <hr className="flex-grow border-gray-600" />
+            <span className="px-4 text-gray-400 text-sm">Or continue with email</span>
+            <hr className="flex-grow border-gray-600" />
+          </div>
+
           {/* Form */}
           <form className="space-y-6" onSubmit={handleSubmit}>
+            {/* Username */}
+            <div>
+              <input
+                type="text"
+                placeholder="Username or Email"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                className="w-full px-4 py-3 rounded-xl bg-cyberBlue/60 border border-neonAqua/40 text-softWhite focus:outline-none focus:ring-2 focus:ring-neonAqua/70 transition-all cursor-text"
+              />
+            </div>
+
+            {/* Password */}
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full px-4 py-3 rounded-xl bg-cyberBlue/60 border border-neonAqua/40 text-softWhite focus:outline-none focus:ring-2 focus:ring-neonAqua/70 transition-all pr-12 cursor-text"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-all p-1 hover:bg-gray-400/20 rounded cursor-pointer"
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
             {/* Username */}
             <div>
               <input
@@ -180,27 +257,6 @@ export default function Login() {
                 {isLoading ? "Signing In..." : "Sign In"}
               </span>
               <span className="absolute inset-0 rounded-xl blur-xl opacity-70 btn-pulse bg-neonAqua"></span>
-            </button>
-
-            {/* Divider */}
-            <div className="flex items-center my-4">
-              <hr className="flex-grow border-gray-600" />
-              <span className="px-3 text-gray-400 text-sm">OR</span>
-              <hr className="flex-grow border-gray-600" />
-            </div>
-
-            {/* Google Button */}
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              className="w-full px-6 py-3 rounded-xl bg-white text-gray-800 font-semibold flex items-center justify-center gap-3 hover:shadow-lg transition-all cursor-pointer"
-            >
-              <img
-                src="https://www.svgrepo.com/show/355037/google.svg"
-                alt="Google"
-                className="w-5 h-5"
-              />
-              Continue with Google
             </button>
 
             {/* Links */}
