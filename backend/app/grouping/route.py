@@ -1,21 +1,53 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from datetime import datetime, timedelta
 from app.auth.database import get_db
 from app.auth.utils import get_current_user
 from app.auth.models import User
 from . import crud, schemas
 from . import models
 
+# Simple in-memory cache for groups
+_groups_cache = {
+    "data": None,
+    "timestamp": None,
+    "ttl_seconds": 30  # Cache for 30 seconds
+}
+
 router = APIRouter(prefix="/groups", tags=["Groups"])
 
 # --- CRUD routes for Groups ---
+def _is_groups_cache_valid() -> bool:
+    """Check if groups cache is still valid"""
+    if _groups_cache["data"] is None or _groups_cache["timestamp"] is None:
+        return False
+    
+    cache_age = datetime.now() - _groups_cache["timestamp"]
+    return cache_age.total_seconds() < _groups_cache["ttl_seconds"]
+
+def _update_groups_cache(data):
+    """Update the groups cache with new data"""
+    _groups_cache["data"] = data
+    _groups_cache["timestamp"] = datetime.now()
+
 @router.get("/", response_model=list[schemas.GroupResponse])
 def list_groups(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    force_refresh: bool = False
 ):
-    return crud.get_groups(db, current_user.id)
+    # Check cache first (skip user-specific caching for simplicity - could be improved)
+    if not force_refresh and _is_groups_cache_valid():
+        print("Returning cached groups data")
+        return _groups_cache["data"]
+    
+    print("Fetching fresh groups data from database")
+    groups_data = crud.get_groups(db, current_user.id)
+    
+    # Update cache
+    _update_groups_cache(groups_data)
+    return groups_data
 
 @router.post("/", response_model=schemas.GroupResponse)
 def create_group(

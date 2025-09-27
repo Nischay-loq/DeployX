@@ -4,6 +4,7 @@ export default function GroupForm({ initialData, devices, onSubmit, onCancel }) 
   console.log('GroupForm received devices:', devices);
   console.log('Devices is array?', Array.isArray(devices));
   console.log('Devices length:', devices?.length);
+  console.log('First device example:', devices?.[0]);
   
   const [formData, setFormData] = useState({
     group_name: '',

@@ -33,6 +33,11 @@ export default function DeploymentsManager() {
   // Tab management and deployments list
   const [activeTab, setActiveTab] = useState('deployments');
   const [deployments, setDeployments] = useState([]);
+  
+  // Deployment Details Modal State
+  const [showDeploymentModal, setShowDeploymentModal] = useState(false);
+  const [selectedDeploymentDetails, setSelectedDeploymentDetails] = useState(null);
+  const [modalLoading, setModalLoading] = useState(false);
 
   useEffect(() => {
     // Load initial data
@@ -82,7 +87,17 @@ export default function DeploymentsManager() {
       setDeployments(response || []);
     } catch (err) {
       console.error('Failed to load deployments:', err);
-      setError('Failed to load deployments');
+      
+      // Provide more specific error messages
+      if (err.message.includes('Unable to connect') || err.message.includes('Failed to fetch')) {
+        setError('Unable to connect to the server. Please check if the backend is running on port 8000.');
+      } else if (err.message.includes('401') || err.message.includes('Unauthorized')) {
+        setError('Authentication required. Please log in again.');
+      } else if (err.message.includes('CORS')) {
+        setError('Network access blocked. Please check server configuration.');
+      } else {
+        setError(`Failed to load deployments: ${err.message}`);
+      }
     }
   };
 
@@ -203,6 +218,43 @@ export default function DeploymentsManager() {
     setDeploymentProgress([]);
   };
 
+  const handleDeploymentClick = async (deployment) => {
+    setModalLoading(true);
+    setShowDeploymentModal(true);
+    
+    try {
+      // Fetch detailed deployment information
+      const [deploymentDetails, targetDevices, targetGroups] = await Promise.all([
+        deploymentsService.getDeploymentDetails(deployment.id),
+        deploymentsService.getDeploymentDevices(deployment.id),
+        deploymentsService.getDeploymentGroups(deployment.id)
+      ]);
+
+      setSelectedDeploymentDetails({
+        ...deployment,
+        ...deploymentDetails,
+        targetDevices: targetDevices || [],
+        targetGroups: targetGroups || [],
+        software: deploymentDetails.software || []
+      });
+    } catch (error) {
+      console.error('Error fetching deployment details:', error);
+      setSelectedDeploymentDetails({
+        ...deployment,
+        targetDevices: [],
+        targetGroups: [],
+        software: []
+      });
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const closeDeploymentModal = () => {
+    setShowDeploymentModal(false);
+    setSelectedDeploymentDetails(null);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -275,7 +327,11 @@ export default function DeploymentsManager() {
             ) : (
               <div className="space-y-3">
                 {deployments.map(deployment => (
-                  <div key={deployment.id} className="bg-black/40 border border-gray-600/30 rounded-lg p-4 hover:border-electricBlue/50 transition-all">
+                  <div 
+                    key={deployment.id} 
+                    className="bg-black/40 border border-gray-600/30 rounded-lg p-4 hover:border-electricBlue/50 transition-all cursor-pointer transform hover:scale-[1.02]"
+                    onClick={() => handleDeploymentClick(deployment)}
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-semibold text-softWhite">{deployment.deployment_name}</h4>
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -289,6 +345,9 @@ export default function DeploymentsManager() {
                     <div className="text-sm text-gray-400">
                       Started: {new Date(deployment.started_at).toLocaleString()} • 
                       Devices: {deployment.device_count}
+                    </div>
+                    <div className="mt-2 text-xs text-electricBlue/70">
+                      Click to view deployment details →
                     </div>
                   </div>
                 ))}
@@ -476,6 +535,191 @@ export default function DeploymentsManager() {
           onRetry={handleRetry}
           onClose={closeProgressModal}
         />
+      )}
+
+      {/* Deployment Details Modal */}
+      {showDeploymentModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-black/90 border border-electricBlue/30 rounded-xl p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <span className="text-purple-400 text-2xl">🚀</span>
+                <h2 className="text-xl font-bold text-electricBlue">Deployment Details</h2>
+              </div>
+              <button
+                onClick={closeDeploymentModal}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {modalLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-electricBlue"></div>
+                <span className="ml-3 text-gray-400">Loading deployment details...</span>
+              </div>
+            ) : selectedDeploymentDetails ? (
+              <div className="space-y-6">
+                {/* Deployment Overview */}
+                <div className="bg-black/60 border border-electricBlue/20 rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-electricBlue mb-3">Overview</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-400">Deployment Name</p>
+                      <p className="font-medium text-softWhite">{selectedDeploymentDetails.deployment_name}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-400">Status</p>
+                      <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                        selectedDeploymentDetails.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                        selectedDeploymentDetails.status === 'failed' ? 'bg-red-500/20 text-red-400' :
+                        'bg-yellow-500/20 text-yellow-400'
+                      }`}>
+                        {selectedDeploymentDetails.status}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-400">Started At</p>
+                      <p className="font-medium text-softWhite">
+                        {new Date(selectedDeploymentDetails.started_at).toLocaleString()}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-400">Device Count</p>
+                      <p className="font-medium text-softWhite">{selectedDeploymentDetails.device_count}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Software Details */}
+                {selectedDeploymentDetails.software && selectedDeploymentDetails.software.length > 0 && (
+                  <div className="bg-black/60 border border-electricBlue/20 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-electricBlue mb-3">Installed Software</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {selectedDeploymentDetails.software.map((software, index) => (
+                        <div key={index} className="bg-black/40 border border-gray-600/30 rounded-lg p-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="font-medium text-softWhite">{software.name || software}</h4>
+                              {software.version && (
+                                <p className="text-sm text-gray-400">Version: {software.version}</p>
+                              )}
+                              {software.installation_path && (
+                                <p className="text-xs text-electricBlue/70 mt-1">
+                                  Path: {software.installation_path}
+                                </p>
+                              )}
+                            </div>
+                            <span className="text-xs text-green-400">✓</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Custom Software */}
+                {selectedDeploymentDetails.custom_software && (
+                  <div className="bg-black/60 border border-electricBlue/20 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-electricBlue mb-3">Custom Software</h3>
+                    <div className="bg-black/40 border border-gray-600/30 rounded-lg p-3">
+                      <p className="font-medium text-softWhite">{selectedDeploymentDetails.custom_software}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Target Devices */}
+                {selectedDeploymentDetails.targetDevices && selectedDeploymentDetails.targetDevices.length > 0 && (
+                  <div className="bg-black/60 border border-electricBlue/20 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-electricBlue mb-3">
+                      Target Devices ({selectedDeploymentDetails.targetDevices.length})
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-600/30">
+                            <th className="text-left py-2 text-gray-400">Device Name</th>
+                            <th className="text-left py-2 text-gray-400">IP Address</th>
+                            <th className="text-left py-2 text-gray-400">Status</th>
+                            <th className="text-left py-2 text-gray-400">Deployment Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedDeploymentDetails.targetDevices.map((device, index) => (
+                            <tr key={index} className="border-b border-gray-700/30">
+                              <td className="py-2 text-softWhite">{device.device_name || `Device ${device.id}`}</td>
+                              <td className="py-2 text-gray-400">{device.ip_address || 'N/A'}</td>
+                              <td className="py-2">
+                                <span className={`text-xs ${device.status === 'online' ? 'text-green-400' : 'text-red-400'}`}>
+                                  {device.status || 'unknown'}
+                                </span>
+                              </td>
+                              <td className="py-2">
+                                <span className={`text-xs ${
+                                  device.deployment_status === 'success' ? 'text-green-400' :
+                                  device.deployment_status === 'failed' ? 'text-red-400' :
+                                  'text-yellow-400'
+                                }`}>
+                                  {device.deployment_status || 'pending'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Target Groups */}
+                {selectedDeploymentDetails.targetGroups && selectedDeploymentDetails.targetGroups.length > 0 && (
+                  <div className="bg-black/60 border border-electricBlue/20 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-electricBlue mb-3">
+                      Target Groups ({selectedDeploymentDetails.targetGroups.length})
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {selectedDeploymentDetails.targetGroups.map((group, index) => (
+                        <div key={index} className="bg-black/40 border border-gray-600/30 rounded-lg p-3">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="w-4 h-4 rounded-full"
+                              style={{ backgroundColor: group.color || '#6c63ff' }}
+                            ></div>
+                            <div>
+                              <h4 className="font-medium text-softWhite">{group.group_name}</h4>
+                              <p className="text-sm text-gray-400">
+                                {group.device_count || 0} devices
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* No Target Information */}
+                {(!selectedDeploymentDetails.targetDevices || selectedDeploymentDetails.targetDevices.length === 0) &&
+                 (!selectedDeploymentDetails.targetGroups || selectedDeploymentDetails.targetGroups.length === 0) && (
+                  <div className="bg-black/60 border border-electricBlue/20 rounded-lg p-4">
+                    <div className="text-center py-6">
+                      <div className="text-4xl mb-2">📋</div>
+                      <h3 className="text-lg font-semibold text-gray-400 mb-2">No Target Information</h3>
+                      <p className="text-gray-500">Target devices and groups information is not available for this deployment.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-4">❌</div>
+                <h4 className="text-lg font-semibold text-gray-400 mb-2">Failed to Load</h4>
+                <p className="text-gray-500">Could not load deployment details. Please try again.</p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

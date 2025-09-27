@@ -564,3 +564,260 @@ def get_current_user_info(current_user: models.User = Depends(utils.get_current_
         "email": current_user.email,
         "created_at": current_user.created_at
     }
+
+# ----------- PROFILE MANAGEMENT ROUTES ---------------------
+
+class UpdateUsernameRequest(BaseModel):
+    new_username: str
+
+class UpdatePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+class UpdateEmailRequest(BaseModel):
+    new_email: EmailStr
+    password: str
+
+class VerifyEmailChangeRequest(BaseModel):
+    token: str
+
+@router.put("/update-username")
+def update_username(
+    request: UpdateUsernameRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(utils.get_current_user)
+):
+    """Update user's username"""
+    try:
+        # Validate new username
+        if not request.new_username or len(request.new_username.strip()) < 3:
+            raise HTTPException(
+                status_code=400,
+                detail="Username must be at least 3 characters long"
+            )
+        
+        # Check if username already exists
+        existing_user = db.query(models.User).filter(
+            models.User.username == request.new_username.strip(),
+            models.User.id != current_user.id
+        ).first()
+        
+        if existing_user:
+            raise HTTPException(
+                status_code=400,
+                detail="Username already exists"
+            )
+        
+        # Update username
+        current_user.username = request.new_username.strip()
+        db.commit()
+        db.refresh(current_user)
+        
+        return {
+            "status": "success",
+            "message": "Username updated successfully",
+            "new_username": current_user.username
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update username: {str(e)}"
+        )
+
+@router.put("/change-password")
+def change_password(
+    request: UpdatePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(utils.get_current_user)
+):
+    """Change user's password with current password verification"""
+    try:
+        # Verify current password
+        if not utils.verify_password(request.current_password, current_user.hashed_password):
+            raise HTTPException(
+                status_code=400,
+                detail="Current password is incorrect"
+            )
+        
+        # Validate new password
+        if len(request.new_password) < 6:
+            raise HTTPException(
+                status_code=400,
+                detail="New password must be at least 6 characters long"
+            )
+        
+        # Update password
+        current_user.hashed_password = utils.get_password_hash(request.new_password)
+        db.commit()
+        
+        return {
+            "status": "success",
+            "message": "Password changed successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to change password: {str(e)}"
+        )
+
+@router.post("/request-email-change")
+def request_email_change(
+    request: UpdateEmailRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(utils.get_current_user)
+):
+    """Request email change - sends verification to new email"""
+    try:
+        # Verify password
+        if not utils.verify_password(request.password, current_user.hashed_password):
+            raise HTTPException(
+                status_code=400,
+                detail="Password is incorrect"
+            )
+        
+        # Check if new email already exists
+        existing_user = db.query(models.User).filter(
+            models.User.email == request.new_email,
+            models.User.id != current_user.id
+        ).first()
+        
+        if existing_user:
+            raise HTTPException(
+                status_code=400,
+                detail="Email already in use"
+            )
+        
+        # Generate verification token
+        import secrets
+        token = secrets.token_urlsafe(32)
+        
+        # Store email change request (in production, use database)
+        email_change_requests = getattr(request_email_change, 'requests', {})
+        email_change_requests[token] = {
+            "user_id": current_user.id,
+            "new_email": request.new_email,
+            "created_at": datetime.utcnow(),
+            "expires_at": datetime.utcnow().timestamp() + 3600  # 1 hour
+        }
+        request_email_change.requests = email_change_requests
+        
+        # Send verification email
+        verification_link = f"http://localhost:5173/verify-email-change?token={token}"
+        
+        try:
+            utils.send_email(
+                to_email=request.new_email,
+                subject="Verify your new email address - DeployX",
+                html_content=f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #1f2937;">Verify Your New Email Address</h2>
+                    <p>Hello {current_user.username},</p>
+                    <p>You requested to change your email address to: <strong>{request.new_email}</strong></p>
+                    <p>To complete this change, please click the button below:</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{verification_link}" 
+                           style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                                  color: white; 
+                                  padding: 12px 30px; 
+                                  text-decoration: none; 
+                                  border-radius: 8px; 
+                                  display: inline-block;
+                                  font-weight: bold;">
+                            Verify New Email
+                        </a>
+                    </div>
+                    <p style="color: #6b7280; font-size: 14px;">
+                        This link will expire in 1 hour. If you didn't request this change, please ignore this email.
+                    </p>
+                    <p style="color: #6b7280; font-size: 14px;">
+                        If the button doesn't work, copy and paste this link into your browser:<br>
+                        <a href="{verification_link}">{verification_link}</a>
+                    </p>
+                </div>
+                """
+            )
+        except Exception as e:
+            print(f"Failed to send email: {e}")
+            # For development, we'll continue without sending email
+            pass
+        
+        return {
+            "status": "success",
+            "message": f"Verification email sent to {request.new_email}. Please check your inbox.",
+            "verification_token": token  # For development only
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to request email change: {str(e)}"
+        )
+
+@router.post("/verify-email-change")
+def verify_email_change(
+    request: VerifyEmailChangeRequest,
+    db: Session = Depends(get_db)
+):
+    """Verify email change using token from email"""
+    try:
+        # Get email change requests
+        email_change_requests = getattr(request_email_change, 'requests', {})
+        
+        if request.token not in email_change_requests:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid or expired verification token"
+            )
+        
+        change_request = email_change_requests[request.token]
+        
+        # Check if token is expired
+        if datetime.utcnow().timestamp() > change_request["expires_at"]:
+            del email_change_requests[request.token]
+            raise HTTPException(
+                status_code=400,
+                detail="Verification token has expired"
+            )
+        
+        # Get user and update email
+        user = db.query(models.User).filter(models.User.id == change_request["user_id"]).first()
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail="User not found"
+            )
+        
+        # Update email
+        old_email = user.email
+        user.email = change_request["new_email"]
+        db.commit()
+        db.refresh(user)
+        
+        # Clean up the request
+        del email_change_requests[request.token]
+        
+        return {
+            "status": "success",
+            "message": "Email address updated successfully",
+            "old_email": old_email,
+            "new_email": user.email
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to verify email change: {str(e)}"
+        )

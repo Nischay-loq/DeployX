@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, memo } from 'react';
 import authService from '../services/auth.js';
 import Terminal from '../components/Terminal.jsx';
 import DeploymentManager from '../components/DeploymentManager.jsx';
@@ -33,12 +33,23 @@ import {
   CheckCircle,
   XCircle,
   BarChart3,
-  PieChart
+  PieChart,
+  User,
+  Edit,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  X,
+  Trash2,
+  Plus
 } from 'lucide-react';
 import GroupsManager from '../components/GroupsManager.jsx';
 import DeploymentsManager from '../components/DeploymentsManager.jsx';
 import FileSystemManager from '../components/FileSystemManager.jsx';
 import APITest from '../components/APITest.jsx';
+import GroupForm from '../components/GroupForm.jsx';
+import groupsService from '../services/groups.js';
 
 export default function Dashboard({ onLogout }) {
   const [activeSection, setActiveSection] = useState('overview');
@@ -51,6 +62,18 @@ export default function Dashboard({ onLogout }) {
   const socketRef = useRef(null);
   const isMountedRef = useRef(true);
   const user = authService.getCurrentUser();
+
+  // Add authentication debugging
+  useEffect(() => {
+    const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
+    console.log('Dashboard - User:', user);
+    console.log('Dashboard - Token available:', !!token);
+    
+    if (!user || !token) {
+      console.warn('Dashboard - No user or token found, redirecting to login');
+      // Optionally redirect to login or show error
+    }
+  }, [user]);
 
   // Real dashboard data from API
   const [dashboardStats, setDashboardStats] = useState({
@@ -72,11 +95,152 @@ export default function Dashboard({ onLogout }) {
   });
   const [deploymentTrends, setDeploymentTrends] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Devices data with caching
+  const [devicesData, setDevicesData] = useState([]);
+  const [devicesLoading, setDevicesLoading] = useState(false);
+  const [devicesLastFetch, setDevicesLastFetch] = useState(null);
+  const [devicesSearchTerm, setDevicesSearchTerm] = useState('');
+  const [devicesStatusFilter, setDevicesStatusFilter] = useState('all');
+  const [devicesGroupFilter, setDevicesGroupFilter] = useState('all');
+  
+  // Device Groups data with caching
+  const [groupsData, setGroupsData] = useState([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+  const [groupsLastFetch, setGroupsLastFetch] = useState(null);
+  const [groupsSearchTerm, setGroupsSearchTerm] = useState('');
+  
+  // Global loading state for smoother UX
+  const [initialLoading, setInitialLoading] = useState(true);
+  
+  // Profile dropdown states
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  
+  // Profile modal states
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  
+  // Password visibility states
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // Group devices modal states
+  const [showGroupDevicesModal, setShowGroupDevicesModal] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [groupDevices, setGroupDevices] = useState([]);
+  const [loadingGroupDevices, setLoadingGroupDevices] = useState(false);
+  
+  // Deployment details modal states
+  const [showDeploymentModal, setShowDeploymentModal] = useState(false);
+  const [selectedDeployment, setSelectedDeployment] = useState(null);
+  const [deploymentDevices, setDeploymentDevices] = useState([]);
+  const [deploymentGroups, setDeploymentGroups] = useState([]);
+  const [loadingDeploymentDetails, setLoadingDeploymentDetails] = useState(false);
+  
+  // Group Edit Modal State
+  const [showGroupEditModal, setShowGroupEditModal] = useState(false);
+  const [editingGroup, setEditingGroup] = useState(null);
+  
+  // Group Create Modal State
+  const [showGroupCreateModal, setShowGroupCreateModal] = useState(false);
+  
+  // Force refresh key for group cards
+  const [groupsRefreshKey, setGroupsRefreshKey] = useState(0);
+  const [showEmailPassword, setShowEmailPassword] = useState(false);
+  
+  // Form states
+  const [newUsername, setNewUsername] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [emailPassword, setEmailPassword] = useState('');
+  
+  // Loading and error states
+  const [usernameLoading, setUsernameLoading] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [usernameError, setUsernameError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [emailSuccess, setEmailSuccess] = useState('');
+  const [formLoading, setFormLoading] = useState(false);
+  const [formMessage, setFormMessage] = useState({ type: '', text: '' });
+
+  // Optimized filtered data with useMemo for better performance
+  const filteredDevices = useMemo(() => {
+    const startTime = performance.now();
+    
+    if (!devicesData || devicesData.length === 0) return [];
+    
+    const result = devicesData.filter(device => {
+      const searchTerm = devicesSearchTerm.toLowerCase();
+      const matchesSearch = !searchTerm || 
+        device.device_name?.toLowerCase().includes(searchTerm) ||
+        device.ip_address?.toLowerCase().includes(searchTerm) ||
+        device.os?.toLowerCase().includes(searchTerm);
+      
+      const matchesStatus = devicesStatusFilter === 'all' || device.status === devicesStatusFilter;
+      
+      const matchesGroup = devicesGroupFilter === 'all' || 
+        device.group?.group_name === devicesGroupFilter ||
+        device.groups?.some(g => g.group_name === devicesGroupFilter || g.name === devicesGroupFilter);
+      
+      return matchesSearch && matchesStatus && matchesGroup;
+    });
+    
+    const endTime = performance.now();
+    console.log(`🚀 Device filtering took ${(endTime - startTime).toFixed(2)}ms for ${devicesData.length} devices`);
+    
+    return result;
+  }, [devicesData, devicesSearchTerm, devicesStatusFilter, devicesGroupFilter]);
+
+  const filteredGroups = useMemo(() => {
+    const startTime = performance.now();
+    
+    if (!groupsData || groupsData.length === 0) return [];
+    
+    const result = groupsData.filter(group => {
+      const searchTerm = groupsSearchTerm.toLowerCase();
+      const matchesSearch = !searchTerm || 
+        group.group_name?.toLowerCase().includes(searchTerm) ||
+        group.description?.toLowerCase().includes(searchTerm);
+      
+      return matchesSearch;
+    });
+    
+    const endTime = performance.now();
+    console.log(`🚀 Group filtering took ${(endTime - startTime).toFixed(2)}ms for ${groupsData.length} groups`);
+    
+    return result;
+  }, [groupsData, groupsSearchTerm]);
+
+  // Memoized unique groups for filter dropdown
+  const availableGroups = useMemo(() => {
+    if (!devicesData || devicesData.length === 0) return [];
+    
+    return [...new Set(
+      devicesData.flatMap(device => {
+        const groups = [];
+        if (device.group?.group_name) groups.push(device.group.group_name);
+        if (device.groups) {
+          device.groups.forEach(g => {
+            const name = g.group_name || g.name;
+            if (name) groups.push(name);
+          });
+        }
+        return groups;
+      })
+    )];
+  }, [devicesData]);
 
   const sections = [
     { id: 'overview', name: 'Dashboard', color: 'text-blue-400', icon: Home },
     { id: 'shell', name: 'Remote Shell', color: 'text-cyan-400', icon: TerminalIcon },
     { id: 'files', name: 'File System', color: 'text-green-400', icon: FolderOpen },
+    { id: 'devices', name: 'Devices', color: 'text-teal-400', icon: Server },
     { id: 'groups', name: 'Device Groups', color: 'text-orange-400', icon: Monitor },
     { id: 'deployments', name: 'Deployments', color: 'text-purple-400', icon: Play },
     { id: 'system', name: 'System Info', color: 'text-emerald-400', icon: Activity },
@@ -85,6 +249,157 @@ export default function Dashboard({ onLogout }) {
     { id: 'services', name: 'Services', color: 'text-red-400', icon: Settings },
     { id: 'api-test', name: 'API Test', color: 'text-pink-400', icon: Search }
   ];
+
+  // Click outside handler for profile dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showProfileDropdown && !event.target.closest('.profile-dropdown')) {
+        setShowProfileDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showProfileDropdown]);
+
+  // Optimized data loading when sections change
+  useEffect(() => {
+    const loadSectionData = async () => {
+      if (activeSection === 'devices') {
+        await fetchDevicesData();
+      } else if (activeSection === 'groups') {
+        // Load both groups and devices for group management
+        await Promise.all([
+          fetchGroupsData(),
+          fetchDevicesData()
+        ]);
+      }
+      setInitialLoading(false);
+    };
+
+    loadSectionData();
+  }, [activeSection]);
+
+  // Debounced search for better performance
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      // Search is handled by filteredDevices/filteredGroups computed values
+      // This effect ensures smooth typing experience
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [devicesSearchTerm, groupsSearchTerm]);
+
+  // Fetch devices for a specific group
+  const fetchGroupDevices = async (groupId, groupName, skipModalOpen = false) => {
+    setLoadingGroupDevices(true);
+    if (!skipModalOpen) {
+      setSelectedGroup({ id: groupId, name: groupName });
+      setShowGroupDevicesModal(true);
+    }
+    
+    try {
+      // Ensure we have fresh device data
+      if (!devicesData || devicesData.length === 0) {
+        await fetchDevicesData(true);
+      }
+      
+      // Filter devices that belong to this group
+      const devicesInGroup = devicesData.filter(device => {
+        // Check direct group relationship
+        if (device.group && device.group.id === groupId) {
+          return true;
+        }
+        // Check group mappings
+        if (device.groups && device.groups.some(g => g.id === groupId)) {
+          return true;
+        }
+        return false;
+      });
+      
+      setGroupDevices(devicesInGroup);
+    } catch (error) {
+      console.error('Error filtering group devices:', error);
+      setGroupDevices([]);
+    } finally {
+      setLoadingGroupDevices(false);
+    }
+  };
+
+  // Fetch deployment details
+  const fetchDeploymentDetails = async (deployment) => {
+    setLoadingDeploymentDetails(true);
+    setSelectedDeployment(deployment);
+    setShowDeploymentModal(true);
+    
+    try {
+      const token = authService.getToken();
+      if (!token) {
+        console.log('No token found for deployment details fetch');
+        return;
+      }
+
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+
+      // Fetch deployment details from API
+      const response = await fetch(`http://localhost:8000/deployments/${deployment.id}`, {
+        headers
+      });
+
+      if (response.ok) {
+        const deploymentDetails = await response.json();
+        console.log('Deployment details:', deploymentDetails);
+        
+        // Extract devices and groups from deployment details
+        setDeploymentDevices(deploymentDetails.devices || []);
+        setDeploymentGroups(deploymentDetails.groups || []);
+        
+        // Update selected deployment with full details
+        setSelectedDeployment({
+          ...deployment,
+          ...deploymentDetails,
+          software_details: deploymentDetails.software_details || [],
+          installation_paths: deploymentDetails.installation_paths || [],
+          target_devices: deploymentDetails.target_devices || [],
+          target_groups: deploymentDetails.target_groups || []
+        });
+      } else {
+        console.error('Failed to fetch deployment details:', response.status);
+        // Use fallback data structure
+        setDeploymentDevices([]);
+        setDeploymentGroups([]);
+        setSelectedDeployment({
+          ...deployment,
+          software_details: deployment.software_name ? [{
+            name: deployment.software_name,
+            version: deployment.version || 'Unknown',
+            installation_path: deployment.installation_path || '/default/path',
+            size: deployment.file_size || 'Unknown'
+          }] : [],
+          target_devices: deployment.target_devices || [],
+          target_groups: deployment.target_groups || []
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching deployment details:', error);
+      // Fallback to basic deployment info
+      setDeploymentDevices([]);
+      setDeploymentGroups([]);
+      setSelectedDeployment({
+        ...deployment,
+        software_details: [],
+        target_devices: [],
+        target_groups: []
+      });
+    } finally {
+      setLoadingDeploymentDetails(false);
+    }
+  };
 
   // Fetch dashboard data from API
   const fetchDashboardData = async () => {
@@ -214,6 +529,284 @@ export default function Dashboard({ onLogout }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Optimized devices data fetching with caching
+  const fetchDevicesData = async (forceRefresh = false) => {
+    const fetchStartTime = performance.now();
+    
+    try {
+      // Check cache first (refresh every 30 seconds)
+      const now = Date.now();
+      if (!forceRefresh && devicesLastFetch && (now - devicesLastFetch) < 30000 && devicesData.length > 0) {
+        console.log('⚡ Dashboard: Using cached devices data');
+        return;
+      }
+
+      setDevicesLoading(true);
+      
+      // Ensure auth service is initialized
+      if (!authService.getCurrentUser()) {
+        console.log('Dashboard: No user found for devices fetch');
+        return;
+      }
+
+      const token = authService.getToken();
+      if (!token) {
+        console.log('Dashboard: No token found for devices fetch');
+        return;
+      }
+
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+
+      // Use Promise.race for timeout handling
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), 10000)
+      );
+
+      const fetchPromise = fetch('http://localhost:8000/devices/', {
+        headers
+      });
+
+      const devicesResponse = await Promise.race([fetchPromise, timeoutPromise]);
+      
+      if (devicesResponse.ok) {
+        const devicesDataResponse = await devicesResponse.json();
+        const fetchEndTime = performance.now();
+        const fetchDuration = (fetchEndTime - fetchStartTime).toFixed(2);
+        
+        console.log(`🚀 Dashboard: Received ${devicesDataResponse?.length || 0} devices in ${fetchDuration}ms`);
+        
+        // Update data and cache timestamp
+        setDevicesData(devicesDataResponse || []);
+        setDevicesLastFetch(Date.now());
+      } else if (devicesResponse.status === 401) {
+        console.log('Dashboard: Authentication failed for devices data');
+        authService.logout();
+        onLogout();
+        return;
+      } else {
+        console.error('Dashboard: Failed to fetch devices:', devicesResponse.status, devicesResponse.statusText);
+        // Set fallback data for development
+        setDevicesData([
+          {
+            id: 1,
+            device_name: "Web Server 01",
+            ip_address: "192.168.1.10",
+            status: "online",
+            os: "Ubuntu 20.04",
+            last_seen: "2024-01-15T10:30:00Z",
+            groups: ["Web Servers", "Production"],
+            cpu_usage: 45,
+            memory_usage: 60,
+            disk_usage: 25
+          },
+          {
+            id: 2,
+            device_name: "Database Server",
+            ip_address: "192.168.1.20",
+            status: "online",
+            os: "CentOS 8",
+            last_seen: "2024-01-15T10:29:00Z",
+            groups: ["Database Servers"],
+            cpu_usage: 30,
+            memory_usage: 80,
+            disk_usage: 55
+          },
+          {
+            id: 3,
+            device_name: "App Server 02",
+            ip_address: "192.168.1.30",
+            status: "offline",
+            os: "Windows Server 2019",
+            last_seen: "2024-01-15T09:15:00Z",
+            groups: ["Application Servers"],
+            cpu_usage: 0,
+            memory_usage: 0,
+            disk_usage: 40
+          }
+        ]);
+      }
+    } catch (error) {
+      console.error('Dashboard: Error fetching devices data:', error);
+      // Set fallback data
+      setDevicesData([]);
+    } finally {
+      setDevicesLoading(false);
+    }
+  };
+
+  // Optimized groups data fetching with caching
+  const fetchGroupsData = async (forceRefresh = false) => {
+    const fetchStartTime = performance.now();
+    
+    try {
+      // Check cache first (refresh every 30 seconds)
+      const now = Date.now();
+      if (!forceRefresh && groupsLastFetch && (now - groupsLastFetch) < 30000 && groupsData.length > 0) {
+        console.log('⚡ Dashboard: Using cached groups data');
+        return;
+      }
+
+      setGroupsLoading(true);
+      
+      // Ensure auth service is initialized
+      if (!authService.getCurrentUser()) {
+        console.log('Dashboard: No user found for groups fetch');
+        return;
+      }
+
+      const token = authService.getToken();
+      if (!token) {
+        console.log('Dashboard: No token found for groups fetch');
+        return;
+      }
+
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+
+      // Use Promise.race for timeout handling
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Request timeout')), 8000)
+      );
+
+      const fetchPromise = fetch('http://localhost:8000/groups/', {
+        headers
+      });
+
+      const groupsResponse = await Promise.race([fetchPromise, timeoutPromise]);
+      
+      if (groupsResponse.ok) {
+        const groupsDataResponse = await groupsResponse.json();
+        const fetchEndTime = performance.now();
+        const fetchDuration = (fetchEndTime - fetchStartTime).toFixed(2);
+        
+        console.log(`🚀 Dashboard: Received ${groupsDataResponse?.length || 0} groups in ${fetchDuration}ms`);
+        
+        // Update data and cache timestamp
+        setGroupsData(groupsDataResponse || []);
+        setGroupsLastFetch(Date.now());
+      } else if (groupsResponse.status === 401) {
+        console.log('Dashboard: Authentication failed for groups data');
+        authService.logout();
+        onLogout();
+        return;
+      } else {
+        console.error('Dashboard: Failed to fetch groups:', groupsResponse.status, groupsResponse.statusText);
+        // Set fallback data for development
+        setGroupsData([
+          {
+            id: 1,
+            group_name: "Web Servers",
+            description: "Production web servers handling user traffic",
+            color: "#3B82F6",
+            device_count: 5,
+            online_devices: 4,
+            offline_devices: 1,
+            user_id: 1,
+            created_at: "2024-01-01T00:00:00Z"
+          },
+          {
+            id: 2,
+            group_name: "Database Servers",
+            description: "Critical database infrastructure",
+            color: "#10B981",
+            device_count: 3,
+            online_devices: 3,
+            offline_devices: 0,
+            user_id: 1,
+            created_at: "2024-01-02T00:00:00Z"
+          },
+          {
+            id: 3,
+            group_name: "Load Balancers",
+            description: "Traffic distribution and load balancing",
+            color: "#8B5CF6",
+            device_count: 2,
+            online_devices: 2,
+            offline_devices: 0,
+            user_id: 1,
+            created_at: "2024-01-03T00:00:00Z"
+          }
+        ]);
+      }
+    } catch (error) {
+      console.error('Dashboard: Error fetching groups data:', error);
+      setGroupsData([]);
+    } finally {
+      setGroupsLoading(false);
+    }
+  };
+
+  // Handle group update
+  const handleUpdateGroup = async (groupData) => {
+    const updatedGroupId = editingGroup.id;
+    try {
+      await groupsService.updateGroup(updatedGroupId, groupData);
+      
+      // Force refresh groups and devices data
+      await forceRefreshGroups();
+      
+      // If group devices modal is open for this group, refresh it
+      if (showGroupDevicesModal && selectedGroup && selectedGroup.id === updatedGroupId) {
+        console.log('Refreshing group devices modal for updated group');
+        // Update the selected group name
+        const newGroupName = groupData.group_name || selectedGroup.name;
+        setSelectedGroup({ id: updatedGroupId, name: newGroupName });
+        // Refresh the devices in the modal (skipModalOpen = true since it's already open)
+        await fetchGroupDevices(updatedGroupId, newGroupName, true);
+      }
+      
+      // Close edit modal
+      setShowGroupEditModal(false);
+      setEditingGroup(null);
+    } catch (error) {
+      console.error('Failed to update group:', error);
+      // Handle error - could show a toast notification here
+    }
+  };
+
+  const closeGroupEditModal = () => {
+    setShowGroupEditModal(false);
+    setEditingGroup(null);
+  };
+
+  // Handle group creation
+  const handleCreateGroup = async (groupData) => {
+    try {
+      await groupsService.createGroup(groupData);
+      // Force refresh groups and devices data
+      await forceRefreshGroups();
+      
+      // Close modal
+      setShowGroupCreateModal(false);
+    } catch (error) {
+      console.error('Failed to create group:', error);
+      // Handle error - could show a toast notification here
+    }
+  };
+
+  const closeGroupCreateModal = () => {
+    setShowGroupCreateModal(false);
+  };
+
+  // Force refresh all group-related data
+  const forceRefreshGroups = async () => {
+    // Clear cache timestamps to force fresh fetch
+    setGroupsLastFetch(null);
+    setDevicesLastFetch(null);
+    // Fetch fresh data (both groups and devices)
+    await Promise.all([
+      fetchGroupsData(true),
+      fetchDevicesData(true)
+    ]);
+    // Force re-render
+    setGroupsRefreshKey(prev => prev + 1);
   };
 
   // Initialize socket connection for agent management
@@ -358,6 +951,24 @@ export default function Dashboard({ onLogout }) {
     };
   }, []);
 
+  // Click outside handler for profile dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // If the clicked element is not within the profile dropdown, close it
+      if (showProfileDropdown && !event.target.closest('.profile-dropdown')) {
+        setShowProfileDropdown(false);
+      }
+    };
+
+    if (showProfileDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showProfileDropdown]);
+
   // Handle agent selection
   const handleAgentSelect = (agentId) => {
     setCurrentAgent(agentId);
@@ -380,6 +991,371 @@ export default function Dashboard({ onLogout }) {
       onLogout();
     }
   };
+
+  // Profile management functions
+  const handleUpdateUsername = async (e) => {
+    e.preventDefault();
+    setFormLoading(true);
+    setFormMessage({ type: '', text: '' });
+
+    try {
+      const token = authService.getToken() || localStorage.getItem('access_token');
+      const response = await fetch('http://localhost:8000/auth/update-username', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ new_username: usernameForm.newUsername })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setFormMessage({ type: 'success', text: data.message });
+        setUsernameForm({ newUsername: '' });
+        // Update user info in auth service if needed
+        setTimeout(() => {
+          setShowChangeUsername(false);
+          setFormMessage({ type: '', text: '' });
+        }, 2000);
+      } else {
+        setFormMessage({ type: 'error', text: data.detail || 'Failed to update username' });
+      }
+    } catch (error) {
+      setFormMessage({ type: 'error', text: 'Network error. Please try again.' });
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setFormLoading(true);
+    setFormMessage({ type: '', text: '' });
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setFormMessage({ type: 'error', text: 'New passwords do not match' });
+      setFormLoading(false);
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      setFormMessage({ type: 'error', text: 'New password must be at least 6 characters long' });
+      setFormLoading(false);
+      return;
+    }
+
+    try {
+      const token = authService.getToken() || localStorage.getItem('access_token');
+      const response = await fetch('http://localhost:8000/auth/change-password', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          current_password: passwordForm.currentPassword,
+          new_password: passwordForm.newPassword
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setFormMessage({ type: 'success', text: data.message });
+        setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        setTimeout(() => {
+          setShowChangePassword(false);
+          setFormMessage({ type: '', text: '' });
+        }, 2000);
+      } else {
+        setFormMessage({ type: 'error', text: data.detail || 'Failed to change password' });
+      }
+    } catch (error) {
+      setFormMessage({ type: 'error', text: 'Network error. Please try again.' });
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleChangeEmail = async (e) => {
+    e.preventDefault();
+    setFormLoading(true);
+    setFormMessage({ type: '', text: '' });
+
+    try {
+      const token = authService.getToken() || localStorage.getItem('access_token');
+      const response = await fetch('http://localhost:8000/auth/request-email-change', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          new_email: emailForm.newEmail,
+          password: emailForm.password
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setFormMessage({ type: 'success', text: data.message });
+        setEmailForm({ newEmail: '', password: '' });
+        setTimeout(() => {
+          setShowChangeEmail(false);
+          setFormMessage({ type: '', text: '' });
+        }, 3000);
+      } else {
+        setFormMessage({ type: 'error', text: data.detail || 'Failed to request email change' });
+      }
+    } catch (error) {
+      setFormMessage({ type: 'error', text: 'Network error. Please try again.' });
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const resetForms = () => {
+    setNewUsername('');
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setNewEmail('');
+    setEmailPassword('');
+    setUsernameError('');
+    setPasswordError('');
+    setEmailError('');
+    setEmailSuccess('');
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+    setShowEmailPassword(false);
+  };
+
+  const handleProfileOptionClick = (option) => {
+    resetForms();
+    setShowProfileDropdown(false);
+    
+    switch(option) {
+      case 'username':
+        setShowUsernameModal(true);
+        break;
+      case 'password':
+        setShowPasswordModal(true);
+        break;
+      case 'email':
+        setShowEmailModal(true);
+        break;
+      case 'logout':
+        handleDisconnect();
+        break;
+    }
+  };
+
+  // Skeleton loading component
+  const SkeletonCard = memo(() => (
+    <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-6 animate-pulse">
+      <div className="space-y-3">
+        <div className="h-4 bg-white/20 rounded w-3/4"></div>
+        <div className="h-3 bg-white/20 rounded w-1/2"></div>
+        <div className="h-3 bg-white/20 rounded w-2/3"></div>
+        <div className="h-3 bg-white/20 rounded w-1/3"></div>
+      </div>
+    </div>
+  ));
+
+  // Error boundary for safe rendering
+  const SafeDeviceCard = memo(({ device }) => {
+    try {
+      return <DeviceCard device={device} />;
+    } catch (error) {
+      console.error('Error rendering device card:', error);
+      return (
+        <div className="bg-red-500/10 backdrop-blur-sm border border-red-500/20 rounded-lg p-6">
+          <div className="text-red-400 text-sm">Error loading device</div>
+        </div>
+      );
+    }
+  });
+
+  // Memoized Device Card Component for better performance
+  const DeviceCard = memo(({ device }) => (
+    <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-6 hover:bg-white/15 transition-all duration-300">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-white text-lg font-semibold">{device.device_name || 'Unknown Device'}</h3>
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+          device.status === 'online' ? 'bg-green-500/20 text-green-300' : 
+          device.status === 'offline' ? 'bg-red-500/20 text-red-300' : 
+          'bg-yellow-500/20 text-yellow-300'
+        }`}>
+          {device.status || 'Unknown'}
+        </span>
+      </div>
+      <div className="space-y-2">
+        <div className="flex items-center text-gray-300">
+          <Monitor className="h-4 w-4 mr-2" />
+          <span className="text-sm">{device.ip_address || 'N/A'}</span>
+        </div>
+        <div className="flex items-center text-gray-300">
+          <Server className="h-4 w-4 mr-2" />
+          <span className="text-sm">{device.os || 'Unknown OS'}</span>
+        </div>
+        <div className="flex items-center text-gray-300">
+          <Users className="h-4 w-4 mr-2" />
+          <span className="text-sm">
+            {device.group?.group_name || 
+             (device.groups && device.groups.length > 0 ? 
+              device.groups.map(g => g.group_name || g.name).join(', ') : 'No Group')}
+          </span>
+        </div>
+        {device.last_seen && (
+          <div className="flex items-center text-gray-400">
+            <Clock className="h-4 w-4 mr-2" />
+            <span className="text-xs">Last seen: {new Date(device.last_seen).toLocaleString()}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  ));
+
+  // Error boundary for safe group rendering
+  const SafeGroupCard = memo(({ group, refreshKey }) => {
+    try {
+      return <GroupCard group={group} refreshKey={refreshKey} />;
+    } catch (error) {
+      console.error('Error rendering group card:', error);
+      return (
+        <div className="bg-red-500/10 backdrop-blur-sm border border-red-500/20 rounded-lg p-6">
+          <div className="text-red-400 text-sm">Error loading group</div>
+        </div>
+      );
+    }
+  });
+
+  // Memoized Group Card Component for better performance
+  const GroupCard = memo(({ group, refreshKey }) => {
+    // Calculate actual device count from devicesData
+    const actualDeviceCount = useMemo(() => {
+      if (!devicesData || devicesData.length === 0) return 0;
+      
+      return devicesData.filter(device => {
+        // Check direct group relationship
+        if (device.group && device.group.id === group.id) {
+          return true;
+        }
+        // Check group mappings
+        if (device.groups && device.groups.some(g => g.id === group.id)) {
+          return true;
+        }
+        return false;
+      }).length;
+    }, [devicesData, group.id, refreshKey]);
+
+    const handleEditGroup = async (e) => {
+      e.stopPropagation();
+      // Ensure devices are loaded before opening modal
+      if (!devicesData || devicesData.length === 0) {
+        await fetchDevicesData(true);
+      }
+      setEditingGroup(group);
+      setShowGroupEditModal(true);
+    };
+
+    const handleDeleteGroup = async (e) => {
+      e.stopPropagation();
+      if (window.confirm(`Are you sure you want to delete the group "${group.group_name}"?`)) {
+        try {
+          await groupsService.deleteGroup(group.id);
+          
+          // If group devices modal is open for this group, close it
+          if (showGroupDevicesModal && selectedGroup && selectedGroup.id === group.id) {
+            console.log('Closing group devices modal for deleted group');
+            setShowGroupDevicesModal(false);
+            setSelectedGroup(null);
+            setGroupDevices([]);
+          }
+          
+          // Force refresh groups and devices data
+          await forceRefreshGroups();
+        } catch (error) {
+          console.error('Failed to delete group:', error);
+          alert('Failed to delete group. Please try again.');
+        }
+      }
+    };
+
+    return (
+      <div 
+        className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-6 hover:bg-white/15 transition-all duration-300 cursor-pointer group relative"
+        onClick={() => fetchGroupDevices(group.id, group.group_name)}
+      >
+        {/* Action Buttons */}
+        <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={handleEditGroup}
+            className="p-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-blue-300 hover:text-blue-200 transition-all"
+            title="Edit Group"
+          >
+            <Edit className="h-4 w-4" />
+          </button>
+          <button
+            onClick={handleDeleteGroup}
+            className="p-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg text-red-300 hover:text-red-200 transition-all"
+            title="Delete Group"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between mb-4 pr-20">
+          <h3 className="text-white text-lg font-semibold group-hover:text-blue-300 transition-colors">{group.group_name || 'Unknown Group'}</h3>
+          <span className="px-3 py-1.5 rounded-full text-sm font-medium bg-blue-500/20 text-blue-300 border border-blue-500/30">
+            {actualDeviceCount} device{actualDeviceCount !== 1 ? 's' : ''}
+          </span>
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center text-gray-300">
+            <Server className="h-4 w-4 mr-2" />
+            <span className="text-sm">{group.description || 'No description'}</span>
+          </div>
+          <div className="flex items-center text-gray-300">
+            <Users className="h-4 w-4 mr-2" />
+            <span className="text-sm">Click to view devices</span>
+          </div>
+          {group.created_at && (
+            <div className="flex items-center text-gray-400">
+              <Clock className="h-4 w-4 mr-2" />
+              <span className="text-xs">Created: {new Date(group.created_at).toLocaleString()}</span>
+            </div>
+          )}
+        </div>
+        <div className="mt-3 pt-3 border-t border-white/10">
+          <div className="flex items-center text-blue-400 text-sm group-hover:text-blue-300 transition-colors">
+            <Eye className="h-4 w-4 mr-2" />
+            <span>View devices in this group</span>
+          </div>
+        </div>
+      </div>
+    );
+  });
+
+  // Show skeleton loading for initial load
+  if (initialLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-6">
+            <div className="h-8 bg-white/20 rounded w-1/4 animate-pulse"></div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -434,14 +1410,62 @@ export default function Dashboard({ onLogout }) {
               )}
             </div>
             
-            {/* Logout */}
-            <button
-              onClick={handleDisconnect}
-              className="flex items-center gap-2 px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 hover:bg-red-500/30 transition-all"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
+            {/* Profile Dropdown */}
+            <div className="relative profile-dropdown">
+              <button
+                onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+                title={user?.username || 'User Profile'}
+              >
+                <User className="w-5 h-5 text-white" />
+              </button>
+
+              {/* Profile Dropdown Menu */}
+              {showProfileDropdown && (
+                <div className="absolute right-0 mt-2 w-56 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50">
+                  <div className="py-2">
+                    <div className="px-4 py-3 border-b border-gray-700">
+                      <p className="text-white font-medium">{user?.username}</p>
+                      <p className="text-gray-400 text-sm">{user?.email}</p>
+                    </div>
+                    
+                    <button
+                      onClick={() => handleProfileOptionClick('username')}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-gray-700/50 transition-colors"
+                    >
+                      <Edit className="w-4 h-4" />
+                      <span>Change Username</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => handleProfileOptionClick('password')}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-gray-700/50 transition-colors"
+                    >
+                      <Lock className="w-4 h-4" />
+                      <span>Change Password</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => handleProfileOptionClick('email')}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-gray-700/50 transition-colors"
+                    >
+                      <Mail className="w-4 h-4" />
+                      <span>Change Email</span>
+                    </button>
+                    
+                    <div className="border-t border-gray-700 mt-2">
+                      <button
+                        onClick={() => handleProfileOptionClick('logout')}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 transition-colors"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        <span>Logout</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -632,7 +1656,8 @@ export default function Dashboard({ onLogout }) {
                       recentActivity.slice(0, 5).map((activity, index) => {
                         const getActivityColor = (status) => {
                           switch(status) {
-                            case 'completed': return 'bg-green-400';
+                            case 'completed': 
+                            case 'success': return 'bg-green-400';
                             case 'failed': return 'bg-red-400';
                             case 'in_progress': return 'bg-blue-400';
                             case 'pending': return 'bg-yellow-400';
@@ -674,7 +1699,25 @@ export default function Dashboard({ onLogout }) {
                           return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
                         };
                         return (
-                          <div key={activity.id || index} className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800/70 transition-colors group">
+                          <div 
+                            key={activity.id || index} 
+                            className={`flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800/70 transition-colors group ${
+                              activity.type === 'deployment' || activity.type === 'deployment_complete' ? 'cursor-pointer' : ''
+                            }`}
+                            onClick={() => {
+                              if (activity.type === 'deployment' || activity.type === 'deployment_complete') {
+                                fetchDeploymentDetails({
+                                  id: activity.id || `activity-${index}`,
+                                  name: activity.title,
+                                  status: activity.status,
+                                  timestamp: activity.timestamp,
+                                  software_name: activity.details?.software_name || 'Unknown Software',
+                                  target_devices: activity.details?.device_count || 0,
+                                  duration: activity.details?.duration
+                                });
+                              }
+                            }}
+                          >
                             <div className={`w-8 h-8 rounded-full ${getActivityColor(activity.status)} flex items-center justify-center text-white`}>
                               {getActivityIcon(activity.type)}
                             </div>
@@ -683,7 +1726,7 @@ export default function Dashboard({ onLogout }) {
                               <div className="flex items-center gap-2 mt-1">
                                 <p className="text-gray-400 text-xs">{formatTimestamp(activity.timestamp)}</p>
                                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
-                                  activity.status === 'completed' ? 'bg-green-900/30 text-green-400' :
+                                  activity.status === 'completed' || activity.status === 'success' ? 'bg-green-900/30 text-green-400' :
                                   activity.status === 'failed' ? 'bg-red-900/30 text-red-400' :
                                   activity.status === 'in_progress' ? 'bg-blue-900/30 text-blue-400' :
                                   activity.status === 'pending' ? 'bg-yellow-900/30 text-yellow-400' :
@@ -699,6 +1742,11 @@ export default function Dashboard({ onLogout }) {
                                   {activity.type === 'group_created' && `Group: ${activity.details.group_name}`}
                                   {activity.type === 'device_connected' && `MAC: ${activity.details.device_mac}`}
                                   {activity.type === 'user_login' && `User: ${activity.details.username}`}
+                                </div>
+                              )}
+                              {(activity.type === 'deployment' || activity.type === 'deployment_complete') && (
+                                <div className="text-xs text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity mt-1">
+                                  Click to view deployment details
                                 </div>
                               )}
                             </div>
@@ -905,9 +1953,22 @@ export default function Dashboard({ onLogout }) {
                     const hasDeployments = dayData.total > 0;
                     
                     return (
-                      <div key={dayData.date} className="flex flex-col items-center justify-end h-full group relative">
+                      <div 
+                        key={dayData.date} 
+                        className={`flex flex-col items-center justify-end h-full group relative ${hasDeployments ? 'cursor-pointer' : ''}`}
+                        onClick={() => hasDeployments && fetchDeploymentDetails({
+                          id: `day-${dayData.date}`,
+                          name: `Deployments for ${day.toLocaleDateString()}`,
+                          status: dayData.success_rate >= 80 ? 'success' : dayData.success_rate >= 50 ? 'partial' : 'failed',
+                          timestamp: dayData.date,
+                          total_deployments: dayData.total,
+                          successful_deployments: dayData.successful,
+                          failed_deployments: dayData.failed,
+                          success_rate: dayData.success_rate
+                        })}
+                      >
                         <div 
-                          className={`w-full rounded-t transition-all duration-500 group-hover:opacity-80 ${
+                          className={`w-full rounded-t transition-all duration-500 group-hover:opacity-80 ${hasDeployments ? 'group-hover:scale-105' : ''} ${
                             !hasDeployments 
                               ? 'bg-gradient-to-t from-gray-700 to-gray-600'
                               : isToday 
@@ -921,6 +1982,9 @@ export default function Dashboard({ onLogout }) {
                           style={{ height: `${Math.max(height, 5)}%` }}
                         ></div>
                         <span className="text-xs text-gray-400 mt-2">{dayName}</span>
+                        {hasDeployments && (
+                          <span className="text-xs text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">Click for details</span>
+                        )}
                         
                         {/* Tooltip */}
                         <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-10">
@@ -930,6 +1994,7 @@ export default function Dashboard({ onLogout }) {
                               <div>Success: {dayData.successful}</div>
                               <div>Failed: {dayData.failed}</div>
                               <div>Rate: {dayData.success_rate}%</div>
+                              <div className="text-blue-400 mt-1">Click to view details</div>
                             </>
                           ) : (
                             <div>No deployments</div>
@@ -1254,7 +2319,171 @@ export default function Dashboard({ onLogout }) {
           )}
 
           {activeSection === 'groups' && (
-            <GroupsManager />
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Device Groups</h2>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={async () => {
+                      // Ensure devices are loaded before opening modal
+                      if (!devicesData || devicesData.length === 0) {
+                        await fetchDevicesData(true);
+                      }
+                      setShowGroupCreateModal(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Group
+                  </button>
+                  <button
+                    onClick={fetchGroupsData}
+                    disabled={groupsLoading}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg transition-colors"
+                  >
+                    <RotateCcw className={`w-4 h-4 ${groupsLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </button>
+                </div>
+              </div>
+
+              {/* Search Bar */}
+              <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
+                <div className="flex flex-col lg:flex-row gap-4">
+                  <div className="flex-1">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        type="text"
+                        placeholder="Search groups by name or description..."
+                        value={groupsSearchTerm}
+                        onChange={(e) => setGroupsSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 bg-gray-700/50 border border-gray-600/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50 focus:bg-gray-700/70 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {groupsSearchTerm && (
+                    <button
+                      onClick={() => setGroupsSearchTerm('')}
+                      className="px-4 py-2 bg-gray-600/50 hover:bg-gray-600/70 text-gray-300 rounded-lg transition-colors whitespace-nowrap"
+                    >
+                      Clear Search
+                    </button>
+                  )}
+                </div>
+
+                <div className="mt-3 text-sm text-gray-400">
+                  Showing {filteredGroups.length} of {groupsData.length} groups
+                </div>
+              </div>
+
+              {groupsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                  <span className="ml-3 text-gray-300">Loading groups...</span>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Summary Statistics */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div className="bg-gradient-to-r from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-xl p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                          <Monitor className="w-5 h-5 text-blue-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400">Total Groups</p>
+                          <p className="text-xl font-semibold text-white">{filteredGroups.length}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-gradient-to-r from-green-500/20 to-green-600/20 border border-green-500/30 rounded-xl p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                          <Server className="w-5 h-5 text-green-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400">Total Devices</p>
+                          <p className="text-xl font-semibold text-white">
+                            {filteredGroups.reduce((sum, group) => sum + (group.device_count || 0), 0)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-gradient-to-r from-purple-500/20 to-purple-600/20 border border-purple-500/30 rounded-xl p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                          <Users className="w-5 h-5 text-purple-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400">Avg Devices/Group</p>
+                          <p className="text-xl font-semibold text-white">
+                            {filteredGroups.length > 0 
+                              ? Math.round(filteredGroups.reduce((sum, group) => sum + (group.device_count || 0), 0) / filteredGroups.length)
+                              : 0
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Groups Grid */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {groupsLoading ? (
+                      // Show skeleton loading cards
+                      [...Array(4)].map((_, i) => <SkeletonCard key={`skeleton-group-${i}`} />)
+                    ) : (
+                      filteredGroups.map((group) => (
+                        <GroupCard key={`${group.id}-${groupsRefreshKey}`} group={group} refreshKey={groupsRefreshKey} />
+                      ))
+                    )}
+                  </div>
+                  
+                  {/* Empty States */}
+                  {filteredGroups.length === 0 && groupsData.length > 0 && (
+                    <div className="text-center py-16">
+                      <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Search className="w-10 h-10 text-gray-500" />
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-300 mb-2">No groups match your search</h3>
+                      <p className="text-gray-500 mb-4">Try adjusting your search criteria</p>
+                      <button 
+                        onClick={() => setGroupsSearchTerm('')}
+                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                      >
+                        Clear Search
+                      </button>
+                    </div>
+                  )}
+
+                  {groupsData.length === 0 && (
+                    <div className="text-center py-16">
+                      <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Monitor className="w-10 h-10 text-gray-500" />
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-300 mb-2">No device groups found</h3>
+                      <p className="text-gray-500 mb-4">Create your first device group to organize your devices</p>
+                      <button 
+                        onClick={async () => {
+                          // Ensure devices are loaded before opening modal
+                          if (!devicesData || devicesData.length === 0) {
+                            await fetchDevicesData(true);
+                          }
+                          setShowGroupCreateModal(true);
+                        }}
+                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                      >
+                        Create Group
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           {activeSection === 'deployments' && (
@@ -1465,11 +2694,797 @@ export default function Dashboard({ onLogout }) {
             </div>
           )}
 
+          {activeSection === 'devices' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">Devices Management</h2>
+                <button
+                  onClick={fetchDevicesData}
+                  disabled={devicesLoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg transition-colors"
+                >
+                  <RotateCcw className={`w-4 h-4 ${devicesLoading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </button>
+              </div>
+
+              {/* Search and Filters */}
+              <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
+                <div className="flex flex-col lg:flex-row gap-4">
+                  {/* Search Bar */}
+                  <div className="flex-1">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        type="text"
+                        placeholder="Search devices by name, IP, or OS..."
+                        value={devicesSearchTerm}
+                        onChange={(e) => setDevicesSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 bg-gray-700/50 border border-gray-600/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50 focus:bg-gray-700/70 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Status Filter */}
+                  <div className="lg:w-48">
+                    <select
+                      value={devicesStatusFilter}
+                      onChange={(e) => setDevicesStatusFilter(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-700/50 border border-gray-600/50 rounded-lg text-white focus:outline-none focus:border-blue-500/50 focus:bg-gray-700/70 transition-all"
+                    >
+                      <option value="all">All Status</option>
+                      <option value="online">Online</option>
+                      <option value="offline">Offline</option>
+                      <option value="maintenance">Maintenance</option>
+                    </select>
+                  </div>
+
+                  {/* Group Filter */}
+                  <div className="lg:w-48">
+                    <select
+                      value={devicesGroupFilter}
+                      onChange={(e) => setDevicesGroupFilter(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-700/50 border border-gray-600/50 rounded-lg text-white focus:outline-none focus:border-blue-500/50 focus:bg-gray-700/70 transition-all"
+                    >
+                      <option value="all">All Groups</option>
+                      {availableGroups.map(group => (
+                        <option key={group} value={group}>{group}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Clear Filters */}
+                  {(devicesSearchTerm || devicesStatusFilter !== 'all' || devicesGroupFilter !== 'all') && (
+                    <button
+                      onClick={() => {
+                        setDevicesSearchTerm('');
+                        setDevicesStatusFilter('all');
+                        setDevicesGroupFilter('all');
+                      }}
+                      className="px-4 py-2 bg-gray-600/50 hover:bg-gray-600/70 text-gray-300 rounded-lg transition-colors whitespace-nowrap"
+                    >
+                      Clear Filters
+                    </button>
+                  )}
+                </div>
+
+                {/* Results Count */}
+                <div className="mt-3 text-sm text-gray-400">
+                  Showing {filteredDevices.length} of {devicesData.length} devices
+                </div>
+              </div>
+
+              {devicesLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                  <span className="ml-3 text-gray-300">Loading devices...</span>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Summary Statistics */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-gradient-to-r from-green-500/20 to-green-600/20 border border-green-500/30 rounded-xl p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                          <CheckCircle className="w-5 h-5 text-green-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400">Online</p>
+                          <p className="text-xl font-semibold text-white">
+                            {filteredDevices.filter(d => d.status === 'online').length}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-gradient-to-r from-red-500/20 to-red-600/20 border border-red-500/30 rounded-xl p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center">
+                          <XCircle className="w-5 h-5 text-red-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400">Offline</p>
+                          <p className="text-xl font-semibold text-white">
+                            {filteredDevices.filter(d => d.status === 'offline').length}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-gradient-to-r from-yellow-500/20 to-yellow-600/20 border border-yellow-500/30 rounded-xl p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-yellow-500/20 rounded-lg flex items-center justify-center">
+                          <AlertTriangle className="w-5 h-5 text-yellow-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400">Maintenance</p>
+                          <p className="text-xl font-semibold text-white">
+                            {filteredDevices.filter(d => d.status === 'maintenance').length}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-gradient-to-r from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-xl p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                          <Server className="w-5 h-5 text-blue-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400">Filtered</p>
+                          <p className="text-xl font-semibold text-white">{filteredDevices.length}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Devices Grid */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {devicesLoading ? (
+                      // Show skeleton loading cards
+                      [...Array(6)].map((_, i) => <SkeletonCard key={`skeleton-${i}`} />)
+                    ) : (
+                      filteredDevices.map((device) => (
+                        <DeviceCard key={device.id} device={device} />
+                      ))
+                    )}
+                  </div>
+                  
+                  {/* Empty State */}
+                  {filteredDevices.length === 0 && devicesData.length > 0 && (
+                    <div className="text-center py-16">
+                      <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Search className="w-10 h-10 text-gray-500" />
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-300 mb-2">No devices match your filters</h3>
+                      <p className="text-gray-500 mb-4">Try adjusting your search or filter criteria</p>
+                      <button 
+                        onClick={() => {
+                          setDevicesSearchTerm('');
+                          setDevicesStatusFilter('all');
+                          setDevicesGroupFilter('all');
+                        }}
+                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                      >
+                        Clear Filters
+                      </button>
+                    </div>
+                  )}
+
+                  {devicesData.length === 0 && (
+                    <div className="text-center py-16">
+                      <div className="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Server className="w-10 h-10 text-gray-500" />
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-300 mb-2">No devices found</h3>
+                      <p className="text-gray-500 mb-4">Connect your first device to get started</p>
+                      <button className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors">
+                        Add Device
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeSection === 'api-test' && (
             <APITest />
           )}
         </main>
       </div>
+
+      {/* Profile Management Modals */}
+      {showUsernameModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-xl font-semibold text-white mb-4">Change Username</h3>
+            <form onSubmit={handleUpdateUsername}>
+              <div className="mb-4">
+                <label className="block text-gray-300 text-sm font-medium mb-2">
+                  New Username
+                </label>
+                <input
+                  type="text"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  placeholder="Enter new username"
+                  required
+                />
+              </div>
+              {usernameError && (
+                <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
+                  <p className="text-red-400 text-sm">{usernameError}</p>
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  disabled={usernameLoading}
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  {usernameLoading ? 'Updating...' : 'Update'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUsernameModal(false);
+                    setNewUsername('');
+                    setUsernameError('');
+                  }}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-xl font-semibold text-white mb-4">Change Password</h3>
+            <form onSubmit={handleChangePassword}>
+              <div className="mb-4">
+                <label className="block text-gray-300 text-sm font-medium mb-2">
+                  Current Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showCurrentPassword ? 'text' : 'password'}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 pr-10 text-white focus:outline-none focus:border-blue-500"
+                    placeholder="Enter current password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                  >
+                    {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div className="mb-4">
+                <label className="block text-gray-300 text-sm font-medium mb-2">
+                  New Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 pr-10 text-white focus:outline-none focus:border-blue-500"
+                    placeholder="Enter new password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                  >
+                    {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div className="mb-4">
+                <label className="block text-gray-300 text-sm font-medium mb-2">
+                  Confirm New Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 pr-10 text-white focus:outline-none focus:border-blue-500"
+                    placeholder="Confirm new password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              {passwordError && (
+                <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
+                  <p className="text-red-400 text-sm">{passwordError}</p>
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  disabled={passwordLoading}
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  {passwordLoading ? 'Updating...' : 'Update'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordModal(false);
+                    setCurrentPassword('');
+                    setNewPassword('');
+                    setConfirmPassword('');
+                    setPasswordError('');
+                    setShowCurrentPassword(false);
+                    setShowNewPassword(false);
+                    setShowConfirmPassword(false);
+                  }}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showEmailModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-xl font-semibold text-white mb-4">Change Email</h3>
+            <form onSubmit={handleChangeEmail}>
+              <div className="mb-4">
+                <label className="block text-gray-300 text-sm font-medium mb-2">
+                  New Email Address
+                </label>
+                <input
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                  placeholder="Enter new email address"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-gray-300 text-sm font-medium mb-2">
+                  Password (for verification)
+                </label>
+                <div className="relative">
+                  <input
+                    type={showEmailPassword ? 'text' : 'password'}
+                    value={emailPassword}
+                    onChange={(e) => setEmailPassword(e.target.value)}
+                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 pr-10 text-white focus:outline-none focus:border-blue-500"
+                    placeholder="Enter your password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEmailPassword(!showEmailPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                  >
+                    {showEmailPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              {emailError && (
+                <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
+                  <p className="text-red-400 text-sm">{emailError}</p>
+                </div>
+              )}
+              {emailSuccess && (
+                <div className="mb-4 p-3 bg-green-500/20 border border-green-500/30 rounded-lg">
+                  <p className="text-green-400 text-sm">{emailSuccess}</p>
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  disabled={emailLoading}
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  {emailLoading ? 'Sending...' : 'Send Verification'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEmailModal(false);
+                    setNewEmail('');
+                    setEmailPassword('');
+                    setEmailError('');
+                    setEmailSuccess('');
+                    setShowEmailPassword(false);
+                  }}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Deployment Details Modal */}
+      {showDeploymentModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl max-w-7xl w-full max-h-[85vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-700">
+              <div>
+                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-yellow-400" />
+                  Deployment Details: {selectedDeployment?.name}
+                </h2>
+                <p className="text-gray-400 mt-1">
+                  Status: <span className={`font-medium ${
+                    selectedDeployment?.status === 'success' ? 'text-green-400' :
+                    selectedDeployment?.status === 'failed' ? 'text-red-400' :
+                    'text-yellow-400'
+                  }`}>{selectedDeployment?.status}</span>
+                  {selectedDeployment?.timestamp && (
+                    <span className="ml-4">Date: {new Date(selectedDeployment.timestamp).toLocaleString()}</span>
+                  )}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowDeploymentModal(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(85vh-200px)]">
+              {loadingDeploymentDetails ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500"></div>
+                  <span className="ml-3 text-gray-400">Loading deployment details...</span>
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {/* Software Details Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                      <Database className="h-5 w-5 text-blue-400" />
+                      Software Details
+                    </h3>
+                    {selectedDeployment?.software_details?.length > 0 ? (
+                      <div className="bg-gray-700/30 rounded-lg p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {selectedDeployment.software_details.map((software, index) => (
+                            <div key={index} className="bg-gray-800/50 rounded-lg p-4">
+                              <h4 className="font-medium text-white mb-2">{software.name}</h4>
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400">Version:</span>
+                                  <span className="text-gray-300">{software.version}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-400">Installation Path:</span>
+                                  <span className="text-gray-300 font-mono text-xs">{software.installation_path}</span>
+                                </div>
+                                {software.size && (
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-400">Size:</span>
+                                    <span className="text-gray-300">{software.size}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-gray-700/30 rounded-lg p-6 text-center">
+                        <Database className="h-12 w-12 text-gray-600 mx-auto mb-2" />
+                        <p className="text-gray-400">No software details available</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Target Devices Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                      <Monitor className="h-5 w-5 text-green-400" />
+                      Target Devices ({deploymentDevices.length})
+                    </h3>
+                    {deploymentDevices.length > 0 ? (
+                      <div className="overflow-hidden rounded-lg border border-gray-700">
+                        <table className="min-w-full">
+                          <thead className="bg-gray-700/50">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">Device Name</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">IP Address</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">Status</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">Deployment Result</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-gray-800/30 divide-y divide-gray-700">
+                            {deploymentDevices.map((device, index) => (
+                              <tr key={index} className="hover:bg-gray-700/30">
+                                <td className="px-4 py-3 text-sm text-white">{device.device_name || device.name}</td>
+                                <td className="px-4 py-3 text-sm text-gray-300 font-mono">{device.ip_address}</td>
+                                <td className="px-4 py-3">
+                                  <span className={`px-2 py-1 rounded-full text-xs ${
+                                    device.status === 'online' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                                  }`}>
+                                    {device.status}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className={`px-2 py-1 rounded-full text-xs ${
+                                    device.deployment_status === 'success' ? 'bg-green-500/20 text-green-400' :
+                                    device.deployment_status === 'failed' ? 'bg-red-500/20 text-red-400' :
+                                    'bg-yellow-500/20 text-yellow-400'
+                                  }`}>
+                                    {device.deployment_status || 'pending'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="bg-gray-700/30 rounded-lg p-6 text-center">
+                        <Monitor className="h-12 w-12 text-gray-600 mx-auto mb-2" />
+                        <p className="text-gray-400">No target devices specified</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Target Groups Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                      <Users className="h-5 w-5 text-purple-400" />
+                      Target Groups ({deploymentGroups.length})
+                    </h3>
+                    {deploymentGroups.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {deploymentGroups.map((group, index) => (
+                          <div key={index} className="bg-gray-700/30 rounded-lg p-4">
+                            <h4 className="font-medium text-white mb-2">{group.group_name}</h4>
+                            <div className="space-y-1 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Devices:</span>
+                                <span className="text-gray-300">{group.device_count || 0}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Success Rate:</span>
+                                <span className="text-green-400">{group.success_rate || '0%'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-gray-700/30 rounded-lg p-6 text-center">
+                        <Users className="h-12 w-12 text-gray-600 mx-auto mb-2" />
+                        <p className="text-gray-400">No target groups specified</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-700 bg-gray-800/50">
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowDeploymentModal(false)}
+                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                  onClick={() => {
+                    // Could add functionality to re-run deployment or view logs
+                    console.log('View deployment logs for:', selectedDeployment?.id);
+                  }}
+                >
+                  View Logs
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Group Devices Modal */}
+      {showGroupDevicesModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl max-w-6xl w-full max-h-[80vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-700">
+              <div>
+                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Devices in {selectedGroup?.name}
+                </h2>
+                <p className="text-gray-400 mt-1">
+                  {groupDevices.length} device{groupDevices.length !== 1 ? 's' : ''} found in this group
+                </p>
+              </div>
+              <button
+                onClick={() => setShowGroupDevicesModal(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(80vh-200px)]">
+              {loadingGroupDevices ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                  <span className="ml-3 text-gray-400">Loading devices...</span>
+                </div>
+              ) : groupDevices.length > 0 ? (
+                <div className="overflow-hidden rounded-lg border border-gray-700">
+                  <table className="min-w-full">
+                    <thead className="bg-gray-700/50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                          Device Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                          IP Address
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                          Operating System
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                          Last Seen
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-gray-800/30 divide-y divide-gray-700">
+                      {groupDevices.map((device) => (
+                        <tr key={device.id} className="hover:bg-gray-700/30 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <Monitor className="h-5 w-5 text-blue-400 mr-3" />
+                              <div>
+                                <div className="text-sm font-medium text-white">
+                                  {device.device_name || device.name || 'Unknown Device'}
+                                </div>
+                                <div className="text-sm text-gray-400">
+                                  ID: {device.id}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-300 font-mono">
+                              {device.ip_address || 'N/A'}
+                            </div>
+                            {device.mac_address && (
+                              <div className="text-xs text-gray-500 font-mono">
+                                MAC: {device.mac_address}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              device.status === 'online' 
+                                ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                                : device.status === 'offline'
+                                ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                            }`}>
+                              <div className={`w-2 h-2 rounded-full mr-1.5 ${
+                                device.status === 'online' 
+                                  ? 'bg-green-400 animate-pulse' 
+                                  : device.status === 'offline'
+                                  ? 'bg-red-400'
+                                  : 'bg-yellow-400'
+                              }`}></div>
+                              {device.status?.charAt(0).toUpperCase() + device.status?.slice(1) || 'Unknown'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            {device.os || 'Unknown OS'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
+                            {device.last_seen 
+                              ? new Date(device.last_seen).toLocaleString()
+                              : 'Never seen'
+                            }
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Server className="h-16 w-16 text-gray-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-300 mb-2">No devices found</h3>
+                  <p className="text-gray-500">This group doesn't contain any devices yet.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-700 bg-gray-800/50">
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setShowGroupDevicesModal(false)}
+                  className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Group Edit Modal */}
+      {showGroupEditModal && editingGroup && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-black/90 border border-electricBlue/30 rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="mb-4">
+              <h2 className="text-xl font-bold text-electricBlue">Edit Group</h2>
+              <p className="text-gray-400">Modify group details and device assignments</p>
+            </div>
+            <GroupForm
+              initialData={editingGroup}
+              devices={devicesData}
+              onSubmit={handleUpdateGroup}
+              onCancel={closeGroupEditModal}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Group Create Modal */}
+      {showGroupCreateModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-black/90 border border-electricBlue/30 rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="mb-4">
+              <h2 className="text-xl font-bold text-electricBlue">Create New Group</h2>
+              <p className="text-gray-400">Create a new device group and assign devices</p>
+            </div>
+            <GroupForm
+              initialData={null}
+              devices={devicesData}
+              onSubmit={handleCreateGroup}
+              onCancel={closeGroupCreateModal}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
