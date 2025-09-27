@@ -1,4 +1,37 @@
 {
-  "commands": [],
-  "last_updated": "2025-09-27T13:43:37.677037"
+  "commands": [
+    {
+      "id": "8dc74e1b-567f-4097-85e3-0456798fbfa9",
+      "command": "mkdir asdasd",
+      "status": "running",
+      "output": "\r\nE:\\CKC\\Projects\\DeployX>\r\nE:\\CKC\\Projects\\DeployX\\asdasd>\r\nE:\\CKC\\Projects\\DeployX>\r\nE:\\CKC\\Projects\\DeployX\\asdasd>The system cannot find the file specified.\r\n\r\nE:\\CKC\\Projects\\DeployX\\asdasd>The system cannot find the file specified.\r\n\r\nE:\\CKC\\Projects\\DeployX\\asdasd>",
+      "strategy": "transactional",
+      "timestamp": "2025-09-27T14:36:18.774773",
+      "agent_id": "agent_f0ebce17",
+      "shell": "cmd",
+      "error": null,
+      "started_at": "2025-09-27T14:36:19.047995",
+      "completed_at": "2025-09-27T14:36:19.811674",
+      "config": {
+        "original_command": "mkdir asdasd"
+      }
+    },
+    {
+      "id": "ef1c3701-6e7c-488a-a7b6-85a39f9c89c6",
+      "command": "cd asdasd",
+      "status": "running",
+      "output": "\r\nE:\\CKC\\Projects\\DeployX\\asdasd>\r\nE:\\CKC\\Projects\\DeployX\\asdasd>The system cannot find the file specified.\r\n\r\nE:\\CKC\\Projects\\DeployX\\asdasd>The system cannot find the file specified.\r\n\r\nE:\\CKC\\Projects\\DeployX\\asdasd>",
+      "strategy": "transactional",
+      "timestamp": "2025-09-27T14:36:18.817172",
+      "agent_id": "agent_f0ebce17",
+      "shell": "cmd",
+      "error": null,
+      "started_at": "2025-09-27T14:36:19.411622",
+      "completed_at": "2025-09-27T14:36:20.056320",
+      "config": {
+        "original_command": "cd asdasd"
+      }
+    }
+  ],
+  "last_updated": "2025-09-27T14:37:25.731018"
 }

@@ -78,17 +78,8 @@ export default function Dashboard({ onLogout }) {
     { id: 'shell', name: 'Remote Shell', color: 'text-cyan-400', icon: TerminalIcon },
     { id: 'files', name: 'File System', color: 'text-green-400', icon: FolderOpen },
     { id: 'groups', name: 'Device Groups', color: 'text-orange-400', icon: Monitor },
-<<<<<<< HEAD:Working_UI/DeployX_UI/src/pages/Dashboard.jsx
-    { id: 'deployments', name: 'Deployments', color: 'text-purple-400', icon: Play },
-    { id: 'system', name: 'System Info', color: 'text-emerald-400', icon: Activity },
-    { id: 'network', name: 'Network', color: 'text-indigo-400', icon: Network },
-    { id: 'processes', name: 'Processes', color: 'text-yellow-400', icon: Command },
-    { id: 'services', name: 'Services', color: 'text-red-400', icon: Settings },
-    { id: 'api-test', name: 'API Test', color: 'text-pink-400', icon: Search }
-=======
     { id: 'deployment', name: 'Command Execution', color: 'text-teal-400', icon: Command },
     { id: 'deployments', name: 'Software Deployments', color: 'text-purple-400', icon: Play },
->>>>>>> chetan:frontend/src/pages/Dashboard.jsx
   ];
 
   // Fetch dashboard data from API
