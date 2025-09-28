@@ -29,6 +29,7 @@ class DeviceGroupMap(Base):
     group_id = Column(Integer, ForeignKey("device_groups.id", ondelete="CASCADE"))
 
     group = relationship("DeviceGroup", back_populates="devices")
+    device = relationship("Device", back_populates="device_group_mappings")
 
 class Device(Base):
     __tablename__ = "devices"
@@ -44,4 +45,5 @@ class Device(Base):
     group_id = Column(Integer, ForeignKey("device_groups.id", ondelete="SET NULL"))
 
     group = relationship("DeviceGroup", foreign_keys=[group_id])
+    device_group_mappings = relationship("DeviceGroupMap", foreign_keys="DeviceGroupMap.device_id", back_populates="device")
     # Note: file_deployment_results relationship temporarily removed to fix import issues

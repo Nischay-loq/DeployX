@@ -151,8 +151,9 @@ export default function Dashboard({ onLogout }) {
   // Group Create Modal State
   const [showGroupCreateModal, setShowGroupCreateModal] = useState(false);
   
-  // Force refresh key for group cards
+  // Force refresh key for group and device cards
   const [groupsRefreshKey, setGroupsRefreshKey] = useState(0);
+  const [devicesRefreshKey, setDevicesRefreshKey] = useState(0);
   const [showEmailPassword, setShowEmailPassword] = useState(false);
   
   // Form states
@@ -273,13 +274,17 @@ export default function Dashboard({ onLogout }) {
   useEffect(() => {
     const loadSectionData = async () => {
       if (activeSection === 'devices') {
-        await fetchDevicesData();
+        // Force refresh devices data to ensure group information is current
+        await fetchDevicesData(true);
       } else if (activeSection === 'groups') {
         // Load both groups and devices for group management
         await Promise.all([
-          fetchGroupsData(),
-          fetchDevicesData()
+          fetchGroupsData(true),
+          fetchDevicesData(true)
         ]);
+      } else if (activeSection === 'overview') {
+        // Refresh dashboard stats when returning to overview
+        await fetchDashboardData();
       }
       setInitialLoading(false);
     };
@@ -752,7 +757,9 @@ export default function Dashboard({ onLogout }) {
   const handleUpdateGroup = async (groupData) => {
     const updatedGroupId = editingGroup.id;
     try {
+      console.log('🎯 Updating group:', updatedGroupId, groupData);
       await groupsService.updateGroup(updatedGroupId, groupData);
+      console.log('✅ Group updated successfully, triggering refresh...');
       
       // Force refresh groups and devices data
       await forceRefreshGroups();
@@ -770,9 +777,10 @@ export default function Dashboard({ onLogout }) {
       // Close edit modal
       setShowGroupEditModal(false);
       setEditingGroup(null);
+      console.log('🎯 Group update completed');
     } catch (error) {
-      console.error('Failed to update group:', error);
-      // Handle error - could show a toast notification here
+      console.error('❌ Failed to update group:', error);
+      alert('Failed to update group: ' + error.message);
     }
   };
 
@@ -784,15 +792,18 @@ export default function Dashboard({ onLogout }) {
   // Handle group creation
   const handleCreateGroup = async (groupData) => {
     try {
+      console.log('🎯 Creating group:', groupData);
       await groupsService.createGroup(groupData);
+      console.log('✅ Group created successfully, triggering refresh...');
       // Force refresh groups and devices data
       await forceRefreshGroups();
       
       // Close modal
       setShowGroupCreateModal(false);
+      console.log('🎯 Group creation completed');
     } catch (error) {
-      console.error('Failed to create group:', error);
-      // Handle error - could show a toast notification here
+      console.error('❌ Failed to create group:', error);
+      alert('Failed to create group: ' + error.message);
     }
   };
 
@@ -800,18 +811,72 @@ export default function Dashboard({ onLogout }) {
     setShowGroupCreateModal(false);
   };
 
-  // Force refresh all group-related data
-  const forceRefreshGroups = async () => {
-    // Clear cache timestamps to force fresh fetch
+  // Force refresh devices data specifically
+  const forceRefreshDevices = async () => {
+    console.log('🔄 Dashboard: Force refreshing devices data...');
+    setDevicesLastFetch(null);
+    await fetchDevicesData(true);
+    setDevicesRefreshKey(prev => prev + 1);
+    console.log('✅ Dashboard: Devices data refresh completed');
+  };
+
+  // Force refresh all dashboard data
+  const forceRefreshAll = async () => {
+    console.log('🔄 Dashboard: Force refreshing all dashboard data...');
     setGroupsLastFetch(null);
     setDevicesLastFetch(null);
-    // Fetch fresh data (both groups and devices)
     await Promise.all([
+      fetchDashboardData(),
       fetchGroupsData(true),
       fetchDevicesData(true)
     ]);
-    // Force re-render
     setGroupsRefreshKey(prev => prev + 1);
+    setDevicesRefreshKey(prev => prev + 1);
+    console.log('✅ Dashboard: All dashboard data refresh completed');
+  };
+
+  // Debug function to log current state (temporary)
+  const debugCurrentState = () => {
+    console.log('🐛 === CURRENT DASHBOARD STATE ===');
+    console.log('📊 Dashboard Stats:', dashboardStats);
+    console.log('👥 Groups Data:', groupsData);
+    console.log('🖥️ Devices Data:', devicesData);
+    console.log('🔑 Refresh Keys - Groups:', groupsRefreshKey, 'Devices:', devicesRefreshKey);
+    console.log('🐛 === END DEBUG STATE ===');
+  };
+
+  // Add debug function to window for manual testing
+  window.debugDashboard = debugCurrentState;
+
+  // Force refresh all group-related data
+  const forceRefreshGroups = async () => {
+    console.log('🔄 Dashboard: Force refreshing all group-related data (groups, devices, dashboard stats)...');
+    const oldGroupsKey = groupsRefreshKey;
+    const oldDevicesKey = devicesRefreshKey;
+    
+    // Clear cache timestamps to force fresh fetch
+    setGroupsLastFetch(null);
+    setDevicesLastFetch(null);
+    
+    // Fetch fresh data (groups, devices, and dashboard stats)
+    await Promise.all([
+      fetchGroupsData(true),
+      fetchDevicesData(true),
+      fetchDashboardData() // Add dashboard stats refresh to update overview cards
+    ]);
+    
+    // Force re-render for both groups and devices
+    setGroupsRefreshKey(prev => {
+      console.log('📊 Groups refresh key: ', prev, '->', prev + 1);
+      return prev + 1;
+    });
+    setDevicesRefreshKey(prev => {
+      console.log('📱 Devices refresh key: ', prev, '->', prev + 1);
+      return prev + 1;
+    });
+    
+    console.log('✅ Dashboard: All group-related data refresh completed');
+    console.log('📈 Refresh keys updated - Groups:', oldGroupsKey, '->', groupsRefreshKey + 1, 'Devices:', oldDevicesKey, '->', devicesRefreshKey + 1);
   };
 
   // Initialize socket connection for agent management
@@ -1175,9 +1240,9 @@ export default function Dashboard({ onLogout }) {
   ));
 
   // Error boundary for safe rendering
-  const SafeDeviceCard = memo(({ device }) => {
+  const SafeDeviceCard = memo(({ device, refreshKey }) => {
     try {
-      return <DeviceCard device={device} />;
+      return <DeviceCard device={device} refreshKey={refreshKey} />;
     } catch (error) {
       console.error('Error rendering device card:', error);
       return (
@@ -1189,44 +1254,49 @@ export default function Dashboard({ onLogout }) {
   });
 
   // Memoized Device Card Component for better performance
-  const DeviceCard = memo(({ device }) => (
-    <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-6 hover:bg-white/15 transition-all duration-300">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-white text-lg font-semibold">{device.device_name || 'Unknown Device'}</h3>
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-          device.status === 'online' ? 'bg-green-500/20 text-green-300' : 
-          device.status === 'offline' ? 'bg-red-500/20 text-red-300' : 
-          'bg-yellow-500/20 text-yellow-300'
-        }`}>
-          {device.status || 'Unknown'}
-        </span>
-      </div>
-      <div className="space-y-2">
-        <div className="flex items-center text-gray-300">
-          <Monitor className="h-4 w-4 mr-2" />
-          <span className="text-sm">{device.ip_address || 'N/A'}</span>
-        </div>
-        <div className="flex items-center text-gray-300">
-          <Server className="h-4 w-4 mr-2" />
-          <span className="text-sm">{device.os || 'Unknown OS'}</span>
-        </div>
-        <div className="flex items-center text-gray-300">
-          <Users className="h-4 w-4 mr-2" />
-          <span className="text-sm">
-            {device.group?.group_name || 
-             (device.groups && device.groups.length > 0 ? 
-              device.groups.map(g => g.group_name || g.name).join(', ') : 'No Group')}
+  const DeviceCard = memo(({ device, refreshKey }) => {
+    console.log('🖥️ Rendering device card:', device.device_name, 'refreshKey:', refreshKey);
+    console.log('👥 Device group info:', device.group, device.groups);
+    
+    return (
+      <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-6 hover:bg-white/15 transition-all duration-300">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-white text-lg font-semibold">{device.device_name || 'Unknown Device'}</h3>
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+            device.status === 'online' ? 'bg-green-500/20 text-green-300' : 
+            device.status === 'offline' ? 'bg-red-500/20 text-red-300' : 
+            'bg-yellow-500/20 text-yellow-300'
+          }`}>
+            {device.status || 'Unknown'}
           </span>
         </div>
-        {device.last_seen && (
-          <div className="flex items-center text-gray-400">
-            <Clock className="h-4 w-4 mr-2" />
-            <span className="text-xs">Last seen: {new Date(device.last_seen).toLocaleString()}</span>
+        <div className="space-y-2">
+          <div className="flex items-center text-gray-300">
+            <Monitor className="h-4 w-4 mr-2" />
+            <span className="text-sm">{device.ip_address || 'N/A'}</span>
           </div>
-        )}
+          <div className="flex items-center text-gray-300">
+            <Server className="h-4 w-4 mr-2" />
+            <span className="text-sm">{device.os || 'Unknown OS'}</span>
+          </div>
+          <div className="flex items-center text-gray-300">
+            <Users className="h-4 w-4 mr-2" />
+            <span className="text-sm">
+              {device.group?.group_name || 
+               (device.groups && device.groups.length > 0 ? 
+                device.groups.map(g => g.group_name || g.name).join(', ') : 'No Group')}
+            </span>
+          </div>
+          {device.last_seen && (
+            <div className="flex items-center text-gray-400">
+              <Clock className="h-4 w-4 mr-2" />
+              <span className="text-xs">Last seen: {new Date(device.last_seen).toLocaleString()}</span>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  ));
+    );
+  });
 
   // Error boundary for safe group rendering
   const SafeGroupCard = memo(({ group, refreshKey }) => {
@@ -1246,9 +1316,15 @@ export default function Dashboard({ onLogout }) {
   const GroupCard = memo(({ group, refreshKey }) => {
     // Calculate actual device count from devicesData
     const actualDeviceCount = useMemo(() => {
-      if (!devicesData || devicesData.length === 0) return 0;
+      console.log('🔍 Calculating device count for group:', group.id, group.group_name, 'refreshKey:', refreshKey);
+      console.log('📊 Available devices data:', devicesData?.length, 'devices');
       
-      return devicesData.filter(device => {
+      if (!devicesData || devicesData.length === 0) {
+        console.log('❌ No devices data available');
+        return 0;
+      }
+      
+      const matchingDevices = devicesData.filter(device => {
         // Check direct group relationship
         if (device.group && device.group.id === group.id) {
           return true;
@@ -1258,7 +1334,10 @@ export default function Dashboard({ onLogout }) {
           return true;
         }
         return false;
-      }).length;
+      });
+      
+      console.log('✅ Found', matchingDevices.length, 'devices for group', group.group_name);
+      return matchingDevices.length;
     }, [devicesData, group.id, refreshKey]);
 
     const handleEditGroup = async (e) => {
@@ -1275,7 +1354,9 @@ export default function Dashboard({ onLogout }) {
       e.stopPropagation();
       if (window.confirm(`Are you sure you want to delete the group "${group.group_name}"?`)) {
         try {
+          console.log('🎯 Deleting group:', group.id, group.group_name);
           await groupsService.deleteGroup(group.id);
+          console.log('✅ Group deleted successfully, triggering refresh...');
           
           // If group devices modal is open for this group, close it
           if (showGroupDevicesModal && selectedGroup && selectedGroup.id === group.id) {
@@ -1287,9 +1368,10 @@ export default function Dashboard({ onLogout }) {
           
           // Force refresh groups and devices data
           await forceRefreshGroups();
+          console.log('🎯 Group deletion completed');
         } catch (error) {
-          console.error('Failed to delete group:', error);
-          alert('Failed to delete group. Please try again.');
+          console.error('❌ Failed to delete group:', error);
+          alert('Failed to delete group: ' + error.message);
         }
       }
     };
@@ -1393,6 +1475,25 @@ export default function Dashboard({ onLogout }) {
               />
             </div>
             
+            {/* Debug Buttons (temporary) */}
+            <button 
+              onClick={() => {
+                console.log('🔧 Manual refresh triggered');
+                forceRefreshAll();
+              }}
+              className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition-all"
+              title="Debug: Force Refresh All Data"
+            >
+              🔄 Refresh
+            </button>
+            <button 
+              onClick={debugCurrentState}
+              className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-lg transition-all"
+              title="Debug: Log Current State"
+            >
+              🐛 Debug
+            </button>
+
             {/* Notifications */}
             <button className="relative p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all">
               <Bell className="w-5 h-5" />
@@ -2454,7 +2555,7 @@ export default function Dashboard({ onLogout }) {
                       [...Array(4)].map((_, i) => <SkeletonCard key={`skeleton-group-${i}`} />)
                     ) : (
                       filteredGroups.map((group) => (
-                        <GroupCard key={`${group.id}-${groupsRefreshKey}`} group={group} refreshKey={groupsRefreshKey} />
+                        <SafeGroupCard key={`group-${group.id}-refresh-${groupsRefreshKey}`} group={group} refreshKey={groupsRefreshKey} />
                       ))
                     )}
                   </div>
@@ -2861,7 +2962,7 @@ export default function Dashboard({ onLogout }) {
                       [...Array(6)].map((_, i) => <SkeletonCard key={`skeleton-${i}`} />)
                     ) : (
                       filteredDevices.map((device) => (
-                        <DeviceCard key={device.id} device={device} />
+                        <SafeDeviceCard key={`device-${device.id}-refresh-${devicesRefreshKey}`} device={device} refreshKey={devicesRefreshKey} />
                       ))
                     )}
                   </div>
