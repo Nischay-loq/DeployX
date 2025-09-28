@@ -15,6 +15,7 @@ from app.files.routes import router as files_router
 from app.auth import routes, models
 from app.auth.database import engine
 from app.command_deployment.routes import router as deployment_router
+from app.dashboard.routes import router as dashboard_router
 from app.command_deployment.executor import command_executor
 from app.grouping import models as grouping_models  # Import grouping models
 from app.Deployments import models as deployment_models  # Import deployment models
@@ -42,15 +43,30 @@ app = FastAPI(title="Remote Command Execution Backend")
 # Add CORS middleware BEFORE including routers
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",  # Vite dev server
-        "http://127.0.0.1:5173",  # Alternative localhost
-        "http://localhost:3000",  # Alternative React dev server
-        "http://127.0.0.1:3000",  # Alternative React dev server
-    ],
+    allow_origins=["*"],  # Allow all origins for debugging - CHANGE THIS IN PRODUCTION
+    # Specific origins (commented out for debugging):
+    # [
+    #     "http://localhost:5173",  # Vite dev server
+    #     "http://localhost:5174",  # Vite dev server (alternative port)
+    #     "http://127.0.0.1:5173",  # Alternative localhost
+    #     "http://127.0.0.1:5174",  # Alternative localhost (alternative port)
+    #     "http://localhost:3000",  # Alternative React dev server
+    #     "http://127.0.0.1:3000",  # Alternative React dev server
+    #     "https://accounts.google.com",  # Google OAuth domain
+    #     "https://accounts.google.com/gsi",  # Google Sign-In domain
+    # ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
-    allow_headers=["*"],
+    allow_headers=[
+        "*",
+        "Authorization",
+        "Content-Type",
+        "X-Requested-With",
+        "Accept",
+        "Origin",
+        "Access-Control-Request-Method",
+        "Access-Control-Request-Headers",
+    ],
     expose_headers=["*"],
 )
 
@@ -60,6 +76,7 @@ app.include_router(devices_router)
 app.include_router(deployment_router)
 app.include_router(deployments_router)
 app.include_router(files_router)
+app.include_router(dashboard_router)
 
 # Health check endpoint
 @app.get("/health")
@@ -67,6 +84,87 @@ def health_check():
     return {"status": "healthy", "message": "Backend is running"}
 
 # Test endpoints (no auth required) - for debugging
+@app.get("/test/deployments")
+def test_deployments():
+    """Test endpoint for deployments without authentication"""
+    return [
+        {
+            "id": 1,
+            "deployment_name": "Test Deployment",
+            "status": "completed",
+            "started_at": "2024-01-01T00:00:00",
+            "ended_at": "2024-01-01T01:00:00",
+            "device_count": 3,
+            "rollback_performed": False
+        }
+    ]
+
+@app.get("/test/devices")
+def test_devices():
+    """Test endpoint for devices without authentication"""
+    return [
+        {
+            "id": 1,
+            "name": "Web Server 01",
+            "ip_address": "192.168.1.10",
+            "status": "online",
+            "os_type": "Ubuntu 20.04",
+            "last_seen": "2024-01-15T10:30:00Z",
+            "groups": ["Web Servers", "Production"],
+            "cpu_usage": 45,
+            "memory_usage": 60,
+            "disk_usage": 25
+        },
+        {
+            "id": 2,
+            "name": "Database Server",
+            "ip_address": "192.168.1.20",
+            "status": "online",
+            "os_type": "CentOS 8",
+            "last_seen": "2024-01-15T10:29:00Z",
+            "groups": ["Database Servers"],
+            "cpu_usage": 30,
+            "memory_usage": 80,
+            "disk_usage": 55
+        },
+        {
+            "id": 3,
+            "name": "App Server 02",
+            "ip_address": "192.168.1.30",
+            "status": "offline",
+            "os_type": "Windows Server 2019",
+            "last_seen": "2024-01-15T09:15:00Z",
+            "groups": ["Application Servers"],
+            "cpu_usage": 0,
+            "memory_usage": 0,
+            "disk_usage": 40
+        },
+        {
+            "id": 4,
+            "name": "Load Balancer",
+            "ip_address": "192.168.1.5",
+            "status": "online",
+            "os_type": "nginx",
+            "last_seen": "2024-01-15T10:31:00Z",
+            "groups": ["Load Balancers", "Production"],
+            "cpu_usage": 15,
+            "memory_usage": 25,
+            "disk_usage": 10
+        },
+        {
+            "id": 5,
+            "name": "Backup Server",
+            "ip_address": "192.168.1.40",
+            "status": "maintenance",
+            "os_type": "Ubuntu 22.04",
+            "last_seen": "2024-01-15T08:45:00Z",
+            "groups": ["Backup Servers"],
+            "cpu_usage": 5,
+            "memory_usage": 35,
+            "disk_usage": 85
+        }
+    ]
+
 @app.get("/test/groups")
 def test_groups():
     """Test endpoint for groups without authentication"""
@@ -125,7 +223,16 @@ def test_devices():
 # Add explicit OPTIONS handler for CORS preflight
 @app.options("/{path:path}")
 async def options_handler(path: str):
-    return {"message": "OK"}
+    from fastapi import Response
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
 
 
 # Routes are already included above

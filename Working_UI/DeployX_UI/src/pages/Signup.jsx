@@ -21,16 +21,41 @@ export default function Signup() {
     setIsLoading(true);
     setErrors({});
 
-    // Validation
+    // Comprehensive validation
     const newErrors = {};
-    if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
-    }
-    if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-    }
+    
+    // Username validation
     if (!formData.username.trim()) {
       newErrors.username = 'Username is required';
+    } else if (formData.username.length < 3) {
+      newErrors.username = 'Username must be at least 3 characters long';
+    } else if (formData.username.length > 50) {
+      newErrors.username = 'Username must not exceed 50 characters';
+    } else if (!/^[a-zA-Z0-9_]+$/.test(formData.username)) {
+      newErrors.username = 'Username can only contain letters, numbers, and underscores';
+    }
+    
+    // Email validation
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email address is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+    
+    // Password validation
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters long';
+    } else if (formData.password.length > 128) {
+      newErrors.password = 'Password must not exceed 128 characters';
+    }
+    
+    // Confirm password validation
+    if (!formData.confirmPassword) {
+      newErrors.confirmPassword = 'Please confirm your password';
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match. Please make sure both passwords are identical.';
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -40,8 +65,12 @@ export default function Signup() {
     }
 
     try {
-      // First send OTP for email verification (don't create user yet)
-      await authService.sendOTP(formData.email, 'signup');
+      // Request signup - this validates data and sends OTP (doesn't create user yet)
+      await authService.signupRequest({
+        username: formData.username,
+        email: formData.email,
+        password: formData.password
+      });
       setStep('otp');
       
     } catch (error) {
@@ -59,15 +88,11 @@ export default function Signup() {
     }
   };
 
-  const handleOTPVerified = async () => {
+  const handleOTPVerified = async (otpCode) => {
     try {
       setIsLoading(true);
-      // Now create the user account after OTP verification
-      await authService.signup({
-        username: formData.username,
-        email: formData.email,
-        password: formData.password
-      });
+      // Complete signup after OTP verification - this creates the user account
+      await authService.signupComplete(formData.email, otpCode);
       
       setShowSuccess(true);
       // Redirect to login with username pre-filled after 2 seconds
@@ -156,11 +181,15 @@ export default function Signup() {
             <OTPVerification
               email={formData.email}
               onVerify={async (otpCode) => {
-                await authService.verifyOTP(formData.email, otpCode);
-                await handleOTPVerified();
+                // Complete signup with OTP - this creates the user account
+                await handleOTPVerified(otpCode);
               }}
               onBack={() => setStep('signup')}
-              onResend={() => authService.sendOTP(formData.email, 'signup')}
+              onResend={() => authService.signupRequest({
+                username: formData.username,
+                email: formData.email,
+                password: formData.password
+              })}
               title="Verify Your Email"
               subtitle="We've sent a 6-digit verification code to"
               standalone={false}

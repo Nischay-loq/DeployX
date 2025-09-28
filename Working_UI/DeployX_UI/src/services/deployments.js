@@ -4,7 +4,8 @@ class DeploymentsService {
   // Get all deployments for current user
   async fetchDeployments() {
     try {
-      const response = await api.get('/deployments/');
+      // Temporarily use test endpoint to debug CORS and connection issues
+      const response = await api.get('/test/deployments');
       return response;
     } catch (error) {
       console.error('Failed to fetch deployments:', error);
@@ -45,6 +46,43 @@ class DeploymentsService {
     } catch (error) {
       console.error('Failed to retry deployments:', error);
       throw error;
+    }
+  }
+
+  // Get deployment details
+  async getDeploymentDetails(deploymentId) {
+    try {
+      const response = await api.get(`/deployments/${deploymentId}/details`);
+      return response;
+    } catch (error) {
+      console.error('Failed to get deployment details:', error);
+      // Return fallback data if API fails
+      return {
+        software: [],
+        custom_software: null
+      };
+    }
+  }
+
+  // Get deployment target devices
+  async getDeploymentDevices(deploymentId) {
+    try {
+      const response = await api.get(`/deployments/${deploymentId}/devices`);
+      return response;
+    } catch (error) {
+      console.error('Failed to get deployment devices:', error);
+      return [];
+    }
+  }
+
+  // Get deployment target groups
+  async getDeploymentGroups(deploymentId) {
+    try {
+      const response = await api.get(`/deployments/${deploymentId}/groups`);
+      return response;
+    } catch (error) {
+      console.error('Failed to get deployment groups:', error);
+      return [];
     }
   }
 

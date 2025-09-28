@@ -1,18 +1,115 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.auth.database import get_db
 from app.grouping.models import Device
 from app.Devices.schemas import DeviceCreate, DeviceResponse
-from typing import List
+from typing import List, Optional
+import json
+
+# Simple in-memory cache
+_devices_cache = {
+    "data": None,
+    "timestamp": None,
+    "ttl_seconds": 30  # Cache for 30 seconds
+}
 
 router = APIRouter(prefix="/devices", tags=["Devices"])
 
-@router.get("/", response_model=List[DeviceResponse])
-def get_devices(db: Session = Depends(get_db)):
-    """Get all devices"""
-    devices = db.query(Device).all()
-    return devices
+def _is_cache_valid() -> bool:
+    """Check if cache is still valid"""
+    if _devices_cache["data"] is None or _devices_cache["timestamp"] is None:
+        return False
+    
+    cache_age = datetime.now() - _devices_cache["timestamp"]
+    return cache_age.total_seconds() < _devices_cache["ttl_seconds"]
+
+def _update_cache(data):
+    """Update the cache with new data"""
+    _devices_cache["data"] = data
+    _devices_cache["timestamp"] = datetime.now()
+
+@router.get("/")
+def get_devices(db: Session = Depends(get_db), force_refresh: bool = False):
+    """Get all devices with their group information - OPTIMIZED with CACHING"""
+    from app.grouping.models import DeviceGroupMap, DeviceGroup
+    from sqlalchemy.orm import joinedload, selectinload
+    from sqlalchemy import and_
+    
+    # Return cached data if valid and not force refresh
+    if not force_refresh and _is_cache_valid():
+        print("Returning cached devices data")
+        return _devices_cache["data"]
+    
+    print("Fetching fresh devices data from database")
+    
+    try:
+        # Single optimized query with all relationships preloaded
+        devices = db.query(Device).options(
+            joinedload(Device.group),  # Eager load direct group
+            selectinload(Device.device_group_mappings).joinedload(DeviceGroupMap.group)  # Preload mapping groups
+        ).all()
+        
+        # Fast in-memory processing - no additional DB queries
+        result = []
+        for device in devices:
+            # Build device dict with preloaded data
+            device_dict = {
+                "id": device.id,
+                "device_name": device.device_name,
+                "ip_address": device.ip_address,
+                "mac_address": device.mac_address,
+                "os": device.os,
+                "status": device.status,
+                "connection_type": device.connection_type,
+                "last_seen": device.last_seen,
+                "group": device.group,  # Direct group relationship (already loaded)
+                "groups": []  # Additional groups from mapping table
+            }
+            
+            # Process preloaded group mappings (no DB query)
+            if hasattr(device, 'device_group_mappings') and device.device_group_mappings:
+                additional_groups = []
+                for mapping in device.device_group_mappings:
+                    if mapping.group:
+                        additional_groups.append({
+                            "id": mapping.group.id,
+                            "group_name": mapping.group.group_name,
+                            "description": mapping.group.description,
+                            "color": mapping.group.color
+                        })
+                device_dict["groups"] = additional_groups
+            
+            result.append(device_dict)
+        
+        # Update cache before returning
+        _update_cache(result)
+        return result
+        
+    except Exception as e:
+        print(f"Error in optimized get_devices: {e}")
+        # Fallback to original method if optimization fails
+        # Fallback to simple query if optimization fails
+        devices = db.query(Device).options(joinedload(Device.group)).all()
+        fallback_result = [
+            {
+                "id": device.id,
+                "device_name": device.device_name,
+                "ip_address": device.ip_address,
+                "mac_address": device.mac_address,
+                "os": device.os,
+                "status": device.status,
+                "connection_type": device.connection_type,
+                "last_seen": device.last_seen,
+                "group": device.group,
+                "groups": []
+            }
+            for device in devices
+        ]
+        
+        # Update cache with fallback data
+        _update_cache(fallback_result)
+        return fallback_result
 
 # Devices/routes.py
 @router.post("/", response_model=DeviceResponse)

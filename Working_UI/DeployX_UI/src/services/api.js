@@ -9,7 +9,59 @@ class ApiClient {
 
   // Helper method to get current token
   getToken() {
-    return localStorage.getItem('token') || sessionStorage.getItem('token');
+    return localStorage.getItem('access_token') || localStorage.getItem('token') || sessionStorage.getItem('token');
+  }
+
+  // Helper method to get refresh token
+  getRefreshToken() {
+    return localStorage.getItem('refresh_token');
+  }
+
+  // Refresh access token
+  async refreshAccessToken() {
+    const refreshToken = this.getRefreshToken();
+    if (!refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    try {
+      const response = await fetch(`${this.baseURL}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Token refresh failed');
+      }
+
+      const data = await response.json();
+      localStorage.setItem('access_token', data.access_token);
+      
+      if (data.refresh_token) {
+        localStorage.setItem('refresh_token', data.refresh_token);
+      }
+
+      return data.access_token;
+    } catch (error) {
+      // Clear all tokens on refresh failure
+      this.clearAuth();
+      throw error;
+    }
+  }
+
+  // Clear all authentication data
+  clearAuth() {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('username');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('username');
+    window.dispatchEvent(new Event('auth:changed'));
   }
 
   // Helper method to make API requests
@@ -31,15 +83,37 @@ class ApiClient {
       const response = await fetch(url, config);
       
       if (!response.ok) {
-        // Handle 401 Unauthorized - token expired or invalid
-        if (response.status === 401) {
-          console.warn('Token expired or invalid, clearing stored tokens...');
-          localStorage.removeItem('token');
-          localStorage.removeItem('username');
-          sessionStorage.removeItem('token');
-          sessionStorage.removeItem('username');
-          window.dispatchEvent(new Event('auth:changed'));
-          throw new Error('Your session has expired. Please log in again.');
+        // Handle 401 Unauthorized - try token refresh first
+        if (response.status === 401 && !options._retry) {
+          console.warn('Token expired, attempting refresh...');
+          
+          try {
+            const newToken = await this.refreshAccessToken();
+            
+            // Retry the original request with new token
+            const retryConfig = {
+              ...config,
+              headers: {
+                ...config.headers,
+                Authorization: `Bearer ${newToken}`,
+              },
+              _retry: true, // Mark as retry to prevent infinite loops
+            };
+            
+            const retryResponse = await fetch(url, retryConfig);
+            if (retryResponse.ok) {
+              return await retryResponse.json();
+            }
+          } catch (refreshError) {
+            console.error('Token refresh failed:', refreshError);
+            this.clearAuth();
+            
+            // Redirect to login if not already there
+            if (window.location.pathname !== '/login') {
+              window.location.href = '/login';
+            }
+            throw new Error('Your session has expired. Please log in again.');
+          }
         }
 
         const contentType = response.headers.get('content-type');
@@ -79,8 +153,29 @@ class ApiClient {
     });
   }
 
+  async signupRequest(userData) {
+    return this.request('/auth/signup-request', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+  }
+
+  async signupComplete(data) {
+    return this.request('/auth/signup-complete', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   async signup(userData) {
     return this.request('/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+  }
+
+  async signupWithOTP(userData) {
+    return this.request('/auth/signup-with-otp', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
@@ -100,6 +195,27 @@ class ApiClient {
     });
   }
 
+  async requestPasswordReset(email) {
+    return this.request('/auth/password-reset-request', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async validatePasswordResetToken(token) {
+    const params = new URLSearchParams({ token });
+    return this.request(`/auth/password-reset-validate?${params.toString()}`, {
+      method: 'GET',
+    });
+  }
+
+  async confirmPasswordReset(token, newPassword) {
+    return this.request('/auth/password-reset-confirm', {
+      method: 'POST',
+      body: JSON.stringify({ token, new_password: newPassword }),
+    });
+  }
+
   async googleAuth(token) {
     return this.request('/auth/google-auth', {
       method: 'POST',
@@ -108,6 +224,7 @@ class ApiClient {
   }
 
   async resetPassword(email, otp, newPassword) {
+    // Backward compatibility: fall back to OTP-based flow if needed
     return this.request('/auth/reset-password', {
       method: 'POST',
       body: JSON.stringify({ email, otp, new_password: newPassword }),

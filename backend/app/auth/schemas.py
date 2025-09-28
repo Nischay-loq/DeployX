@@ -7,13 +7,25 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
 
+class UserCreateWithOTP(BaseModel):
+    username: str
+    email: EmailStr
+    password: str
+    otp: str
+
 class UserLogin(BaseModel):
     username: str
     password: str
 
+class OTPVerifyRequest(BaseModel):
+    email: EmailStr
+    otp: str
+
 class Token(BaseModel):
     access_token: str
     token_type: str
+    refresh_token: Optional[str] = None
+    user: Optional[dict] = None
 
 class UserOut(BaseModel):
     id: int

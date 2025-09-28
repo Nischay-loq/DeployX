@@ -10,6 +10,8 @@ import DeploymentPage from "./components/jsx/DeploymentPage";
 // Groups feature import
 import GroupsPage from "./components/jsx/GroupList.jsx"; // Our GroupsPage is the GroupList component
 
+import api from "./services/api";
+import authService from "./services/auth";
 import "./App.css";
 
 function PrivateLayout({ onLogout, username }) {
@@ -39,12 +41,30 @@ function App() {
   const [username, setUsername] = useState("");
 
   useEffect(() => {
-    const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-    const storedUsername = localStorage.getItem("username") || sessionStorage.getItem("username");
-    if (token) {
-      setIsLoggedIn(true);
-      if (storedUsername) setUsername(storedUsername);
-    }
+    const validateToken = async () => {
+      const token = authService.getAccessToken();
+      if (token) {
+        try {
+          // Validate token by calling /auth/me endpoint
+          const response = await api.get('/auth/me');
+          if (response.data) {
+            setIsLoggedIn(true);
+            setUsername(response.data.username);
+            // Update stored username if it's different
+            const storage = authService.getRememberMe() ? localStorage : sessionStorage;
+            storage.setItem('username', response.data.username);
+          }
+        } catch (error) {
+          console.log('Token validation failed:', error);
+          // Token is invalid, clear auth data
+          authService.clearAllTokens();
+          setIsLoggedIn(false);
+          setUsername('');
+        }
+      }
+    };
+
+    validateToken();
   }, []);
 
   const handleLoginSuccess = (usernameFromLogin) => {
@@ -54,10 +74,7 @@ function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    sessionStorage.removeItem("token");
-    localStorage.removeItem("username");
-    sessionStorage.removeItem("username");
+    authService.clearAllTokens();
     setIsLoggedIn(false);
     setUsername("");
   };

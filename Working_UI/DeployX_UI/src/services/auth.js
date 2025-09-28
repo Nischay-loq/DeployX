@@ -37,13 +37,13 @@ class AuthService {
   // Initialize authentication state from stored tokens
   init() {
     // Check localStorage first (remember me was checked)
-    let token = localStorage.getItem('token');
+    let token = localStorage.getItem('access_token') || localStorage.getItem('token');
     let username = localStorage.getItem('username');
     let rememberMe = true;
     
     // If not found in localStorage, check sessionStorage (remember me was not checked)
     if (!token) {
-      token = sessionStorage.getItem('token');
+      token = sessionStorage.getItem('access_token') || sessionStorage.getItem('token');
       username = sessionStorage.getItem('username');
       rememberMe = false;
       
@@ -98,13 +98,38 @@ class AuthService {
 
       // Store tokens based on remember me preference
       if (rememberMe) {
-        localStorage.setItem('token', response.access_token);
+        localStorage.setItem('access_token', response.access_token);
+        localStorage.setItem('token', response.access_token); // Keep for backward compatibility
         localStorage.setItem('username', credentials.username);
+        
+        // Store refresh token if available
+        if (response.refresh_token) {
+          localStorage.setItem('refresh_token', response.refresh_token);
+        }
+        
+        // Store user data if available
+        if (response.user) {
+          localStorage.setItem('user', JSON.stringify(response.user));
+        }
       } else {
         sessionStorage.setItem('token', response.access_token);
         sessionStorage.setItem('username', credentials.username);
         sessionStorage.setItem('sessionActive', 'true');
         sessionStorage.setItem('sessionLastActive', Date.now().toString());
+        
+        // For session storage, also store access_token for consistency
+        sessionStorage.setItem('access_token', response.access_token);
+        
+        // Store refresh token in localStorage even for session logins
+        // (refresh tokens are usually longer-lived)
+        if (response.refresh_token) {
+          localStorage.setItem('refresh_token', response.refresh_token);
+        }
+        
+        // Store user data
+        if (response.user) {
+          sessionStorage.setItem('user', JSON.stringify(response.user));
+        }
       }
 
       this.notifyAuthChange();
@@ -118,7 +143,27 @@ class AuthService {
     }
   }
 
-  // Signup function
+  // Step 1: Request signup and send OTP
+  async signupRequest(userData) {
+    try {
+      const response = await apiClient.signupRequest(userData);
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Step 2: Complete signup after OTP verification
+  async signupComplete(email, otp) {
+    try {
+      const response = await apiClient.signupComplete({ email, otp });
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Legacy signup function (direct, no OTP)
   async signup(userData) {
     try {
       const response = await apiClient.signup(userData);
@@ -128,10 +173,25 @@ class AuthService {
     }
   }
 
+  // Signup with OTP verification (deprecated - use signupRequest + signupComplete)
+  async signupWithOTP(userData, otp) {
+    try {
+      const response = await apiClient.signupWithOTP({
+        ...userData,
+        otp: otp
+      });
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   // Helper method to clear session tokens only
   clearSessionTokens() {
     sessionStorage.removeItem('token');
+    sessionStorage.removeItem('access_token');
     sessionStorage.removeItem('username');
+    sessionStorage.removeItem('user');
     sessionStorage.removeItem('sessionActive');
     sessionStorage.removeItem('sessionLastActive');
   }
@@ -139,7 +199,10 @@ class AuthService {
   // Helper method to clear all stored tokens
   clearAllTokens() {
     localStorage.removeItem('token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     localStorage.removeItem('username');
+    localStorage.removeItem('user');
     this.clearSessionTokens();
   }
 
@@ -179,22 +242,57 @@ class AuthService {
     return apiClient.verifyOTP(email, otp);
   }
 
+  async requestPasswordReset(email) {
+    return apiClient.requestPasswordReset(email);
+  }
+
+  async validatePasswordResetToken(token) {
+    return apiClient.validatePasswordResetToken(token);
+  }
+
+  async confirmPasswordReset(token, newPassword) {
+    return apiClient.confirmPasswordReset(token, newPassword);
+  }
+
   // Google OAuth login
   async googleLogin(token, rememberMe = false) {
     try {
       const response = await apiClient.googleAuth(token);
       
       this.token = response.access_token;
-      this.user = { username: 'google_user' }; // Will be updated with actual user info
+      this.user = response.user || { username: response.user?.username || 'google_user' };
       this.isAuthenticated = true;
+
+      // Clear any existing tokens first
+      this.clearAllTokens();
 
       // Store tokens based on remember me preference
       if (rememberMe) {
+        localStorage.setItem('access_token', response.access_token);
         localStorage.setItem('token', response.access_token);
-        localStorage.setItem('username', 'google_user');
+        localStorage.setItem('username', this.user.username);
+        
+        if (response.refresh_token) {
+          localStorage.setItem('refresh_token', response.refresh_token);
+        }
+        
+        if (response.user) {
+          localStorage.setItem('user', JSON.stringify(response.user));
+        }
       } else {
+        sessionStorage.setItem('access_token', response.access_token);
         sessionStorage.setItem('token', response.access_token);
-        sessionStorage.setItem('username', 'google_user');
+        sessionStorage.setItem('username', this.user.username);
+        sessionStorage.setItem('sessionActive', 'true');
+        sessionStorage.setItem('sessionLastActive', Date.now().toString());
+        
+        if (response.refresh_token) {
+          localStorage.setItem('refresh_token', response.refresh_token);
+        }
+        
+        if (response.user) {
+          sessionStorage.setItem('user', JSON.stringify(response.user));
+        }
       }
 
       this.notifyAuthChange();

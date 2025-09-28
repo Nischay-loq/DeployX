@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Edit, Trash2 } from 'lucide-react';
 import groupsService from '../services/groups.js';
 import devicesService from '../services/devices.js';
 import authService from '../services/auth.js';
@@ -176,7 +177,7 @@ export default function GroupsManager() {
         {groups.map(group => (
           <div
             key={group.id}
-            className="bg-black/60 border border-electricBlue/30 rounded-lg p-4 hover:border-electricBlue/50 transition-all cursor-pointer"
+            className="bg-black/60 border border-electricBlue/30 rounded-lg p-4 hover:border-electricBlue/50 transition-all cursor-pointer group"
             onClick={() => setSelectedGroup(group)}
           >
             <div className="flex items-center justify-between mb-3">
@@ -187,24 +188,26 @@ export default function GroupsManager() {
                 ></div>
                 <h3 className="font-semibold text-softWhite">{group.group_name}</h3>
               </div>
-              <div className="flex gap-1">
+              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setEditingGroup(group);
                   }}
-                  className="text-gray-400 hover:text-electricBlue text-sm"
+                  className="p-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-blue-300 hover:text-blue-200 transition-all"
+                  title="Edit Group"
                 >
-                  ✏️
+                  <Edit className="h-4 w-4" />
                 </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDeleteGroup(group.id);
                   }}
-                  className="text-gray-400 hover:text-red-400 text-sm"
+                  className="p-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg text-red-300 hover:text-red-200 transition-all"
+                  title="Delete Group"
                 >
-                  🗑️
+                  <Trash2 className="h-4 w-4" />
                 </button>
               </div>
             </div>
