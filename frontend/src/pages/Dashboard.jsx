@@ -249,17 +249,12 @@ export default function Dashboard({ onLogout }) {
 
   const sections = [
     { id: 'overview', name: 'Dashboard', color: 'text-blue-400', icon: Home },
-    { id: 'shell', name: 'Remote Shell', color: 'text-cyan-400', icon: TerminalIcon },
-    { id: 'files', name: 'File System', color: 'text-green-400', icon: FolderOpen },
-    { id: 'devices', name: 'Devices', color: 'text-teal-400', icon: Server },
     { id: 'groups', name: 'Device Groups', color: 'text-orange-400', icon: Monitor },
+    { id: 'devices', name: 'Devices', color: 'text-teal-400', icon: Server },
+    { id: 'shell', name: 'Remote Shell', color: 'text-cyan-400', icon: TerminalIcon },
     { id: 'deployment', name: 'Command Execution', color: 'text-teal-400', icon: Command },
     { id: 'deployments', name: 'Software Deployments', color: 'text-purple-400', icon: Play },
-    { id: 'system', name: 'System Info', color: 'text-emerald-400', icon: Activity },
-    { id: 'network', name: 'Network', color: 'text-indigo-400', icon: Network },
-    { id: 'processes', name: 'Processes', color: 'text-yellow-400', icon: Command },
-    { id: 'services', name: 'Services', color: 'text-red-400', icon: Settings },
-    { id: 'api-test', name: 'API Test', color: 'text-pink-400', icon: Search }
+    { id: 'files', name: 'File System', color: 'text-green-400', icon: FolderOpen },
   ];
 
   // Click outside handler for profile dropdown
@@ -1597,7 +1592,7 @@ export default function Dashboard({ onLogout }) {
 
       <div className="flex h-[calc(100vh-80px)]">
         {/* Sidebar */}
-        <aside className="w-64 bg-gray-800/30 backdrop-blur-sm border-r border-gray-700 p-4">
+        <aside className="w-72 bg-gray-800/30 backdrop-blur-sm border-r border-gray-700 p-4">
           <nav className="space-y-2">
             {sections.map(section => (
               <button
@@ -2435,6 +2430,52 @@ export default function Dashboard({ onLogout }) {
               
               <div className="card-dark">
                 <Terminal />
+              </div>
+            </div>
+          )}
+
+          {activeSection === 'deployment' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-teal-500/20 rounded-lg">
+                    <Command className="w-6 h-6 text-teal-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">Command Execution</h2>
+                    <p className="text-gray-400">Execute commands with deployment strategies and rollback capabilities</p>
+                  </div>
+                </div>
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
+                  isConnected 
+                    ? 'bg-green-500/20 border-green-500/30' 
+                    : 'bg-red-500/20 border-red-500/30'
+                }`}>
+                  <div className={`w-2 h-2 rounded-full ${
+                    isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'
+                  }`}></div>
+                  <span className={`text-sm font-medium ${
+                    isConnected ? 'text-green-400' : 'text-red-400'
+                  }`}>
+                    {isConnected ? 'Connected' : 'Disconnected'}
+                  </span>
+                  {agents.length > 0 && (
+                    <span className="text-gray-400 text-xs">• {agents.length} agent(s)</span>
+                  )}
+                </div>
+              </div>
+              
+              <div className="card-dark">
+                <DeploymentManager 
+                  agents={agents}
+                  currentAgent={currentAgent}
+                  onSelectAgent={handleAgentSelect}
+                  shells={shells}
+                  currentShell={currentShell}
+                  onSelectShell={handleShellSelect}
+                  isConnected={isConnected}
+                  connectionError={connectionError}
+                />
               </div>
             </div>
           )}
