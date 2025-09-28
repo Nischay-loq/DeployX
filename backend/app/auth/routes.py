@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
@@ -35,7 +35,7 @@ class GoogleAuthRequest(BaseModel):
 class PasswordResetRequest(BaseModel):
     email: EmailStr
     otp: str
-    new_password: str
+    new_password: str = Field(..., max_length=200, description="Password must be less than 200 characters")
 
 class PasswordResetLinkRequest(BaseModel):
     email: EmailStr

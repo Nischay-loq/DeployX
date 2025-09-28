@@ -2,6 +2,7 @@
 import socketio
 import logging
 from typing import Optional, Dict, Any, Callable
+from agent.utils.machine_id import generate_agent_id, get_system_info
 
 logger = logging.getLogger(__name__)
 
@@ -11,16 +12,14 @@ class ConnectionManager:
         
         Args:
             server_url: URL of the backend server
-            agent_id: Unique identifier for this agent. If not provided, generates a default name.
+            agent_id: Unique identifier for this agent. If not provided, generates one based on machine ID.
         """
         self.server_url = server_url
         if agent_id is None:
-            import socket
-            import time
-            hostname = socket.gethostname()
-            timestamp = int(time.time())
-            agent_id = f"agent_{hostname}_{timestamp}"
+            agent_id = generate_agent_id()
         self.agent_id = agent_id
+        self.machine_id = None  # Will be set when system info is retrieved
+        self.system_info = None  # Will be set when system info is retrieved
         self.sio = socketio.AsyncClient(
             logger=False,  # Reduce logging noise
             engineio_logger=False,
@@ -30,6 +29,9 @@ class ConnectionManager:
         )
         self.connected = False
         self._event_handlers: Dict[str, Callable] = {}
+        
+        # Get system information on initialization
+        self._initialize_system_info()
         
         # Register built-in event handlers
         @self.sio.event
@@ -46,6 +48,12 @@ class ConnectionManager:
         async def disconnect():
             logger.warning("Socket.IO disconnected")
             self.connected = False
+
+    def _initialize_system_info(self):
+        """Retrieve and store system information."""
+        self.system_info = get_system_info()
+        self.machine_id = self.system_info.get("machine_id")
+        logger.info(f"System info initialized. Machine ID: {self.machine_id}")
 
     def register_handler(self, event: str, handler: Callable):
         """Register a handler for a socket.io event."""
@@ -141,9 +149,17 @@ class ConnectionManager:
     async def register_agent(self, shells: Dict[str, str]):
         """Register this agent with the backend."""
         try:
+            # Ensure system info is loaded
+            if not self.system_info:
+                self._initialize_system_info()
+
             registration_data = {
                 'agent_id': self.agent_id,
-                'shells': list(shells.keys())  # Send only shell names
+                'machine_id': self.machine_id,
+                'hostname': self.system_info.get('hostname'),
+                'os': self.system_info.get('os'),
+                'shells': list(shells.keys()),
+                'system_info': self.system_info
             }
             logger.info(f"Registering agent with data: {registration_data}")
             await self.emit('agent_register', registration_data)

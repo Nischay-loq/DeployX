@@ -1,5 +1,6 @@
-import { LayoutGrid, Users2, Activity, Boxes, Laptop2, Shield, Zap, Globe, Database, Cpu } from 'lucide-react'
+import { LayoutGrid, Users2, Activity, Boxes, Laptop2, Shield, Zap, Globe, Database, Cpu, ChevronLeft, ChevronRight } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { useState, useEffect } from 'react'
 
 const services = [
   { 
@@ -98,6 +99,25 @@ const colorMap = {
 }
 
 export default function Services() {
+  const [currentIndex, setCurrentIndex] = useState(0)
+
+  // Auto-advance carousel
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % services.length)
+    }, 5000)
+    
+    return () => clearInterval(interval)
+  }, [])
+
+  const nextSlide = () => {
+    setCurrentIndex((prev) => (prev + 1) % services.length)
+  }
+
+  const prevSlide = () => {
+    setCurrentIndex((prev) => (prev - 1 + services.length) % services.length)
+  }
+
   return (
     <section id="services" className="py-24 relative overflow-hidden">
       {/* Background Effects */}
@@ -130,52 +150,139 @@ export default function Services() {
           </p>
         </motion.div>
 
-        {/* Services Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {services.map(({title, subtitle, icon: Icon, desc, features, color}, i) => (
+        {/* Single Card Carousel */}
+        <div className="relative max-w-4xl mx-auto">
+          {/* Carousel Container */}
+          <div className="overflow-hidden rounded-2xl">
             <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 30 }} 
-              whileInView={{ opacity: 1, y: 0 }} 
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: i * 0.05 }}
-              whileHover={{ y: -8 }}
-              className="group"
+              className="flex"
+              animate={{
+                x: `-${currentIndex * 100}%`
+              }}
+              transition={{
+                type: "spring",
+                stiffness: 300,
+                damping: 30
+              }}
             >
-              <div className="card-dark h-full hover-lift border-glow relative overflow-hidden">
-                {/* Icon Header */}
-                <div className="flex flex-col items-start gap-4 mb-6">
-                  <div className={`w-14 h-14 bg-gradient-to-r ${colorMap[color]} rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-                    <Icon className="w-7 h-7 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-white group-hover:text-primary-400 transition-colors mb-1">
-                      {title}
-                    </h3>
-                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{subtitle}</p>
-                  </div>
-                </div>
+              {services.map(({title, subtitle, icon: Icon, desc, features, color}, i) => (
+                <motion.div
+                  key={i}
+                  className="w-full flex-shrink-0 group"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.6 }}
+                  whileHover={{ scale: 1.02 }}
+                >
+                  <div className="card-dark hover-lift border-glow relative overflow-hidden p-8 md:p-10">
+                    {/* Main Content Layout */}
+                    <div className="flex flex-col md:flex-row items-center gap-8">
+                      
+                      {/* Left Side - Icon and Title */}
+                      <div className="flex-shrink-0 text-center md:text-left">
+                        <motion.div 
+                          className={`inline-flex items-center justify-center w-24 h-24 bg-gradient-to-r ${colorMap[color]} rounded-3xl mb-6 shadow-2xl group-hover:scale-110 transition-all duration-300`}
+                          whileHover={{ rotate: 5 }}
+                        >
+                          <Icon className="w-12 h-12 text-white" />
+                        </motion.div>
+                        
+                        <div className="mb-6">
+                          <h3 className="text-3xl md:text-4xl font-bold text-white group-hover:text-primary-400 transition-colors mb-2 leading-tight">
+                            {title}
+                          </h3>
+                          <p className="text-sm text-gray-400 font-medium uppercase tracking-wider">{subtitle}</p>
+                        </div>
+                      </div>
 
-                {/* Description */}
-                <p className="text-gray-300 text-sm leading-relaxed mb-6">
-                  {desc}
-                </p>
+                      {/* Right Side - Content */}
+                      <div className="flex-1 space-y-6">
+                        {/* Description */}
+                        <div>
+                          <p className="text-gray-300 text-lg leading-relaxed">
+                            {desc}
+                          </p>
+                        </div>
 
-                {/* Features List */}
-                <div className="space-y-2">
-                  {features.map((feature, idx) => (
-                    <div key={idx} className="flex items-center gap-3 text-xs text-gray-400">
-                      <div className={`w-1.5 h-1.5 bg-gradient-to-r ${colorMap[color]} rounded-full`}></div>
-                      <span>{feature}</span>
+                        {/* Features Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {features.map((feature, idx) => (
+                            <motion.div
+                              key={idx}
+                              initial={{ opacity: 0, x: 20 }}
+                              whileInView={{ opacity: 1, x: 0 }}
+                              viewport={{ once: true }}
+                              transition={{ duration: 0.4, delay: idx * 0.1 }}
+                              className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg border border-gray-700/50 hover:border-gray-600/50 transition-colors"
+                            >
+                              <div className={`w-3 h-3 bg-gradient-to-r ${colorMap[color]} rounded-full flex-shrink-0`}></div>
+                              <span className="text-gray-300 font-medium">{feature}</span>
+                            </motion.div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  ))}
-                </div>
 
-                {/* Hover Gradient Overlay */}
-                <div className={`absolute inset-0 bg-gradient-to-br ${colorMap[color]} opacity-0 group-hover:opacity-5 transition-opacity duration-300 rounded-xl pointer-events-none`}></div>
-              </div>
+                    {/* Decorative Elements */}
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary-500/10 to-transparent rounded-bl-3xl"></div>
+                    <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-accent-cyan/10 to-transparent rounded-tr-3xl"></div>
+                    
+                    {/* Hover Gradient Overlay */}
+                    <div className={`absolute inset-0 bg-gradient-to-br ${colorMap[color]} opacity-0 group-hover:opacity-5 transition-opacity duration-300 rounded-xl pointer-events-none`}></div>
+                  </div>
+                </motion.div>
+              ))}
             </motion.div>
-          ))}
+          </div>
+
+          {/* Navigation Controls */}
+          <div className="flex items-center justify-center gap-8 mt-10">
+            <button
+              onClick={prevSlide}
+              className="w-14 h-14 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/30 rounded-full flex items-center justify-center transition-all duration-300 hover:border-primary-400/70 hover:scale-110 backdrop-blur-sm hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]"
+            >
+              <ChevronLeft className="w-6 h-6 text-gray-300 hover:text-primary-400 transition-colors" />
+            </button>
+
+            {/* Progress Indicators */}
+            <div className="flex items-center gap-3">
+              {services.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setCurrentIndex(idx)}
+                  className={`transition-all duration-300 ${
+                    idx === currentIndex 
+                      ? 'w-8 h-3 bg-primary-400 rounded-full' 
+                      : 'w-3 h-3 bg-gray-600 hover:bg-gray-500 rounded-full'
+                  }`}
+                />
+              ))}
+            </div>
+
+            <button
+              onClick={nextSlide}
+              className="w-14 h-14 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/30 rounded-full flex items-center justify-center transition-all duration-300 hover:border-primary-400/70 hover:scale-110 backdrop-blur-sm hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]"
+            >
+              <ChevronRight className="w-6 h-6 text-gray-300 hover:text-primary-400 transition-colors" />
+            </button>
+          </div>
+
+          {/* Current Service Info */}
+          <div className="text-center mt-8 space-y-2">
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-primary-400 font-semibold">
+                {String(currentIndex + 1).padStart(2, '0')}
+              </span>
+              <span className="text-gray-500">/</span>
+              <span className="text-gray-400">
+                {String(services.length).padStart(2, '0')}
+              </span>
+            </div>
+            <p className="text-gray-500 text-sm">
+              {services[currentIndex]?.title} - {services[currentIndex]?.subtitle}
+            </p>
+          </div>
         </div>
 
         {/* Bottom CTA Section */}

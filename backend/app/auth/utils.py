@@ -16,15 +16,29 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 RESET_TOKEN_EXPIRE_MINUTES = int(os.environ.get("PASSWORD_RESET_TOKEN_MINUTES", "30"))
-FRONTEND_RESET_URL = os.environ.get("FRONTEND_RESET_URL", "http://localhost:5173/reset-password")
+FRONTEND_RESET_URL = os.environ.get("FRONTEND_RESET_URL", "https://deployx-nu.vercel.app/reset-password")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
 def hash_password(password: str) -> str:
+    # Bcrypt has a limitation of 72 bytes for passwords.
+    # Safely truncate the password's bytes to 72 and decode back to a string 
+    # to prevent the ValueError.
+    password_bytes = password.encode('utf-8')
+    if len(password_bytes) > 72:
+        # Truncate the bytes and decode, ignoring any partial multi-byte character
+        password = password_bytes[:72].decode('utf-8', errors='ignore') 
+    
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    # Apply the same safe truncation logic during verification for consistency.
+    password_bytes = plain_password.encode('utf-8')
+    if len(password_bytes) > 72:
+        # Truncate the bytes and decode, ignoring any partial multi-byte character
+        plain_password = password_bytes[:72].decode('utf-8', errors='ignore')
+        
     return pwd_context.verify(plain_password, hashed_password)
 
 def create_access_token(data: dict, expires_delta: timedelta = None):

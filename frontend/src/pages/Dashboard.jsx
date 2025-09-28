@@ -3,9 +3,14 @@ import authService from '../services/auth.js';
 import Terminal from '../components/Terminal.jsx';
 import DeploymentManager from '../components/DeploymentManager.jsx';
 import io from 'socket.io-client';
+
+// Helper function to get API URL from environment
+const getApiUrl = () => {
+  return import.meta.env.VITE_API_URL || 'https://deployx-server.onrender.com';
+};
 import { 
   Terminal as TerminalIcon, 
-  FolderOpen, 
+  FolderOpen,
   Monitor, 
   Network, 
   Activity, 
@@ -248,7 +253,8 @@ export default function Dashboard({ onLogout }) {
     { id: 'files', name: 'File System', color: 'text-green-400', icon: FolderOpen },
     { id: 'devices', name: 'Devices', color: 'text-teal-400', icon: Server },
     { id: 'groups', name: 'Device Groups', color: 'text-orange-400', icon: Monitor },
-    { id: 'deployments', name: 'Deployments', color: 'text-purple-400', icon: Play },
+    { id: 'deployment', name: 'Command Execution', color: 'text-teal-400', icon: Command },
+    { id: 'deployments', name: 'Software Deployments', color: 'text-purple-400', icon: Play },
     { id: 'system', name: 'System Info', color: 'text-emerald-400', icon: Activity },
     { id: 'network', name: 'Network', color: 'text-indigo-400', icon: Network },
     { id: 'processes', name: 'Processes', color: 'text-yellow-400', icon: Command },
@@ -357,7 +363,7 @@ export default function Dashboard({ onLogout }) {
       };
 
       // Fetch deployment details from API
-      const response = await fetch(`http://localhost:8000/deployments/${deployment.id}`, {
+      const response = await fetch(`${getApiUrl()}/deployments/${deployment.id}`, {
         headers
       });
 
@@ -446,7 +452,7 @@ export default function Dashboard({ onLogout }) {
       };
       
       // Fetch dashboard stats
-      const statsResponse = await fetch('http://localhost:8000/api/dashboard/stats', {
+      const statsResponse = await fetch(`${getApiUrl()}/api/dashboard/stats`, {
         headers
       });
       
@@ -480,7 +486,7 @@ export default function Dashboard({ onLogout }) {
       }
       
       // Fetch recent activity
-      const activityResponse = await fetch('http://localhost:8000/api/dashboard/recent-activity', {
+      const activityResponse = await fetch(`${getApiUrl()}/api/dashboard/recent-activity`, {
         headers
       });
       
@@ -501,7 +507,7 @@ export default function Dashboard({ onLogout }) {
       }
       
       // Fetch device chart data
-      const chartResponse = await fetch('http://localhost:8000/api/dashboard/device-status-chart', {
+      const chartResponse = await fetch(`${getApiUrl()}/api/dashboard/device-status-chart`, {
         headers
       });
       
@@ -522,7 +528,7 @@ export default function Dashboard({ onLogout }) {
       }
       
       // Fetch system metrics
-      const metricsResponse = await fetch('http://localhost:8000/api/dashboard/system-metrics', {
+      const metricsResponse = await fetch(`${getApiUrl()}/api/dashboard/system-metrics`, {
         headers
       });
       
@@ -535,7 +541,7 @@ export default function Dashboard({ onLogout }) {
       }
       
       // Fetch deployment trends
-      const trendsResponse = await fetch('http://localhost:8000/api/dashboard/deployment-trends', {
+      const trendsResponse = await fetch(`${getApiUrl()}/api/dashboard/deployment-trends`, {
         headers
       });
       
@@ -590,7 +596,7 @@ export default function Dashboard({ onLogout }) {
         setTimeout(() => reject(new Error('Request timeout')), 10000)
       );
 
-      const fetchPromise = fetch('http://localhost:8000/devices/', {
+      const fetchPromise = fetch(`${getApiUrl()}/devices/`, {
         headers
       });
 
@@ -701,7 +707,7 @@ export default function Dashboard({ onLogout }) {
         setTimeout(() => reject(new Error('Request timeout')), 8000)
       );
 
-      const fetchPromise = fetch('http://localhost:8000/groups/', {
+      const fetchPromise = fetch(`${getApiUrl()}/groups/`, {
         headers
       });
 
@@ -913,7 +919,9 @@ export default function Dashboard({ onLogout }) {
       
       console.log('Dashboard: Initializing socket connection...');
       
-      socketRef.current = io('http://localhost:8000', {
+      const socketUrl = import.meta.env.VITE_SOCKET_URL || 'https://deployx-server.onrender.com';
+      
+      socketRef.current = io(socketUrl, {
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionDelay: 1000,
@@ -985,11 +993,11 @@ export default function Dashboard({ onLogout }) {
           // Auto-select first agent if none selected and agents available
           if (agentsList.length > 0 && !currentAgent) {
             const firstAgent = agentsList[0];
-            setCurrentAgent(firstAgent);
+            setCurrentAgent(firstAgent.agent_id);
             
             // Request shells for the first agent
             if (socketRef.current && socketRef.current.connected) {
-              socketRef.current.emit('get_shells', firstAgent);
+              socketRef.current.emit('get_shells', firstAgent.agent_id);
             }
           }
         } else {
@@ -1089,7 +1097,7 @@ export default function Dashboard({ onLogout }) {
 
     try {
       const token = authService.getToken() || localStorage.getItem('access_token');
-      const response = await fetch('http://localhost:8000/auth/update-username', {
+      const response = await fetch(`${getApiUrl()}/auth/update-username`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1137,7 +1145,7 @@ export default function Dashboard({ onLogout }) {
 
     try {
       const token = authService.getToken() || localStorage.getItem('access_token');
-      const response = await fetch('http://localhost:8000/auth/change-password', {
+      const response = await fetch(`${getApiUrl()}/auth/change-password`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1175,7 +1183,7 @@ export default function Dashboard({ onLogout }) {
 
     try {
       const token = authService.getToken() || localStorage.getItem('access_token');
-      const response = await fetch('http://localhost:8000/auth/request-email-change', {
+      const response = await fetch(`${getApiUrl()}/auth/request-email-change`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1494,25 +1502,6 @@ export default function Dashboard({ onLogout }) {
               />
             </div>
             
-            {/* Debug Buttons (temporary) */}
-            <button 
-              onClick={() => {
-                console.log('🔧 Manual refresh triggered');
-                forceRefreshAll();
-              }}
-              className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition-all"
-              title="Debug: Force Refresh All Data"
-            >
-              🔄 Refresh
-            </button>
-            <button 
-              onClick={debugCurrentState}
-              className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-lg transition-all"
-              title="Debug: Log Current State"
-            >
-              🐛 Debug
-            </button>
-
             {/* Notifications */}
             <button className="relative p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all">
               <Bell className="w-5 h-5" />

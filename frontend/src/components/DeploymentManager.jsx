@@ -50,6 +50,8 @@ export default function DeploymentManager({
   isConnected = false,
   connectionError = null
 }) {
+  console.log('DeploymentManager: Received agents:', agents);
+  console.log('DeploymentManager: Current agent:', currentAgent);
   const [commands, setCommands] = useState([]);
   const [newCommand, setNewCommand] = useState('');
   const [selectedStrategy, setSelectedStrategy] = useState('transactional');
@@ -60,11 +62,11 @@ export default function DeploymentManager({
   const [batchCommands, setBatchCommands] = useState(['']);
 
   // API base URL - adjust as needed
-  const API_BASE = 'http://localhost:8000/api/deployment';
+  const API_BASE = 'https://deployx-server.onrender.com/api/deployment';
 
   useEffect(() => {
     // Initialize socket.io connection
-    const newSocket = io('http://localhost:8000');
+    const newSocket = io('https://deployx-server.onrender.com');
     setSocket(newSocket);
 
     // Listen for real-time deployment updates
@@ -383,7 +385,9 @@ export default function DeploymentManager({
                 {!isConnected ? 'Not connected' : agents.length === 0 ? 'No agents available' : 'Select Agent'}
               </option>
               {agents.map(agent => (
-                <option key={agent} value={agent}>{agent}</option>
+                <option key={agent.agent_id} value={agent.agent_id}>
+                  {agent.hostname} ({agent.agent_id})
+                </option>
               ))}
             </select>
             {!isConnected && (

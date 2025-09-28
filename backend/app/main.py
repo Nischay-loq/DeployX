@@ -8,26 +8,63 @@ import uuid
 from datetime import datetime
 import uvicorn
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Configuration from environment variables
+def get_cors_origins():
+    """Get CORS allowed origins from environment variables"""
+    environment = os.getenv('ENVIRONMENT', 'development')
+    
+    if environment == 'development':
+        return [
+            os.getenv('DEV_FRONTEND_URL', 'http://localhost:5173'),
+            os.getenv('FRONTEND_LOCAL_URL', 'http://localhost:5173'),
+            "http://127.0.0.1:5173",
+            os.getenv('FRONTEND_ALT_URL', 'http://localhost:3000'),
+            "http://127.0.0.1:3000",
+            os.getenv('DEV_BACKEND_URL', 'http://localhost:8000'),
+            "http://127.0.0.1:8000",
+        ]
+    else:
+        return [
+            os.getenv('FRONTEND_URL', 'https://deployx-nu.vercel.app'),
+            os.getenv('FRONTEND_LOCAL_URL', 'http://localhost:5173'),
+            "http://127.0.0.1:5173",
+            os.getenv('FRONTEND_ALT_URL', 'http://localhost:3000'),
+            "http://127.0.0.1:3000",
+            os.getenv('DEV_BACKEND_URL', 'http://localhost:8000'),
+            "http://127.0.0.1:8000",
+            "https://accounts.google.com",
+            "https://accounts.google.com/gsi",
+        ]
+
 from app.grouping.route import router as groups_router
 from app.Devices.routes import router as devices_router
 from app.Deployments.routes import router as deployments_router
 from app.files.routes import router as files_router
+from app.agents.routes import router as agents_router
 from app.auth import routes, models
-from app.auth.database import engine
+from app.agents import models as agent_models, crud as agent_crud, schemas as agent_schemas
+from app.auth.database import engine, get_db
 from app.command_deployment.routes import router as deployment_router
 from app.dashboard.routes import router as dashboard_router
 from app.command_deployment.executor import command_executor
 from app.grouping import models as grouping_models  # Import grouping models
 from app.Deployments import models as deployment_models  # Import deployment models
 from app.files import models as file_models  # Import file models
+from app.auth.database import get_db
+from app.agents import crud as agent_crud, schemas as agent_schemas
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Create Socket.IO server with better configuration
+# Create Socket.IO server with configuration from environment
 sio = socketio.AsyncServer(
-    cors_allowed_origins="*",
+    cors_allowed_origins=get_cors_origins(),
     logger=False,  # Disable verbose socket.io logging
     engineio_logger=False,  # Disable verbose engine.io logging
     async_mode='asgi',
@@ -36,6 +73,7 @@ sio = socketio.AsyncServer(
 )
 
 models.Base.metadata.create_all(bind=engine)
+agent_models.Base.metadata.create_all(bind=engine)
 
 # Create FastAPI app
 app = FastAPI(title="Remote Command Execution Backend")
@@ -43,18 +81,7 @@ app = FastAPI(title="Remote Command Execution Backend")
 # Add CORS middleware BEFORE including routers
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for debugging - CHANGE THIS IN PRODUCTION
-    # Specific origins (commented out for debugging):
-    # [
-    #     "http://localhost:5173",  # Vite dev server
-    #     "http://localhost:5174",  # Vite dev server (alternative port)
-    #     "http://127.0.0.1:5173",  # Alternative localhost
-    #     "http://127.0.0.1:5174",  # Alternative localhost (alternative port)
-    #     "http://localhost:3000",  # Alternative React dev server
-    #     "http://127.0.0.1:3000",  # Alternative React dev server
-    #     "https://accounts.google.com",  # Google OAuth domain
-    #     "https://accounts.google.com/gsi",  # Google Sign-In domain
-    # ],
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
     allow_headers=[
@@ -73,6 +100,7 @@ app.add_middleware(
 app.include_router(routes.router)
 app.include_router(groups_router)
 app.include_router(devices_router)
+app.include_router(agents_router)
 app.include_router(deployment_router)
 app.include_router(deployments_router)
 app.include_router(files_router)
@@ -234,9 +262,6 @@ async def options_handler(path: str):
         }
     )
 
-
-# Routes are already included above
-
 # Store connected agents and frontends
 class ConnectionManager:
     def __init__(self):
@@ -265,34 +290,23 @@ class ConnectionManager:
     
     def remove_connection(self, sid: str):
         """Remove a connection by session ID"""
-        connection_type = self.sid_to_type.get(sid)
+        connection_type = self.sid_to_type.pop(sid, None)
         
         if connection_type == 'agent':
-            agent_id = self.sid_to_agent.get(sid)
+            agent_id = self.sid_to_agent.pop(sid, None)
             if agent_id:
-                # Clean up agent
-                if sid in self.sid_to_agent:
-                    del self.sid_to_agent[sid]
-                if agent_id in self.agents:
-                    del self.agents[agent_id]
-                if agent_id in self.agent_frontend_mapping:
-                    del self.agent_frontend_mapping[agent_id]
+                self.agents.pop(agent_id, None)
+                self.agent_frontend_mapping.pop(agent_id, None)
                 logger.info(f"Agent {agent_id} disconnected (sid: {sid})")
                 return 'agent', agent_id
                 
         elif connection_type == 'frontend':
-            # Clean up frontend
             self.frontends.discard(sid)
-            # Remove any agent mappings for this frontend
             to_remove = [agent_id for agent_id, frontend_sid in self.agent_frontend_mapping.items() if frontend_sid == sid]
             for agent_id in to_remove:
                 del self.agent_frontend_mapping[agent_id]
             logger.info(f"Frontend disconnected (sid: {sid})")
             return 'frontend', None
-        
-        # Clean up tracking
-        if sid in self.sid_to_type:
-            del self.sid_to_type[sid]
             
         return None, None
     
@@ -324,6 +338,35 @@ class ConnectionManager:
 # Initialize connection manager
 conn_manager = ConnectionManager()
 
+# Helper function to get and send agent list
+async def _update_and_send_agent_list(sid=None):
+    """Helper to fetch agents from DB, update status, and emit to frontends."""
+    db = next(get_db())
+    try:
+        db_agents = agent_crud.get_agents(db, limit=1000)
+        online_agent_ids = set(conn_manager.get_agent_list())
+        
+        agents_with_status = []
+        for agent in db_agents:
+            # Use from_orm to convert SQLAlchemy model to Pydantic model
+            agent_pydantic = agent_schemas.AgentResponse.from_orm(agent)
+            agent_info = agent_pydantic.model_dump(mode='json')  # Use JSON mode for datetime serialization
+            agent_info['status'] = 'online' if agent.agent_id in online_agent_ids else 'offline'
+            agents_with_status.append(agent_info)
+
+        target = sid if sid else None
+        if target:
+            await sio.emit('agents_list', agents_with_status, room=target)
+            logger.info(f"Sent full agent list to frontend {sid}")
+        else:
+            await sio.emit('agents_list', agents_with_status)
+            logger.info("Sent full agent list to all frontends")
+            
+    except Exception as e:
+        logger.error(f"Error in _update_and_send_agent_list: {e}")
+    finally:
+        db.close()
+
 # Set up command executor with socket.io and connection manager
 command_executor.set_socketio(sio, conn_manager)
 
@@ -339,14 +382,23 @@ async def disconnect(sid):
     try:
         connection_type, agent_id = conn_manager.remove_connection(sid)
         
-        if connection_type == 'agent':
-            # Notify all frontends about agent disconnection with a small delay
-            await asyncio.sleep(0.1)  # Small delay to prevent race conditions
-            await sio.emit('agents_list', conn_manager.get_agent_list())
+        if connection_type == 'agent' and agent_id:
+            # Update agent status in the database to 'offline'
+            db = next(get_db())
+            try:
+                agent_crud.update_agent_status(db, agent_id, "offline")
+                logger.info(f"Agent {agent_id} status updated to offline in database.")
+            finally:
+                db.close()
+
+            # Notify all frontends about agent list change
+            await _update_and_send_agent_list()
+            
         elif connection_type == 'frontend':
             logger.info(f"Frontend {sid} disconnected")
+            
     except Exception as e:
-        logger.error(f"Error handling disconnect: {e}")
+        logger.error(f"Error handling disconnect for sid {sid}: {e}")
 
 @sio.event
 async def get_shells(sid, agent_id):
@@ -375,19 +427,27 @@ async def get_shells(sid, agent_id):
 async def agent_register(sid, data):
     """Handle agent registration"""
     try:
-        agent_id = data.get('agent_id', f'agent_{sid[:8]}')
-        shells = data.get('shells', ['cmd'])
+        logger.info(f"Agent registration request from {sid} with data: {data}")
         
-        logger.info(f"Agent registration request: {agent_id} with shells {shells}")
+        # Validate data
+        reg_data = agent_schemas.AgentRegistrationRequest(**data)
         
-        conn_manager.add_agent(agent_id, sid, shells)
+        # Use a database session
+        db = next(get_db())
+        try:
+            agent = agent_crud.register_or_update_agent(db, reg_data)
+            logger.info(f"Agent {agent.agent_id} registered/updated in database.")
+        finally:
+            db.close()
+            
+        conn_manager.add_agent(reg_data.agent_id, sid, reg_data.shells)
         
-        # Notify all frontends about new agent
-        await sio.emit('agents_list', conn_manager.get_agent_list())
+        # Notify all frontends about the updated agent list
+        await _update_and_send_agent_list()
         
         # Confirm registration to the agent
-        await sio.emit('registration_success', {'agent_id': agent_id}, room=sid)
-        logger.info(f"Agent {agent_id} registered successfully")
+        await sio.emit('registration_success', {'agent_id': reg_data.agent_id}, room=sid)
+        logger.info(f"Agent {reg_data.agent_id} registered successfully via socket.")
         
     except Exception as e:
         logger.error(f"Error registering agent: {e}")
@@ -401,9 +461,7 @@ async def frontend_register(sid, data):
         conn_manager.add_frontend(sid)
         
         # Send current agent list to the new frontend
-        agent_list = conn_manager.get_agent_list()
-        await sio.emit('agents_list', agent_list, room=sid)
-        logger.info(f"Sent agent list to frontend {sid}: {agent_list}")
+        await _update_and_send_agent_list(sid=sid)
         
     except Exception as e:
         logger.error(f"Error registering frontend: {e}")
@@ -653,5 +711,5 @@ socket_app = socketio.ASGIApp(sio, app)
 def start():
     """Start the backend server."""
     logger.info("Starting Remote Command Execution Backend...")
-    logger.info("Backend will be available at: http://localhost:8000")
-    logger.info("Socket.IO endpoint: ws://localhost:8000/socket.io/")
+    logger.info("Backend will be available at: https://deployx-server.onrender.com")
+    logger.info("Socket.IO endpoint: wss://deployx-server.onrender.com/socket.io/")

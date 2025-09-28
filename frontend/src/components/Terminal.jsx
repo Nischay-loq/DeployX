@@ -89,9 +89,7 @@ const TerminalComponent = ({ height = '70vh' }) => {
     fontFamily: 'Consolas, "Cascadia Code", "Source Code Pro", "Courier New", monospace',
     fontWeight: 500,
     letterSpacing: 0,
-    cols: 100,
-    rows: 30,
-    scrollback: 1000,
+    scrollback: 2000,
     allowTransparency: true,
     theme: {
       background: '#1a1a1a',
@@ -434,7 +432,7 @@ const TerminalComponent = ({ height = '70vh' }) => {
     console.log('Attempting to connect to backend...');
     
     try {
-      socketRef.current = io('http://localhost:8000', {
+      socketRef.current = io('https://deployx-server.onrender.com', {
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionDelay: 1000,
@@ -518,21 +516,23 @@ const TerminalComponent = ({ height = '70vh' }) => {
         
         if (Array.isArray(agents)) {
           // Check if the agents list has actually changed
-          const agentsString = agents.join(',');
-          if (agentsString !== connectedAgents.join(',')) {
+          const agentsString = agents.map(a => a.agent_id).join(',');
+          const currentAgentsString = connectedAgents.map(a => a.agent_id).join(',');
+          if (agentsString !== currentAgentsString) {
             setConnectedAgents(agents);
             
             if (agents.length > 0) {
               // Only show notification if it's a new agent list
-              addNotification(`Found ${agents.length} agent(s): ${agents.join(', ')}`, 'success');
+              const agentNames = agents.map(a => a.hostname).join(', ');
+              addNotification(`Found ${agents.length} agent(s): ${agentNames}`, 'success');
               
               // Auto-select first agent only if no agent is selected
               if (!selectedAgentRef.current) {
                 const firstAgent = agents[0];
-                setSelectedAgent(firstAgent);
-                console.log('Auto-selecting first agent:', firstAgent);
+                setSelectedAgent(firstAgent.agent_id);
+                console.log('Auto-selecting first agent:', firstAgent.agent_id);
                 
-                socketRef.current.emit('get_shells', firstAgent);
+                socketRef.current.emit('get_shells', firstAgent.agent_id);
               }
             } else {
               addNotification('No agents available. Please ensure at least one agent is running and connected.', 'warning');
@@ -809,7 +809,7 @@ const TerminalComponent = ({ height = '70vh' }) => {
                 {isLoading ? 'Loading...' : `Select Agent (${connectedAgents.length} available)`}
               </option>
               {connectedAgents.map(agent => (
-                <option key={agent} value={agent}>{agent}</option>
+                <option key={agent.agent_id} value={agent.agent_id}>{agent.hostname} ({agent.agent_id})</option>
               ))}
             </select>
           </div>
