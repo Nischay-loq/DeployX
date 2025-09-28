@@ -52,6 +52,17 @@ class ApiClient {
     }
   }
 
+  // Check if this is a persistent session (Remember Me or OAuth)
+  isPersistentSession() {
+    // Check if tokens are stored in localStorage (Remember Me was checked)
+    const hasLocalStorageToken = !!(localStorage.getItem('access_token') || localStorage.getItem('token'));
+    
+    // Check if this is an OAuth session (Google login)
+    const isOAuthSession = !!(localStorage.getItem('oauth_provider') || sessionStorage.getItem('oauth_provider'));
+    
+    return hasLocalStorageToken || isOAuthSession;
+  }
+
   // Clear all authentication data
   clearAuth() {
     localStorage.removeItem('access_token');
@@ -59,8 +70,10 @@ class ApiClient {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('username');
+    localStorage.removeItem('oauth_provider');
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('username');
+    sessionStorage.removeItem('oauth_provider');
     window.dispatchEvent(new Event('auth:changed'));
   }
 
@@ -111,13 +124,24 @@ class ApiClient {
             }
           } catch (refreshError) {
             console.error('Token refresh failed:', refreshError);
-            this.clearAuth();
             
-            // Redirect to login if not already there
-            if (window.location.pathname !== '/login') {
-              window.location.href = '/login';
+            // Check if this is a persistent session (Remember Me or OAuth)
+            const isPersistentSession = this.isPersistentSession();
+            
+            if (isPersistentSession) {
+              // For persistent sessions, don't auto-logout - let the app handle it
+              console.log('Persistent session detected - not auto-logging out');
+              throw new Error('Authentication failed - please check your connection or refresh the page');
+            } else {
+              // For temporary sessions, clear auth and redirect
+              this.clearAuth();
+              
+              // Redirect to login if not already there
+              if (window.location.pathname !== '/login') {
+                window.location.href = '/login';
+              }
+              throw new Error('Your session has expired. Please log in again.');
             }
-            throw new Error('Your session has expired. Please log in again.');
           }
         }
 

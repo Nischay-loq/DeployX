@@ -455,10 +455,17 @@ export default function Dashboard({ onLogout }) {
         console.log('Dashboard: Received stats data:', statsData);
         setDashboardStats(statsData);
       } else if (statsResponse.status === 401) {
-        console.log('Dashboard: Authentication failed, redirecting to login');
-        authService.logout();
-        onLogout();
-        return;
+        console.log('Dashboard: Authentication failed');
+        // Only auto-logout for non-persistent sessions
+        if (!authService.isPersistentSession()) {
+          console.log('Non-persistent session - auto-logging out');
+          authService.logout();
+          onLogout();
+          return;
+        } else {
+          console.log('Persistent session - not auto-logging out, user must manually logout');
+          // For persistent sessions, show error but don't logout
+        }
       } else {
         console.error('Dashboard: Failed to fetch stats:', statsResponse.status, statsResponse.statusText);
         // Use fallback data for better user experience
@@ -483,9 +490,12 @@ export default function Dashboard({ onLogout }) {
         setRecentActivity(activityData.activity || []);
       } else if (activityResponse.status === 401) {
         console.log('Dashboard: Authentication failed for activity data');
-        authService.logout();
-        onLogout();
-        return;
+        // Only auto-logout for non-persistent sessions
+        if (!authService.isPersistentSession()) {
+          authService.logout();
+          onLogout();
+          return;
+        }
       } else {
         console.error('Dashboard: Failed to fetch activity:', activityResponse.status, activityResponse.statusText);
       }
@@ -501,9 +511,12 @@ export default function Dashboard({ onLogout }) {
         setDeviceChart(chartData.chart_data || []);
       } else if (chartResponse.status === 401) {
         console.log('Dashboard: Authentication failed for chart data');
-        authService.logout();
-        onLogout();
-        return;
+        // Only auto-logout for non-persistent sessions
+        if (!authService.isPersistentSession()) {
+          authService.logout();
+          onLogout();
+          return;
+        }
       } else {
         console.error('Dashboard: Failed to fetch chart:', chartResponse.status, chartResponse.statusText);
       }
@@ -595,9 +608,12 @@ export default function Dashboard({ onLogout }) {
         setDevicesLastFetch(Date.now());
       } else if (devicesResponse.status === 401) {
         console.log('Dashboard: Authentication failed for devices data');
-        authService.logout();
-        onLogout();
-        return;
+        // Only auto-logout for non-persistent sessions
+        if (!authService.isPersistentSession()) {
+          authService.logout();
+          onLogout();
+          return;
+        }
       } else {
         console.error('Dashboard: Failed to fetch devices:', devicesResponse.status, devicesResponse.statusText);
         // Set fallback data for development
@@ -703,9 +719,12 @@ export default function Dashboard({ onLogout }) {
         setGroupsLastFetch(Date.now());
       } else if (groupsResponse.status === 401) {
         console.log('Dashboard: Authentication failed for groups data');
-        authService.logout();
-        onLogout();
-        return;
+        // Only auto-logout for non-persistent sessions
+        if (!authService.isPersistentSession()) {
+          authService.logout();
+          onLogout();
+          return;
+        }
       } else {
         console.error('Dashboard: Failed to fetch groups:', groupsResponse.status, groupsResponse.statusText);
         // Set fallback data for development
