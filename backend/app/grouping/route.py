@@ -75,6 +75,10 @@ def create_group(
                 "connection_type": device.connection_type,
                 "last_seen": device.last_seen.isoformat() if device.last_seen else None,
             })
+    # Invalidate cache to ensure fresh data on next fetch
+    _groups_cache["data"] = []
+    _groups_cache["timestamp"] = datetime.min
+    
     return {
         "id": new_group.id,
         "group_name": new_group.group_name,
@@ -130,6 +134,10 @@ def update_group(
                 "last_seen": device.last_seen.isoformat() if device.last_seen else None,
             })
     
+    # Invalidate cache to ensure fresh data on next fetch
+    _groups_cache["data"] = []
+    _groups_cache["timestamp"] = datetime.min
+    
     return {
         "id": db_group.id,
         "group_name": db_group.group_name,
@@ -147,6 +155,11 @@ def delete_group(
     deleted = crud.delete_group(db, group_id, current_user.id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Group not found")
+    
+    # Invalidate cache to ensure fresh data on next fetch
+    _groups_cache["data"] = []
+    _groups_cache["timestamp"] = datetime.min
+    
     return {"message": "Group deleted"}
 
 @router.post("/{group_id}/assign/{device_id}")
@@ -164,6 +177,11 @@ def assign_device(
     result = crud.assign_device_to_group(db, device_id, group_id, current_user.id)
     if not result:
         raise HTTPException(status_code=404, detail="Group not found or access denied")
+    
+    # Invalidate cache to ensure fresh data on next fetch
+    _groups_cache["data"] = []
+    _groups_cache["timestamp"] = datetime.min
+    
     return {"message": "Device assigned successfully"}
 
 @router.delete("/{group_id}/remove/{device_id}")
@@ -176,6 +194,11 @@ def remove_device(
     result = crud.remove_device_from_group(db, device_id, group_id, current_user.id)
     if not result:
         raise HTTPException(status_code=404, detail="Group not found, device not in group, or access denied")
+    
+    # Invalidate cache to ensure fresh data on next fetch
+    _groups_cache["data"] = []
+    _groups_cache["timestamp"] = datetime.min
+    
     return {"message": "Device removed successfully"}
 
 # --- Get all devices with group info ---

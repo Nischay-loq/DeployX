@@ -116,25 +116,18 @@ def assign_device_to_group(db: Session, device_id: int, group_id: int, user_id: 
     if not device:
         return None
     
-    # Remove device from any existing group (even if it belongs to another user)
-    if device.group_id:
-        # Remove from existing mapping
-        existing_mapping = db.query(models.DeviceGroupMap).filter(
-            models.DeviceGroupMap.device_id == device_id
-        ).first()
-        if existing_mapping:
-            db.delete(existing_mapping)
+    # Check if this device is already in this group
+    existing_mapping = db.query(models.DeviceGroupMap).filter(
+        models.DeviceGroupMap.device_id == device_id,
+        models.DeviceGroupMap.group_id == group_id
+    ).first()
     
-    # Update device's group_id directly
-    device.group_id = group_id
-    db.commit()
-    db.refresh(device)
+    # If mapping already exists, return it
+    if existing_mapping:
+        return existing_mapping
     
-    # Create new mapping
+    # Create new mapping (device can be in multiple groups)
     mapping = models.DeviceGroupMap(device_id=device_id, group_id=group_id)
-    db.add(mapping)
-    db.commit()
-    return mapping
     db.add(mapping)
     db.commit()
     return mapping
@@ -148,22 +141,18 @@ def remove_device_from_group(db: Session, device_id: int, group_id: int, user_id
     if not group:
         return None
     
-    # Update device's group_id to NULL
-    device = db.query(models.Device).filter(models.Device.id == device_id).first()
-    if device and device.group_id == group_id:
-        device.group_id = None
-        db.commit()
-        db.refresh(device)
-    
-    # Also remove mapping for consistency
+    # Remove specific mapping (device can still be in other groups)
     mapping = db.query(models.DeviceGroupMap).filter(
         models.DeviceGroupMap.device_id == device_id,
         models.DeviceGroupMap.group_id == group_id
     ).first()
+    
     if mapping:
         db.delete(mapping)
         db.commit()
-    return mapping
+        return mapping
+    
+    return None
 
 def get_devices_in_groups(db: Session, group_ids: list):
     """Get all devices that belong to the specified groups"""

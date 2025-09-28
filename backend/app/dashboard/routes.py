@@ -40,6 +40,8 @@ def get_dashboard_stats(
         # Group statistics
         total_groups = 0
         try:
+            # Rollback any pending transaction to avoid InFailedSqlTransaction error
+            db.rollback()
             total_groups = db.query(DeviceGroup).count()
         except Exception as group_error:
             logger.warning(f"Could not query groups: {group_error}")
@@ -184,17 +186,17 @@ def get_recent_activity(
                 })
                 
                 # Add deployment completion activity if completed
-                if deployment.completed_at and deployment.status in ['completed', 'failed']:
+                if deployment.ended_at and deployment.status in ['completed', 'failed']:
                     all_activities.append({
                         "id": f"deploy-complete-{deployment.id}",
                         "type": "deployment_complete",
                         "title": f"Deployment {'completed successfully' if deployment.status == 'completed' else 'failed'} on {device_count} device(s)",
                         "status": deployment.status,
-                        "timestamp": deployment.completed_at.isoformat(),
+                        "timestamp": deployment.ended_at.isoformat(),
                         "details": {
                             "deployment_id": str(deployment.id),
                             "device_count": device_count,
-                            "duration": str(deployment.completed_at - deployment.started_at) if deployment.started_at else "Unknown"
+                            "duration": str(deployment.ended_at - deployment.started_at) if deployment.started_at else "Unknown"
                         }
                     })
         except Exception as deployment_error:
@@ -202,6 +204,8 @@ def get_recent_activity(
         
         # 2. Get recent device groups created/updated
         try:
+            # Rollback any pending transaction to avoid InFailedSqlTransaction error
+            db.rollback()
             from app.grouping.models import DeviceGroup
             recent_groups = db.query(DeviceGroup).order_by(desc(DeviceGroup.id)).limit(8).all()
             
@@ -222,12 +226,12 @@ def get_recent_activity(
                 all_activities.append({
                     "id": f"group-{group.id}",
                     "type": "group_created",
-                    "title": f"Created device group '{group.name}' with {device_count} device(s)",
+                    "title": f"Created device group '{group.group_name}' with {device_count} device(s)",
                     "status": "completed",
                     "timestamp": group_timestamp.isoformat(),
                     "details": {
                         "group_id": str(group.id),
-                        "group_name": group.name,
+                        "group_name": group.group_name,
                         "device_count": device_count
                     }
                 })
@@ -245,21 +249,24 @@ def get_recent_activity(
         # 4. Get recent device connections/disconnections from current session
         # This would come from socket events or device status changes
         try:
+            # Rollback any pending transaction to avoid InFailedSqlTransaction error
+            db.rollback()
             recent_devices = db.query(Device).filter(
-                Device.connected_at.isnot(None)
-            ).order_by(desc(Device.connected_at)).limit(5).all()
+                Device.last_seen.isnot(None)
+            ).order_by(desc(Device.last_seen)).limit(5).all()
             
             for device in recent_devices:
-                if device.connected_at:
+                if device.last_seen:
                     all_activities.append({
                         "id": f"device-connect-{device.id}",
                         "type": "device_connected",
-                        "title": f"Device '{device.mac_address}' connected",
+                        "title": f"Device '{device.mac_address or device.device_name or 'Unknown'}' last seen",
                         "status": "completed" if device.status == "online" else "disconnected",
-                        "timestamp": device.connected_at.isoformat(),
+                        "timestamp": device.last_seen.isoformat(),
                         "details": {
                             "device_id": str(device.id),
                             "device_mac": device.mac_address,
+                            "device_name": device.device_name,
                             "status": device.status
                         }
                     })

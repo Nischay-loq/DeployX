@@ -1,12 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 from datetime import datetime
+from typing import Optional
 import jwt
 import requests
 from . import models, schemas, utils
 from .database import get_db
+
+# Global storage for email change requests (in production, use database)
+email_change_requests = {}
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -31,7 +35,7 @@ class GoogleAuthRequest(BaseModel):
 class PasswordResetRequest(BaseModel):
     email: EmailStr
     otp: str
-    new_password: str
+    new_password: str = Field(..., max_length=200, description="Password must be less than 200 characters")
 
 class PasswordResetLinkRequest(BaseModel):
     email: EmailStr
@@ -574,12 +578,19 @@ class UpdatePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
+class RequestPasswordResetRequest(BaseModel):
+    pass  # No fields needed, will use current user from token
+
 class UpdateEmailRequest(BaseModel):
     new_email: EmailStr
     password: str
 
 class VerifyEmailChangeRequest(BaseModel):
     token: str
+
+class DeleteAccountRequest(BaseModel):
+    password: Optional[str] = None  # Optional for Google users
+    confirmation_text: str  # User must type "DELETE" to confirm
 
 @router.put("/update-username")
 def update_username(
@@ -628,13 +639,85 @@ def update_username(
             detail=f"Failed to update username: {str(e)}"
         )
 
-@router.put("/change-password")
-def change_password(
+@router.post("/request-password-change")
+def request_password_change(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(utils.get_current_user)
+):
+    """Request password change - sends reset link to current email"""
+    print(f"Password change requested for user: {current_user.username} ({current_user.email})")
+    try:
+        # Generate reset token
+        import secrets
+        token = secrets.token_urlsafe(32)
+        
+        # Store reset request (in production, use database)
+        password_reset_requests = getattr(request_password_change, 'requests', {})
+        password_reset_requests[token] = {
+            "user_id": current_user.id,
+            "email": current_user.email,
+            "created_at": datetime.utcnow(),
+            "expires_at": datetime.utcnow().timestamp() + 3600  # 1 hour
+        }
+        request_password_change.requests = password_reset_requests
+        
+        # Send reset email
+        reset_link = f"http://localhost:5173/reset-password?token={token}"
+        
+        try:
+            utils.send_email(
+                to_email=current_user.email,
+                subject="Password Reset Request - DeployX",
+                html_content=f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #1f2937;">Password Reset Request</h2>
+                    <p>Hello {current_user.username},</p>
+                    <p>You requested to change your password. Click the button below to set a new password:</p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{reset_link}" 
+                           style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                                  color: white; 
+                                  padding: 12px 30px; 
+                                  text-decoration: none; 
+                                  border-radius: 8px; 
+                                  display: inline-block;
+                                  font-weight: bold;">
+                            Reset Password
+                        </a>
+                    </div>
+                    <p style="color: #6b7280; font-size: 14px;">
+                        This link will expire in 1 hour. If you didn't request this change, please ignore this email.
+                    </p>
+                    <p style="color: #6b7280; font-size: 14px;">
+                        If the button doesn't work, copy and paste this link into your browser:<br>
+                        <a href="{reset_link}">{reset_link}</a>
+                    </p>
+                </div>
+                """
+            )
+        except Exception as e:
+            print(f"Failed to send email: {e}")
+            # For development, we'll continue without sending email
+            pass
+        
+        return {
+            "status": "success",
+            "message": f"Password reset link sent to {current_user.email}"
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to send password reset email: {str(e)}"
+        )
+
+@router.put("/change-password-direct")
+def change_password_direct(
     request: UpdatePasswordRequest,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(utils.get_current_user)
 ):
-    """Change user's password with current password verification"""
+    """Direct password change with current password verification (for advanced users)"""
     try:
         # Verify current password
         if not utils.verify_password(request.current_password, current_user.hashed_password):
@@ -675,9 +758,10 @@ def request_email_change(
     current_user: models.User = Depends(utils.get_current_user)
 ):
     """Request email change - sends verification to new email"""
+    print(f"Email change requested for user: {current_user.username}, new email: {request.new_email}")
     try:
         # Verify password
-        if not utils.verify_password(request.password, current_user.hashed_password):
+        if not utils.verify_password(request.password, current_user.password):
             raise HTTPException(
                 status_code=400,
                 detail="Password is incorrect"
@@ -700,14 +784,15 @@ def request_email_change(
         token = secrets.token_urlsafe(32)
         
         # Store email change request (in production, use database)
-        email_change_requests = getattr(request_email_change, 'requests', {})
         email_change_requests[token] = {
             "user_id": current_user.id,
             "new_email": request.new_email,
             "created_at": datetime.utcnow(),
             "expires_at": datetime.utcnow().timestamp() + 3600  # 1 hour
         }
-        request_email_change.requests = email_change_requests
+        
+        print(f"Stored email change request with token: {token}")
+        print(f"Current stored requests: {list(email_change_requests.keys())}")
         
         # Send verification email
         verification_link = f"http://localhost:5173/verify-email-change?token={token}"
@@ -770,19 +855,28 @@ def verify_email_change(
 ):
     """Verify email change using token from email"""
     try:
-        # Get email change requests
-        email_change_requests = getattr(request_email_change, 'requests', {})
+        print(f"Verifying email change with token: {request.token}")
+        print(f"Available tokens: {list(email_change_requests.keys())}")
+        
+        # Clean up expired tokens first
+        current_time = datetime.utcnow().timestamp()
+        expired_tokens = [token for token, data in email_change_requests.items() 
+                         if current_time > data["expires_at"]]
+        for token in expired_tokens:
+            del email_change_requests[token]
+            print(f"Cleaned up expired token: {token}")
         
         if request.token not in email_change_requests:
+            print(f"Token {request.token} not found in stored requests")
             raise HTTPException(
                 status_code=400,
-                detail="Invalid or expired verification token"
+                detail=f"Invalid or expired verification token"
             )
         
         change_request = email_change_requests[request.token]
         
-        # Check if token is expired
-        if datetime.utcnow().timestamp() > change_request["expires_at"]:
+        # Check if token is expired (double check)
+        if current_time > change_request["expires_at"]:
             del email_change_requests[request.token]
             raise HTTPException(
                 status_code=400,
@@ -820,4 +914,105 @@ def verify_email_change(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to verify email change: {str(e)}"
+        )
+
+@router.post("/check-account-type")
+def check_account_type(
+    current_user: models.User = Depends(utils.get_current_user)
+):
+    """Check if current user is a Google OAuth user or regular user"""
+    # Check if password matches the Google OAuth placeholder
+    is_google_user = utils.verify_password("google_oauth_user", current_user.password)
+    
+    return {
+        "is_google_user": is_google_user,
+        "username": current_user.username,
+        "email": current_user.email,
+        "requires_password_for_deletion": not is_google_user
+    }
+
+@router.get("/test-auth")
+def test_auth(current_user: models.User = Depends(utils.get_current_user)):
+    """Test endpoint to verify authentication is working"""
+    return {
+        "status": "success",
+        "message": "Authentication working",
+        "user": {
+            "username": current_user.username,
+            "email": current_user.email
+        }
+    }
+
+@router.delete("/delete-account")
+def delete_account(
+    request: DeleteAccountRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(utils.get_current_user)
+):
+    """Delete user account (works for both regular and Google OAuth users)"""
+    print(f"Account deletion requested for user: {current_user.username} ({current_user.email})")
+    print(f"Request data: password={'***' if request.password else None}, confirmation='{request.confirmation_text}'")
+    
+    try:
+        # Validate confirmation text
+        if request.confirmation_text != "DELETE":
+            raise HTTPException(
+                status_code=400,
+                detail="Please type 'DELETE' to confirm account deletion"
+            )
+        
+        # Check if this is a Google OAuth user
+        is_google_user = utils.verify_password("google_oauth_user", current_user.password)
+        
+        # For regular users, verify password
+        if not is_google_user:
+            if not request.password:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Password is required for account deletion"
+                )
+            
+            if not utils.verify_password(request.password, current_user.password):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Password is incorrect"
+                )
+        
+        # Store user info for response
+        deleted_username = current_user.username
+        deleted_email = current_user.email
+        
+        # Clean up related data if needed
+        try:
+            # Add cleanup for related models here as your app grows
+            # For example: user's devices, deployments, etc.
+            pass
+        except Exception as cleanup_error:
+            print(f"Warning: Error during cleanup: {cleanup_error}")
+            # Continue with user deletion even if cleanup fails partially
+        
+        # Delete the user account
+        db.delete(current_user)
+        db.commit()
+        
+        print(f"Account deleted successfully: {deleted_username} ({deleted_email})")
+        
+        return {
+            "status": "success",
+            "message": "Account deleted successfully",
+            "deleted_user": {
+                "username": deleted_username,
+                "email": deleted_email
+            }
+        }
+        
+    except HTTPException as he:
+        print(f"HTTP Exception during account deletion: {he.detail}")
+        raise
+    except Exception as e:
+        print(f"Unexpected error during account deletion: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete account: {str(e)}"
         )
