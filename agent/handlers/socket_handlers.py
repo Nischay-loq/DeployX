@@ -475,8 +475,8 @@ class SocketEventHandler:
                     # Execute the command in the persistent shell
                     result = await self.shell_manager.execute_command(command + '\n')
                     
-                    # Wait for command completion (check for prompt return or timeout)
-                    await self._wait_for_command_completion(command, timeout=30)
+                    # Wait for command completion (no timeout - persistent execution)
+                    await self._wait_for_command_completion(command, timeout=0)
                     
                     command_end_time = asyncio.get_event_loop().time()
                     execution_time = command_end_time - command_start_time
@@ -572,18 +572,15 @@ class SocketEventHandler:
                     'error': error_msg
                 })
 
-    async def _wait_for_command_completion(self, command: str, timeout: int = 30):
-        """Wait for command completion by monitoring output for prompt return."""
-        start_time = asyncio.get_event_loop().time()
-        last_output_time = start_time
-        
+    async def _wait_for_command_completion(self, command: str, timeout: int = 0):
+        """Wait for command completion by monitoring output for prompt return (no timeout for persistent execution)."""
         # Simple approach: wait a reasonable time for command to complete
         # This could be enhanced to detect shell prompts more intelligently
         await asyncio.sleep(1.0)  # Base wait time
         
-        # For known long-running commands, wait longer
+        # For known long-running commands, wait longer but no timeout
         if any(keyword in command.lower() for keyword in ['ping', 'tracert', 'nslookup', 'download', 'install']):
             await asyncio.sleep(3.0)
         
         # Additional smart waiting could be implemented here based on shell type
-        # and command patterns
+        # and command patterns - timeout parameter ignored for persistent execution

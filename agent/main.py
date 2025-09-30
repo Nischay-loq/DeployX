@@ -21,7 +21,7 @@ async def main():
     parser = argparse.ArgumentParser(description="DeployX Remote Command Execution Agent")
     parser.add_argument(
         "--server", 
-        default="https://deployx-server.onrender.com",
+        default="http://localhost:8000",
         help="Backend server URL"
     )
     parser.add_argument(
@@ -59,21 +59,60 @@ async def main():
         advertiser.start_advertising()
     
     try:
-        # Connect to backend
-        if await connection.connect():
-            # Detect available shells
-            shells = detect_shells()
-            logger.info(f"Detected shells: {shells}")
+        # Connect to backend with infinite retry logic (no timeout)
+        retry_delay = 2  # seconds - fast retry
+        retry_count = 0
+        
+        while running.is_set():
+            logger.info(f"Attempting to connect to backend (attempt {retry_count + 1})...")
             
-            # Register agent with backend
-            await connection.register_agent(shells)
-            
-            # Keep the agent running until running flag is cleared
-            while running.is_set():
-                try:
-                    await asyncio.sleep(1)
-                except asyncio.CancelledError:
-                    break
+            if await connection.connect():
+                logger.info("Successfully connected to backend")
+                
+                # Detect available shells
+                shells = detect_shells()
+                logger.info(f"Detected shells: {shells}")
+                logger.info(f"Shells type: {type(shells)}")
+                logger.info(f"Number of shells detected: {len(shells) if shells else 0}")
+                
+                if not shells:
+                    logger.error("No shells detected! This is a critical issue.")
+                else:
+                    logger.info(f"Shell details: {[(name, path) for name, path in shells.items()]}")
+                
+                # Register agent with backend
+                logger.info("Registering agent with backend...")
+                registration_success = await connection.register_agent(shells)
+                if registration_success:
+                    logger.info("Agent registration successful")
+                else:
+                    logger.error("Agent registration failed")
+                
+                # Keep the agent running until running flag is cleared
+                while running.is_set():
+                    try:
+                        # Check if connection is still alive
+                        if not connection.connected:
+                            logger.warning("Connection lost, attempting to reconnect...")
+                            break
+                        await asyncio.sleep(1)
+                    except asyncio.CancelledError:
+                        break
+                
+                # If we exit the inner loop due to disconnection, retry connection
+                if running.is_set() and not connection.connected:
+                    logger.info("Connection lost, will retry...")
+                    retry_count = 0  # Reset retry count on disconnection
+                    await asyncio.sleep(retry_delay)
+                    continue
+                else:
+                    break  # Normal exit
+            else:
+                retry_count += 1
+                logger.warning(f"Failed to connect, retrying in {retry_delay} seconds... (attempt {retry_count})")
+                await asyncio.sleep(retry_delay)
+                # Keep retry delay low for persistent connection attempts
+                retry_delay = min(retry_delay * 1.2, 10)  # Max 10 second delay
                 
     except KeyboardInterrupt:
         logger.info("Received interrupt signal, shutting down...")

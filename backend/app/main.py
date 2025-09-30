@@ -68,8 +68,8 @@ sio = socketio.AsyncServer(
     logger=False,  # Disable verbose socket.io logging
     engineio_logger=False,  # Disable verbose engine.io logging
     async_mode='asgi',
-    ping_timeout=60,
-    ping_interval=25
+    ping_timeout=0,  # Disable ping timeout - persistent connection
+    ping_interval=10  # Frequent ping to keep connection alive
 )
 
 models.Base.metadata.create_all(bind=engine)
@@ -273,6 +273,9 @@ class ConnectionManager:
     
     def add_agent(self, agent_id: str, sid: str, shells: List[str]):
         """Add a new agent connection"""
+        logger.info(f"ConnectionManager: Adding agent {agent_id} with shells: {shells}")
+        logger.info(f"ConnectionManager: Shells type: {type(shells)}")
+        
         self.agents[agent_id] = {
             'sid': sid,
             'shells': shells,
@@ -280,6 +283,10 @@ class ConnectionManager:
         }
         self.sid_to_agent[sid] = agent_id
         self.sid_to_type[sid] = 'agent'
+        
+        # Verify storage
+        stored_data = self.agents.get(agent_id)
+        logger.info(f"ConnectionManager: Verified stored data for {agent_id}: {stored_data}")
         logger.info(f"Agent {agent_id} connected (sid: {sid}) with shells: {shells}")
     
     def add_frontend(self, sid: str):
@@ -316,7 +323,12 @@ class ConnectionManager:
     
     def get_agent_shells(self, agent_id: str) -> List[str]:
         """Get available shells for an agent"""
-        return self.agents.get(agent_id, {}).get('shells', [])
+        agent_data = self.agents.get(agent_id, {})
+        shells = agent_data.get('shells', [])
+        logger.info(f"ConnectionManager: Getting shells for {agent_id}")
+        logger.info(f"ConnectionManager: Agent data: {agent_data}")
+        logger.info(f"ConnectionManager: Returning shells: {shells}")
+        return shells
     
     def get_agent_sid(self, agent_id: str) -> str:
         """Get socket ID for an agent"""
@@ -410,14 +422,30 @@ async def get_shells(sid, agent_id):
             return
             
         logger.info(f"Shell list request for agent {agent_id} from {sid}")
-        shells = conn_manager.get_agent_shells(agent_id)
         
-        if not shells:
-            logger.warning(f"No shells found for agent {agent_id}")
+        # Debug: Check if agent exists
+        if agent_id not in conn_manager.agents:
+            logger.error(f"Agent {agent_id} not found in connected agents")
+            logger.info(f"Available agents: {list(conn_manager.agents.keys())}")
             await sio.emit('shells_list', [], room=sid)
             return
             
-        await sio.emit('shells_list', shells, room=sid)
+        shells = conn_manager.get_agent_shells(agent_id)
+        logger.info(f"Found shells for {agent_id}: {shells}")
+        
+        if not shells:
+            logger.warning(f"No shells found for agent {agent_id}")
+            # Try to get from database as fallback
+            db = next(get_db())
+            try:
+                agent = agent_crud.get_agent(db, agent_id)
+                if agent and agent.shells:
+                    shells = agent.shells
+                    logger.info(f"Retrieved shells from database: {shells}")
+            finally:
+                db.close()
+        
+        await sio.emit('shells_list', shells or [], room=sid)
         logger.info(f"Sent shell list to {sid}: {shells}")
     except Exception as e:
         logger.error(f"Error getting shells for agent {agent_id}: {e}")
@@ -432,15 +460,22 @@ async def agent_register(sid, data):
         # Validate data
         reg_data = agent_schemas.AgentRegistrationRequest(**data)
         
+        # Debug shells
+        logger.info(f"Agent {reg_data.agent_id} registering with shells: {reg_data.shells}")
+        
         # Use a database session
         db = next(get_db())
         try:
             agent = agent_crud.register_or_update_agent(db, reg_data)
-            logger.info(f"Agent {agent.agent_id} registered/updated in database.")
+            logger.info(f"Agent {agent.agent_id} registered/updated in database with shells: {agent.shells}")
         finally:
             db.close()
             
         conn_manager.add_agent(reg_data.agent_id, sid, reg_data.shells)
+        
+        # Verify shells were stored
+        stored_shells = conn_manager.get_agent_shells(reg_data.agent_id)
+        logger.info(f"Verified stored shells for {reg_data.agent_id}: {stored_shells}")
         
         # Notify all frontends about the updated agent list
         await _update_and_send_agent_list()
@@ -451,7 +486,7 @@ async def agent_register(sid, data):
         
     except Exception as e:
         logger.error(f"Error registering agent: {e}")
-        await sio.emit('registration_error', {'error': str(e)}, room=sid)
+        await sio.emit('registration_error', {'message': str(e)}, room=sid)
 
 @sio.event
 async def frontend_register(sid, data):
@@ -470,9 +505,8 @@ async def frontend_register(sid, data):
 async def get_agents(sid):
     """Get list of connected agents"""
     try:
-        agent_list = conn_manager.get_agent_list()
-        await sio.emit('agents_list', agent_list, room=sid)
-        logger.info(f"Sent agent list to {sid}: {agent_list}")
+        # Use the same helper function to ensure consistent data format
+        await _update_and_send_agent_list(sid=sid)
     except Exception as e:
         logger.error(f"Error getting agents: {e}")
 

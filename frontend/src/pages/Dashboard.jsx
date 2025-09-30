@@ -586,16 +586,10 @@ export default function Dashboard({ onLogout }) {
         'Content-Type': 'application/json'
       };
 
-      // Use Promise.race for timeout handling
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout')), 10000)
-      );
-
-      const fetchPromise = fetch(`${getApiUrl()}/devices/`, {
+      // Remove timeout for persistent connection
+      const devicesResponse = await fetch(`${getApiUrl()}/devices/`, {
         headers
       });
-
-      const devicesResponse = await Promise.race([fetchPromise, timeoutPromise]);
       
       if (devicesResponse.ok) {
         const devicesDataResponse = await devicesResponse.json();
@@ -697,16 +691,10 @@ export default function Dashboard({ onLogout }) {
         'Content-Type': 'application/json'
       };
 
-      // Use Promise.race for timeout handling
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout')), 8000)
-      );
-
-      const fetchPromise = fetch(`${getApiUrl()}/groups/`, {
+      // Remove timeout for persistent connection
+      const groupsResponse = await fetch(`${getApiUrl()}/groups/`, {
         headers
       });
-
-      const groupsResponse = await Promise.race([fetchPromise, timeoutPromise]);
       
       if (groupsResponse.ok) {
         const groupsDataResponse = await groupsResponse.json();
@@ -919,11 +907,13 @@ export default function Dashboard({ onLogout }) {
       socketRef.current = io(socketUrl, {
         transports: ['websocket', 'polling'],
         reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionAttempts: 5,
-        timeout: 20000,
+        reconnectionDelay: 500,  // Fast reconnection
+        reconnectionAttempts: 0,  // Infinite reconnection attempts
+        timeout: 0,  // No connection timeout
         forceNew: true,
-        autoConnect: true
+        autoConnect: true,
+        pingTimeout: 0,  // No ping timeout
+        pingInterval: 10000  // Ping every 10 seconds to keep connection alive
       });
 
       // Connection successful
@@ -980,23 +970,38 @@ export default function Dashboard({ onLogout }) {
         console.log('Dashboard: Received agents list:', agentsList);
         
         if (Array.isArray(agentsList)) {
-          setAgents(agentsList);
+          // Validate that agents have the expected structure
+          const validAgents = agentsList.filter(agent => 
+            agent && typeof agent === 'object' && agent.agent_id && agent.hostname
+          );
+          
+          if (validAgents.length !== agentsList.length) {
+            console.warn('Dashboard: Some agents have invalid structure:', agentsList);
+          }
+          
+          setAgents(validAgents);
+          console.log('Dashboard: Set agents:', validAgents);
           
           // Refresh dashboard data when agents update
           fetchDashboardData();
           
           // Auto-select first agent if none selected and agents available
-          if (agentsList.length > 0 && !currentAgent) {
-            const firstAgent = agentsList[0];
+          if (validAgents.length > 0 && !currentAgent) {
+            const firstAgent = validAgents[0];
             setCurrentAgent(firstAgent.agent_id);
+            console.log('Dashboard: Auto-selected first agent:', firstAgent.agent_id);
+            console.log('Dashboard: First agent details:', firstAgent);
             
             // Request shells for the first agent
             if (socketRef.current && socketRef.current.connected) {
+              console.log('Dashboard: Auto-requesting shells for first agent:', firstAgent.agent_id);
               socketRef.current.emit('get_shells', firstAgent.agent_id);
+            } else {
+              console.warn('Dashboard: Cannot auto-request shells - socket not connected');
             }
           }
         } else {
-          console.error('Dashboard: Invalid agents list received:', agentsList);
+          console.error('Dashboard: Invalid agents list received (not array):', agentsList);
           setConnectionError('Invalid agents list received from server');
         }
       });
@@ -1006,16 +1011,27 @@ export default function Dashboard({ onLogout }) {
         if (!isMountedRef.current) return;
         
         console.log('Dashboard: Received shells list:', shellsList);
+        console.log('Dashboard: Shells type:', typeof shellsList);
+        console.log('Dashboard: Is array:', Array.isArray(shellsList));
+        console.log('Dashboard: Current agent when shells received:', currentAgent);
         
         if (Array.isArray(shellsList)) {
           setShells(shellsList);
           
-          // Auto-select default shell if none selected
-          if (shellsList.length > 0 && !currentShell) {
-            const defaultShell = shellsList.includes('cmd') ? 'cmd' : 
-                               shellsList.includes('bash') ? 'bash' : shellsList[0];
-            setCurrentShell(defaultShell);
+          if (shellsList.length > 0) {
+            console.log('Dashboard: Setting shells:', shellsList);
+            // Auto-select default shell if none selected
+            if (!currentShell) {
+              const defaultShell = shellsList.includes('cmd') ? 'cmd' : 
+                                 shellsList.includes('bash') ? 'bash' : shellsList[0];
+              console.log('Dashboard: Auto-selecting shell:', defaultShell);
+              setCurrentShell(defaultShell);
+            }
+          } else {
+            console.warn('Dashboard: Received empty shells array');
           }
+        } else {
+          console.error('Dashboard: Received invalid shells list:', shellsList);
         }
       });
 
@@ -1063,13 +1079,26 @@ export default function Dashboard({ onLogout }) {
 
   // Handle agent selection
   const handleAgentSelect = (agentId) => {
+    console.log('Dashboard: Agent selected:', agentId);
+    console.log('Dashboard: Available agents:', agents);
+    
+    // Find the agent object
+    const selectedAgentObj = agents.find(a => a.agent_id === agentId);
+    console.log('Dashboard: Selected agent object:', selectedAgentObj);
+    
     setCurrentAgent(agentId);
     setShells([]);
     setCurrentShell('');
     
     if (agentId && socketRef.current && socketRef.current.connected) {
       console.log('Dashboard: Requesting shells for agent:', agentId);
+      console.log('Dashboard: Socket connected:', socketRef.current.connected);
       socketRef.current.emit('get_shells', agentId);
+    } else {
+      console.warn('Dashboard: Cannot request shells - no agentId or socket not connected');
+      console.log('Dashboard: AgentId:', agentId);
+      console.log('Dashboard: Socket exists:', !!socketRef.current);
+      console.log('Dashboard: Socket connected:', socketRef.current?.connected);
     }
   };
 

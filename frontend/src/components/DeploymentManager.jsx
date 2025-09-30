@@ -385,8 +385,8 @@ export default function DeploymentManager({
                 {!isConnected ? 'Not connected' : agents.length === 0 ? 'No agents available' : 'Select Agent'}
               </option>
               {agents.map(agent => (
-                <option key={agent.agent_id} value={agent.agent_id}>
-                  {agent.hostname} ({agent.agent_id})
+                <option key={agent.agent_id || agent} value={agent.agent_id || agent}>
+                  {agent.hostname ? `${agent.hostname} (${agent.agent_id})` : (agent.agent_id || agent)}
                 </option>
               ))}
             </select>
