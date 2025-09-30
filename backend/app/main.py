@@ -30,7 +30,7 @@ def get_cors_origins():
         ]
     else:
         return [
-            os.getenv('FRONTEND_URL', 'https://deployx-nu.vercel.app'),
+            os.getenv('FRONTEND_URL', 'https://deployxsystem.vercel.app'),
             os.getenv('FRONTEND_LOCAL_URL', 'http://localhost:5173'),
             "http://127.0.0.1:5173",
             os.getenv('FRONTEND_ALT_URL', 'http://localhost:3000'),
