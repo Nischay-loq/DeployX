@@ -1479,22 +1479,22 @@ export default function Dashboard({ onLogout }) {
               <span className="text-white font-bold text-xl font-display">DX</span>
             </div>
             <div>
-              <h1 className="text-2xl font-bold font-display text-white">DeployX Dashboard</h1>
-              <p className="text-sm text-gray-400">
+              <h1 className="text-2xl font-bold font-display text-white">DeployX</h1>
+              {/* <p className="text-sm text-gray-400">
                 {user?.username ? `Welcome back, ${user.username}` : 'Remote System Management Console'}
-              </p>
+              </p> */}
             </div>
           </div>
           
           <div className="flex items-center gap-4">
             {/* Search */}
             <div className="relative hidden md:block">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input 
+              {/* <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" /> */}
+              {/* <input 
                 type="text" 
                 placeholder="Search..." 
                 className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
-              />
+              /> */}
             </div>
             
             {/* Notifications */}
