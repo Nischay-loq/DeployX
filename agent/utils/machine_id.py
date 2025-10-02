@@ -191,10 +191,26 @@ def get_system_info() -> dict:
     """
     try:
         import psutil
+        import socket
         
         # Get memory info
         memory = psutil.virtual_memory()
         disk = psutil.disk_usage('/')
+        
+        # Get IP address
+        ip_address = "0.0.0.0"
+        try:
+            # Try to get the actual IP address by connecting to an external server
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip_address = s.getsockname()[0]
+            s.close()
+        except Exception:
+            try:
+                # Fallback: get hostname IP
+                ip_address = socket.gethostbyname(socket.gethostname())
+            except Exception:
+                ip_address = "0.0.0.0"
         
         return {
             "hostname": platform.node(),
@@ -209,10 +225,26 @@ def get_system_info() -> dict:
             "memory_available": memory.available,
             "disk_total": disk.total,
             "disk_free": disk.free,
-            "machine_id": get_machine_id()
+            "machine_id": get_machine_id(),
+            "ip_address": ip_address
         }
     except ImportError:
         # Fallback without psutil
+        import socket
+        
+        # Get IP address
+        ip_address = "0.0.0.0"
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip_address = s.getsockname()[0]
+            s.close()
+        except Exception:
+            try:
+                ip_address = socket.gethostbyname(socket.gethostname())
+            except Exception:
+                ip_address = "0.0.0.0"
+        
         return {
             "hostname": platform.node(),
             "os": platform.system(),
@@ -221,7 +253,8 @@ def get_system_info() -> dict:
             "architecture": platform.machine(),
             "processor": platform.processor(),
             "python_version": platform.python_version(),
-            "machine_id": get_machine_id()
+            "machine_id": get_machine_id(),
+            "ip_address": ip_address
         }
     except Exception as e:
         logger.error(f"Error getting system info: {e}")
@@ -229,6 +262,7 @@ def get_system_info() -> dict:
             "hostname": platform.node(),
             "os": platform.system(),
             "machine_id": get_machine_id(),
+            "ip_address": "0.0.0.0",
             "error": str(e)
         }
 

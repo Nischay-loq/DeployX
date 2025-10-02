@@ -18,7 +18,9 @@ export default function App() {
     setIsLoading(false);
 
     // Subscribe to auth change events instead of polling
-    const handler = () => setIsAuthenticated(authService.isLoggedIn());
+    const handler = () => {
+      setIsAuthenticated(authService.isLoggedIn());
+    };
     window.addEventListener('auth:changed', handler);
     return () => {
       window.removeEventListener('auth:changed', handler);
@@ -31,7 +33,7 @@ export default function App() {
     setIsAuthenticated(false);
   };
 
-  // Professional loading screen
+  // Professional loading screen (initial app load only)
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">

@@ -57,6 +57,8 @@ from app.Deployments import models as deployment_models  # Import deployment mod
 from app.files import models as file_models  # Import file models
 from app.auth.database import get_db
 from app.agents import crud as agent_crud, schemas as agent_schemas
+from app.Devices import crud as device_crud
+from app.grouping.models import Device
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -73,7 +75,7 @@ sio = socketio.AsyncServer(
 )
 
 models.Base.metadata.create_all(bind=engine)
-agent_models.Base.metadata.create_all(bind=engine)
+# Device model is now in grouping.models, no need for separate agent_models Base
 
 # Create FastAPI app
 app = FastAPI(title="Remote Command Execution Backend")
@@ -352,18 +354,37 @@ conn_manager = ConnectionManager()
 
 # Helper function to get and send agent list
 async def _update_and_send_agent_list(sid=None):
-    """Helper to fetch agents from DB, update status, and emit to frontends."""
+    """Helper to fetch agents from devices table, update status, and emit to frontends."""
     db = next(get_db())
     try:
-        db_agents = agent_crud.get_agents(db, limit=1000)
+        # Get all devices that have agent_id (indicating they are agents)
+        db_devices = db.query(Device).filter(Device.agent_id.isnot(None)).all()
         online_agent_ids = set(conn_manager.get_agent_list())
         
         agents_with_status = []
-        for agent in db_agents:
-            # Use from_orm to convert SQLAlchemy model to Pydantic model
-            agent_pydantic = agent_schemas.AgentResponse.from_orm(agent)
-            agent_info = agent_pydantic.model_dump(mode='json')  # Use JSON mode for datetime serialization
-            agent_info['status'] = 'online' if agent.agent_id in online_agent_ids else 'offline'
+        for device in db_devices:
+            # Convert device data to agent format for compatibility
+            agent_info = {
+                'id': device.id,
+                'agent_id': device.agent_id,
+                'machine_id': device.machine_id,
+                'hostname': device.device_name,
+                'os': device.os,
+                'os_version': device.os_version,
+                'os_release': device.os_release,
+                'processor': device.processor,
+                'python_version': device.python_version,
+                'cpu_count': device.cpu_count,
+                'memory_total': device.memory_total,
+                'memory_available': device.memory_available,
+                'disk_total': device.disk_total,
+                'disk_free': device.disk_free,
+                'shells': device.shells,
+                'status': 'online' if device.agent_id in online_agent_ids else 'offline',
+                'last_seen': device.last_seen.isoformat() if device.last_seen else None,
+                'updated_at': device.updated_at.isoformat() if device.updated_at else None,
+                'system_info': device.system_info
+            }
             agents_with_status.append(agent_info)
 
         target = sid if sid else None
@@ -395,11 +416,22 @@ async def disconnect(sid):
         connection_type, agent_id = conn_manager.remove_connection(sid)
         
         if connection_type == 'agent' and agent_id:
-            # Update agent status in the database to 'offline'
+            # Update device status in the database to 'offline'
             db = next(get_db())
             try:
-                agent_crud.update_agent_status(db, agent_id, "offline")
-                logger.info(f"Agent {agent_id} status updated to offline in database.")
+                device = device_crud.update_device_status(db, agent_id, "offline")
+                logger.info(f"Agent {agent_id} status updated to offline in devices table.")
+                
+                # Broadcast device status change to all frontends immediately
+                if device:
+                    await sio.emit('device_status_changed', {
+                        'agent_id': device.agent_id,
+                        'device_name': device.device_name,
+                        'status': 'offline',
+                        'last_seen': device.last_seen.isoformat() if device.last_seen else None,
+                        'ip_address': device.ip_address
+                    })
+                    logger.info(f"Broadcasted offline status for agent {device.agent_id}")
             finally:
                 db.close()
 
@@ -458,7 +490,7 @@ async def agent_register(sid, data):
         logger.info(f"Agent registration request from {sid} with data: {data}")
         
         # Validate data
-        reg_data = agent_schemas.AgentRegistrationRequest(**data)
+        reg_data = agent_schemas.DeviceRegistrationRequest(**data)
         
         # Debug shells
         logger.info(f"Agent {reg_data.agent_id} registering with shells: {reg_data.shells}")
@@ -466,8 +498,8 @@ async def agent_register(sid, data):
         # Use a database session
         db = next(get_db())
         try:
-            agent = agent_crud.register_or_update_agent(db, reg_data)
-            logger.info(f"Agent {agent.agent_id} registered/updated in database with shells: {agent.shells}")
+            device = device_crud.register_or_update_device(db, reg_data)
+            logger.info(f"Agent {device.agent_id} registered/updated in devices table.")
         finally:
             db.close()
             
@@ -476,6 +508,15 @@ async def agent_register(sid, data):
         # Verify shells were stored
         stored_shells = conn_manager.get_agent_shells(reg_data.agent_id)
         logger.info(f"Verified stored shells for {reg_data.agent_id}: {stored_shells}")
+        # Broadcast device status change to all frontends immediately
+        await sio.emit('device_status_changed', {
+            'agent_id': device.agent_id,
+            'device_name': device.device_name,
+            'status': 'online',
+            'last_seen': device.last_seen.isoformat() if device.last_seen else None,
+            'ip_address': device.ip_address
+        })
+        logger.info(f"Broadcasted online status for agent {device.agent_id}")
         
         # Notify all frontends about the updated agent list
         await _update_and_send_agent_list()
@@ -510,6 +551,25 @@ async def get_agents(sid):
     except Exception as e:
         logger.error(f"Error getting agents: {e}")
 
+@sio.event
+async def agent_heartbeat(sid, data):
+    """Handle agent heartbeat to update last_seen and keep status online"""
+    try:
+        agent_id = data.get('agent_id') if isinstance(data, dict) else None
+        
+        # Get agent_id from connection manager if not provided
+        if not agent_id:
+            agent_id = conn_manager.get_agent_by_sid(sid)
+        
+        if agent_id:
+            db = next(get_db())
+            try:
+                device_crud.update_device_last_seen(db, agent_id)
+                logger.debug(f"Heartbeat received from agent {agent_id}")
+            finally:
+                db.close()
+    except Exception as e:
+        logger.error(f"Error handling heartbeat: {e}")
 
 @sio.event
 async def start_shell(sid, data):
@@ -726,13 +786,30 @@ async def health_check():
 # Get agents endpoint (REST API alternative)
 @app.get("/api/agents")
 async def get_agents_rest():
-    agents_info = {}
-    for agent_id, info in conn_manager.agents.items():
-        agents_info[agent_id] = {
-            "shells": info["shells"],
-            "connected_at": info["connected_at"].isoformat()
-        }
-    return {"agents": agents_info}
+    db = next(get_db())
+    try:
+        # Get device data for all agents
+        db_devices = db.query(Device).filter(Device.agent_id.isnot(None)).all()
+        online_agent_ids = set(conn_manager.get_agent_list())
+        
+        agents_info = {}
+        for device in db_devices:
+            if device.agent_id:
+                connection_info = conn_manager.agents.get(device.agent_id, {})
+                agents_info[device.agent_id] = {
+                    "device_name": device.device_name,
+                    "ip_address": device.ip_address,
+                    "mac_address": device.mac_address,
+                    "os": device.os,
+                    "status": "online" if device.agent_id in online_agent_ids else "offline",
+                    "shells": device.shells or connection_info.get("shells", []),
+                    "connected_at": connection_info.get("connected_at", "").isoformat() if connection_info.get("connected_at") else None,
+                    "last_seen": device.last_seen.isoformat() if device.last_seen else None,
+                    "system_info": device.system_info
+                }
+        return {"agents": agents_info}
+    finally:
+        db.close()
 
 
 @app.get("/")

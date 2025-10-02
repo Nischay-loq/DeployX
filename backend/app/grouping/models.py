@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, UniqueConstraint
+from sqlalchemy import Column, Integer, BigInteger, String, Text, ForeignKey, DateTime, UniqueConstraint, JSON
+from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.orm import relationship
 from app.auth.database import Base  # assuming you have a common Base
 from sqlalchemy.sql import func  # <-- import func for default timestamp
@@ -36,13 +37,29 @@ class Device(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     device_name = Column(String(100))
-    ip_address = Column(String(45), nullable=False)  # IPv4 or IPv6 address
+    ip_address = Column(String(45), nullable=False)  # IPv4 or IPv6 address as string for compatibility
     mac_address = Column(String(17))
     os = Column(String(50))
     status = Column(String(20))
     connection_type = Column(String(10), nullable=True)
     last_seen = Column(DateTime, default=func.now())
     group_id = Column(Integer, ForeignKey("device_groups.id", ondelete="SET NULL"))
+    
+    # Agent-related fields
+    agent_id = Column(String(255))
+    machine_id = Column(String(255))
+    os_version = Column(String(255))
+    os_release = Column(String(255))
+    processor = Column(String(255))
+    python_version = Column(String(50))
+    cpu_count = Column(Integer)
+    memory_total = Column(BigInteger)  # in bytes
+    memory_available = Column(BigInteger)  # in bytes
+    disk_total = Column(BigInteger)  # in bytes
+    disk_free = Column(BigInteger)  # in bytes
+    shells = Column(JSON)  # List of available shells
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    system_info = Column(JSON)  # Additional system information
 
     group = relationship("DeviceGroup", foreign_keys=[group_id])
     device_group_mappings = relationship("DeviceGroupMap", foreign_keys="DeviceGroupMap.device_id", back_populates="device")

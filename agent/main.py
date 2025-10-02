@@ -72,14 +72,13 @@ async def main():
                 # Detect available shells
                 shells = detect_shells()
                 logger.info(f"Detected shells: {shells}")
-                logger.info(f"Shells type: {type(shells)}")
                 logger.info(f"Number of shells detected: {len(shells) if shells else 0}")
                 
                 if not shells:
                     logger.error("No shells detected! This is a critical issue.")
                 else:
                     logger.info(f"Shell details: {[(name, path) for name, path in shells.items()]}")
-                
+
                 # Register agent with backend
                 logger.info("Registering agent with backend...")
                 registration_success = await connection.register_agent(shells)
@@ -88,14 +87,25 @@ async def main():
                 else:
                     logger.error("Agent registration failed")
                 
+                # Heartbeat interval (in seconds)
+                heartbeat_interval = 30  
+                last_heartbeat = 0
+
                 # Keep the agent running until running flag is cleared
                 while running.is_set():
                     try:
+                        await asyncio.sleep(1)
+
+                        # Send periodic heartbeat
+                        last_heartbeat += 1
+                        if last_heartbeat >= heartbeat_interval:
+                            await connection.send_heartbeat()
+                            last_heartbeat = 0
+
                         # Check if connection is still alive
                         if not connection.connected:
                             logger.warning("Connection lost, attempting to reconnect...")
                             break
-                        await asyncio.sleep(1)
                     except asyncio.CancelledError:
                         break
                 
@@ -111,7 +121,6 @@ async def main():
                 retry_count += 1
                 logger.warning(f"Failed to connect, retrying in {retry_delay} seconds... (attempt {retry_count})")
                 await asyncio.sleep(retry_delay)
-                # Keep retry delay low for persistent connection attempts
                 retry_delay = min(retry_delay * 1.2, 10)  # Max 10 second delay
                 
     except KeyboardInterrupt:
