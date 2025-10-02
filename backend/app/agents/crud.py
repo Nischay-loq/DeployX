@@ -1,91 +1,110 @@
-"""CRUD operations for agent management."""
+"""CRUD operations for device management."""
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
 from typing import List, Optional
-from . import models, schemas
-from datetime import datetime
+from app.grouping.models import Device
+from . import schemas
+from datetime import datetime, timezone, timedelta
 
-def get_agent(db: Session, agent_id: str) -> Optional[models.Agent]:
-    """Get agent by agent_id."""
-    return db.query(models.Agent).filter(models.Agent.agent_id == agent_id).first()
+# IST timezone (UTC+5:30)
+IST = timezone(timedelta(hours=5, minutes=30))
 
-def get_agent_by_machine_id(db: Session, machine_id: str) -> Optional[models.Agent]:
-    """Get agent by machine_id."""
-    return db.query(models.Agent).filter(models.Agent.machine_id == machine_id).first()
+def get_ist_now():
+    """Get current time in IST (Indian Standard Time) as naive datetime."""
+    # Return naive datetime representing IST time (without timezone info)
+    # This is because the database DateTime columns don't preserve timezone
+    return datetime.now(IST).replace(tzinfo=None)
 
-def get_agents(db: Session, skip: int = 0, limit: int = 100) -> List[models.Agent]:
-    """Get list of agents with pagination."""
-    return db.query(models.Agent).offset(skip).limit(limit).all()
+def get_device(db: Session, agent_id: str) -> Optional[Device]:
+    """Get device by agent_id."""
+    return db.query(Device).filter(Device.agent_id == agent_id).first()
 
-def get_online_agents(db: Session) -> List[models.Agent]:
-    """Get list of online agents."""
-    return db.query(models.Agent).filter(models.Agent.status == "online").all()
+def get_device_by_id(db: Session, device_id: int) -> Optional[Device]:
+    """Get device by primary key id."""
+    return db.query(Device).filter(Device.id == device_id).first()
 
-def create_agent(db: Session, agent: schemas.AgentCreate) -> models.Agent:
-    """Create a new agent."""
-    db_agent = models.Agent(**agent.model_dump())
-    db_agent.status = "online"  # New agents are considered online when registered
-    db.add(db_agent)
+def get_device_by_machine_id(db: Session, machine_id: str) -> Optional[Device]:
+    """Get device by machine_id."""
+    return db.query(Device).filter(Device.machine_id == machine_id).first()
+
+def get_devices(db: Session, skip: int = 0, limit: int = 100) -> List[Device]:
+    """Get list of devices with pagination."""
+    return db.query(Device).offset(skip).limit(limit).all()
+
+def get_total_devices_count(db: Session) -> int:
+    """Get total count of devices."""
+    return db.query(Device).count()
+
+def get_online_devices(db: Session) -> List[Device]:
+    """Get list of online devices."""
+    return db.query(Device).filter(Device.status == "online").all()
+
+def create_device(db: Session, device: schemas.DeviceCreate) -> Device:
+    """Create a new device."""
+    db_device = Device(**device.model_dump())
+    db_device.status = "online"  # New devices are considered online when registered
+    db_device.last_seen = datetime.utcnow()
+    db.add(db_device)
     db.commit()
-    db.refresh(db_agent)
-    return db_agent
+    db.refresh(db_device)
+    return db_device
 
-def update_agent(db: Session, agent_id: str, agent_update: schemas.AgentUpdate) -> Optional[models.Agent]:
-    """Update agent information."""
-    db_agent = get_agent(db, agent_id)
-    if db_agent:
-        update_data = agent_update.model_dump(exclude_unset=True)
+def update_device(db: Session, agent_id: str, device_update: schemas.DeviceUpdate) -> Optional[Device]:
+    """Update device information."""
+    db_device = get_device(db, agent_id)
+    if db_device:
+        update_data = device_update.model_dump(exclude_unset=True)
         for field, value in update_data.items():
-            setattr(db_agent, field, value)
-        db_agent.updated_at = datetime.utcnow()
+            setattr(db_device, field, value)
+        db_device.updated_at = get_ist_now()
         db.commit()
-        db.refresh(db_agent)
-    return db_agent
+        db.refresh(db_device)
+    return db_device
 
-def update_agent_status(db: Session, agent_id: str, status: str) -> Optional[models.Agent]:
-    """Update agent status."""
-    db_agent = get_agent(db, agent_id)
-    if db_agent:
-        db_agent.status = status
-        db_agent.last_seen = datetime.utcnow()
-        db_agent.updated_at = datetime.utcnow()
+def update_device_status(db: Session, agent_id: str, status: str) -> Optional[Device]:
+    """Update device status."""
+    db_device = get_device(db, agent_id)
+    if db_device:
+        db_device.status = status
+        db_device.last_seen = get_ist_now()
+        db_device.updated_at = get_ist_now()
         db.commit()
-        db.refresh(db_agent)
-    return db_agent
+        db.refresh(db_device)
+    return db_device
 
-def update_agent_last_seen(db: Session, agent_id: str) -> Optional[models.Agent]:
-    """Update agent last seen timestamp."""
-    db_agent = get_agent(db, agent_id)
-    if db_agent:
-        db_agent.last_seen = datetime.utcnow()
-        db_agent.updated_at = datetime.utcnow()
+def update_device_last_seen(db: Session, agent_id: str) -> Optional[Device]:
+    """Update device last seen timestamp."""
+    db_device = get_device(db, agent_id)
+    if db_device:
+        db_device.last_seen = get_ist_now()
+        db_device.updated_at = get_ist_now()
         db.commit()
-        db.refresh(db_agent)
-    return db_agent
+        db.refresh(db_device)
+    return db_device
 
-def delete_agent(db: Session, agent_id: str) -> bool:
-    """Delete an agent."""
-    db_agent = get_agent(db, agent_id)
-    if db_agent:
-        db.delete(db_agent)
+def delete_device(db: Session, agent_id: str) -> bool:
+    """Delete a device."""
+    db_device = get_device(db, agent_id)
+    if db_device:
+        db.delete(db_device)
         db.commit()
         return True
     return False
 
-def register_or_update_agent(db: Session, registration: schemas.AgentRegistrationRequest) -> models.Agent:
-    """Register a new agent or update existing one."""
+def register_or_update_device(db: Session, registration: schemas.DeviceRegistrationRequest) -> Device:
+    """Register a new device or update existing one."""
     # First try to find by agent_id
-    existing_agent = get_agent(db, registration.agent_id)
+    existing_device = get_device(db, registration.agent_id)
     
-    if existing_agent:
-        # Update existing agent
+    if existing_device:
+        # Update existing device
         update_data = {
-            "hostname": registration.hostname,
+            "device_name": registration.device_name,
+            "ip_address": registration.ip_address,
             "os": registration.os,
             "shells": registration.shells,
             "status": "online",
             "system_info": registration.system_info,
-            "last_seen": datetime.utcnow()
+            "last_seen": get_ist_now()
         }
         
         # Update system info fields if available
@@ -94,7 +113,6 @@ def register_or_update_agent(db: Session, registration: schemas.AgentRegistratio
             update_data.update({
                 "os_version": sys_info.get("os_version"),
                 "os_release": sys_info.get("os_release"),
-                "architecture": sys_info.get("architecture"),
                 "processor": sys_info.get("processor"),
                 "python_version": sys_info.get("python_version"),
                 "cpu_count": sys_info.get("cpu_count"),
@@ -106,49 +124,50 @@ def register_or_update_agent(db: Session, registration: schemas.AgentRegistratio
         
         for field, value in update_data.items():
             if value is not None:
-                setattr(existing_agent, field, value)
+                setattr(existing_device, field, value)
         
-        existing_agent.updated_at = datetime.utcnow()
+        existing_device.updated_at = get_ist_now()
         db.commit()
-        db.refresh(existing_agent)
-        return existing_agent
+        db.refresh(existing_device)
+        return existing_device
     else:
-        # Check if there's an agent with the same machine_id but different agent_id
-        machine_agent = get_agent_by_machine_id(db, registration.machine_id)
-        if machine_agent:
-            # Update the existing agent with new agent_id and info
-            machine_agent.agent_id = registration.agent_id
-            machine_agent.hostname = registration.hostname
-            machine_agent.os = registration.os
-            machine_agent.shells = registration.shells
-            machine_agent.status = "online"
-            machine_agent.system_info = registration.system_info
-            machine_agent.last_seen = datetime.utcnow()
-            machine_agent.updated_at = datetime.utcnow()
+        # Check if there's a device with the same machine_id but different agent_id
+        machine_device = get_device_by_machine_id(db, registration.machine_id)
+        if machine_device:
+            # Update the existing device with new agent_id and info
+            machine_device.agent_id = registration.agent_id
+            machine_device.device_name = registration.device_name
+            machine_device.ip_address = registration.ip_address
+            machine_device.os = registration.os
+            machine_device.shells = registration.shells
+            machine_device.status = "online"
+            machine_device.system_info = registration.system_info
+            machine_device.last_seen = get_ist_now()
+            machine_device.updated_at = get_ist_now()
             
             # Update system info fields if available
             sys_info = registration.system_info
             if sys_info:
-                machine_agent.os_version = sys_info.get("os_version")
-                machine_agent.os_release = sys_info.get("os_release")
-                machine_agent.architecture = sys_info.get("architecture")
-                machine_agent.processor = sys_info.get("processor")
-                machine_agent.python_version = sys_info.get("python_version")
-                machine_agent.cpu_count = sys_info.get("cpu_count")
-                machine_agent.memory_total = sys_info.get("memory_total")
-                machine_agent.memory_available = sys_info.get("memory_available")
-                machine_agent.disk_total = sys_info.get("disk_total")
-                machine_agent.disk_free = sys_info.get("disk_free")
+                machine_device.os_version = sys_info.get("os_version")
+                machine_device.os_release = sys_info.get("os_release")
+                machine_device.processor = sys_info.get("processor")
+                machine_device.python_version = sys_info.get("python_version")
+                machine_device.cpu_count = sys_info.get("cpu_count")
+                machine_device.memory_total = sys_info.get("memory_total")
+                machine_device.memory_available = sys_info.get("memory_available")
+                machine_device.disk_total = sys_info.get("disk_total")
+                machine_device.disk_free = sys_info.get("disk_free")
             
             db.commit()
-            db.refresh(machine_agent)
-            return machine_agent
+            db.refresh(machine_device)
+            return machine_device
         else:
-            # Create new agent
-            agent_data = {
+            # Create new device
+            device_data = {
                 "agent_id": registration.agent_id,
                 "machine_id": registration.machine_id,
-                "hostname": registration.hostname,
+                "device_name": registration.device_name,
+                "ip_address": registration.ip_address,
                 "os": registration.os,
                 "shells": registration.shells,
                 "status": "online",
@@ -158,10 +177,9 @@ def register_or_update_agent(db: Session, registration: schemas.AgentRegistratio
             # Add system info fields if available
             sys_info = registration.system_info
             if sys_info:
-                agent_data.update({
+                device_data.update({
                     "os_version": sys_info.get("os_version"),
                     "os_release": sys_info.get("os_release"),
-                    "architecture": sys_info.get("architecture"),
                     "processor": sys_info.get("processor"),
                     "python_version": sys_info.get("python_version"),
                     "cpu_count": sys_info.get("cpu_count"),
@@ -171,8 +189,8 @@ def register_or_update_agent(db: Session, registration: schemas.AgentRegistratio
                     "disk_free": sys_info.get("disk_free"),
                 })
             
-            db_agent = models.Agent(**agent_data)
-            db.add(db_agent)
+            db_device = Device(**device_data)
+            db.add(db_device)
             db.commit()
-            db.refresh(db_agent)
-            return db_agent
+            db.refresh(db_device)
+            return db_device

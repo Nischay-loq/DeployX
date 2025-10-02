@@ -6,7 +6,7 @@ import io from 'socket.io-client';
 
 // Helper function to get API URL from environment
 const getApiUrl = () => {
-  return import.meta.env.VITE_API_URL || 'https://deployx-server.onrender.com';
+  return import.meta.env.VITE_API_URL || 'http://localhost:8000';
 };
 import { 
   Terminal as TerminalIcon, 
@@ -702,7 +702,11 @@ export default function Dashboard({ onLogout }) {
         setTimeout(() => reject(new Error('Request timeout')), 8000)
       );
 
-      const fetchPromise = fetch(`${getApiUrl()}/groups/`, {
+      const apiUrl = getApiUrl();
+      console.log('Dashboard: Using API URL:', apiUrl);
+      console.log('Dashboard: Environment VITE_API_URL:', import.meta.env.VITE_API_URL);
+      
+      const fetchPromise = fetch(`${apiUrl}/groups/`, {
         headers
       });
 
@@ -728,42 +732,8 @@ export default function Dashboard({ onLogout }) {
         }
       } else {
         console.error('Dashboard: Failed to fetch groups:', groupsResponse.status, groupsResponse.statusText);
-        // Set fallback data for development
-        setGroupsData([
-          {
-            id: 1,
-            group_name: "Web Servers",
-            description: "Production web servers handling user traffic",
-            color: "#3B82F6",
-            device_count: 5,
-            online_devices: 4,
-            offline_devices: 1,
-            user_id: 1,
-            created_at: "2024-01-01T00:00:00Z"
-          },
-          {
-            id: 2,
-            group_name: "Database Servers",
-            description: "Critical database infrastructure",
-            color: "#10B981",
-            device_count: 3,
-            online_devices: 3,
-            offline_devices: 0,
-            user_id: 1,
-            created_at: "2024-01-02T00:00:00Z"
-          },
-          {
-            id: 3,
-            group_name: "Load Balancers",
-            description: "Traffic distribution and load balancing",
-            color: "#8B5CF6",
-            device_count: 2,
-            online_devices: 2,
-            offline_devices: 0,
-            user_id: 1,
-            created_at: "2024-01-03T00:00:00Z"
-          }
-        ]);
+        // Set empty array when API call fails
+        setGroupsData([]);
       }
     } catch (error) {
       console.error('Dashboard: Error fetching groups data:', error);
@@ -914,7 +884,7 @@ export default function Dashboard({ onLogout }) {
       
       console.log('Dashboard: Initializing socket connection...');
       
-      const socketUrl = import.meta.env.VITE_SOCKET_URL || 'https://deployx-server.onrender.com';
+      const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:8000';
       
       socketRef.current = io(socketUrl, {
         transports: ['websocket', 'polling'],
@@ -1026,6 +996,31 @@ export default function Dashboard({ onLogout }) {
         console.error('Dashboard: Socket error:', data);
         const errorMessage = data?.message || data || 'Unknown error';
         setConnectionError(errorMessage);
+      });
+
+      // Real-time device status changes
+      socketRef.current.on('device_status_changed', (deviceInfo) => {
+        if (!isMountedRef.current) return;
+        
+        console.log('Dashboard: Device status changed in real-time:', deviceInfo);
+        
+        // Update devices data immediately without refetching
+        setDevicesData((prevDevices) => {
+          return prevDevices.map((device) => {
+            if (device.agent_id === deviceInfo.agent_id || device.device_name === deviceInfo.device_name) {
+              return {
+                ...device,
+                status: deviceInfo.status,
+                last_seen: deviceInfo.last_seen,
+                ip_address: deviceInfo.ip_address || device.ip_address
+              };
+            }
+            return device;
+          });
+        });
+        
+        // Also refresh dashboard stats for accurate counts
+        fetchDashboardData();
       });
     };
 

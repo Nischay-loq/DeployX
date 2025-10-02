@@ -156,7 +156,8 @@ class ConnectionManager:
             registration_data = {
                 'agent_id': self.agent_id,
                 'machine_id': self.machine_id,
-                'hostname': self.system_info.get('hostname'),
+                'device_name': self.system_info.get('hostname'),
+                'ip_address': self.system_info.get('ip_address', '0.0.0.0'),
                 'os': self.system_info.get('os'),
                 'shells': list(shells.keys()),
                 'system_info': self.system_info
@@ -166,4 +167,16 @@ class ConnectionManager:
             return True
         except Exception as e:
             logger.error(f"Failed to register agent: {e}")
+            return False
+
+    async def send_heartbeat(self):
+        """Send heartbeat to backend to update last_seen and maintain online status."""
+        try:
+            if not self.connected:
+                return False
+            
+            await self.emit('agent_heartbeat', {'agent_id': self.agent_id})
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send heartbeat: {e}")
             return False

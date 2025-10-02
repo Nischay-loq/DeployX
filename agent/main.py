@@ -68,10 +68,21 @@ async def main():
             # Register agent with backend
             await connection.register_agent(shells)
             
+            # Heartbeat interval (in seconds)
+            heartbeat_interval = 30  # Send heartbeat every 30 seconds
+            last_heartbeat = 0
+            
             # Keep the agent running until running flag is cleared
             while running.is_set():
                 try:
                     await asyncio.sleep(1)
+                    
+                    # Send periodic heartbeat
+                    last_heartbeat += 1
+                    if last_heartbeat >= heartbeat_interval:
+                        await connection.send_heartbeat()
+                        last_heartbeat = 0
+                        
                 except asyncio.CancelledError:
                     break
                 
