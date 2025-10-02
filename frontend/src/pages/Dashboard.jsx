@@ -271,27 +271,44 @@ export default function Dashboard({ onLogout }) {
     };
   }, [showProfileDropdown]);
 
-  // Optimized data loading when sections change
+  // Optimized data loading - only load on initial mount, section changes use cached data
   useEffect(() => {
-    const loadSectionData = async () => {
-      if (activeSection === 'devices') {
-        // Force refresh devices data to ensure group information is current
-        await fetchDevicesData(true);
-      } else if (activeSection === 'groups') {
-        // Load both groups and devices for group management
-        await Promise.all([
-          fetchGroupsData(true),
-          fetchDevicesData(true)
-        ]);
-      } else if (activeSection === 'overview') {
-        // Refresh dashboard stats when returning to overview
-        await fetchDashboardData();
+    const loadInitialData = async () => {
+      // Only load data on first mount
+      if (initialLoading) {
+        console.log('📦 Dashboard: Loading initial data for section:', activeSection);
+        
+        // Load only what's needed for the initial section
+        if (activeSection === 'overview') {
+          await fetchDashboardData();
+        } else if (activeSection === 'devices') {
+          await fetchDevicesData(false); // Use cache if available
+        } else if (activeSection === 'groups') {
+          await Promise.all([
+            fetchGroupsData(false),
+            fetchDevicesData(false)
+          ]);
+        }
+        // Other sections load data on-demand when user navigates to them
+        
+        setInitialLoading(false);
       }
-      setInitialLoading(false);
     };
 
-    loadSectionData();
-  }, [activeSection]);
+    loadInitialData();
+  }, []); // Only run once on mount
+  
+  // Lazy load data when switching to sections that need it
+  useEffect(() => {
+    if (!initialLoading && activeSection === 'devices' && devicesData.length === 0) {
+      fetchDevicesData(false);
+    } else if (!initialLoading && activeSection === 'groups' && (groupsData.length === 0 || devicesData.length === 0)) {
+      Promise.all([
+        groupsData.length === 0 ? fetchGroupsData(false) : Promise.resolve(),
+        devicesData.length === 0 ? fetchDevicesData(false) : Promise.resolve()
+      ]);
+    }
+  }, [activeSection, initialLoading]);
 
   // Debounced search for better performance
   useEffect(() => {
@@ -446,30 +463,30 @@ export default function Dashboard({ onLogout }) {
         'Content-Type': 'application/json'
       };
       
-      // Fetch dashboard stats
-      const statsResponse = await fetch(`${getApiUrl()}/api/dashboard/stats`, {
-        headers
-      });
+      // Fetch all dashboard data in parallel for faster loading
+      const apiUrl = getApiUrl();
+      const [statsResponse, activityResponse, chartResponse, metricsResponse, trendsResponse] = await Promise.allSettled([
+        fetch(`${apiUrl}/api/dashboard/stats`, { headers }),
+        fetch(`${apiUrl}/api/dashboard/recent-activity`, { headers }),
+        fetch(`${apiUrl}/api/dashboard/device-status-chart`, { headers }),
+        fetch(`${apiUrl}/api/dashboard/system-metrics`, { headers }),
+        fetch(`${apiUrl}/api/dashboard/deployment-trends`, { headers })
+      ]);
       
-      if (statsResponse.ok) {
-        const statsData = await statsResponse.json();
+      // Process stats response
+      if (statsResponse.status === 'fulfilled' && statsResponse.value.ok) {
+        const statsData = await statsResponse.value.json();
         console.log('Dashboard: Received stats data:', statsData);
         setDashboardStats(statsData);
-      } else if (statsResponse.status === 401) {
+      } else if (statsResponse.status === 'fulfilled' && statsResponse.value.status === 401) {
         console.log('Dashboard: Authentication failed');
-        // Only auto-logout for non-persistent sessions
         if (!authService.isPersistentSession()) {
-          console.log('Non-persistent session - auto-logging out');
           authService.logout();
           onLogout();
           return;
-        } else {
-          console.log('Persistent session - not auto-logging out, user must manually logout');
-          // For persistent sessions, show error but don't logout
         }
       } else {
-        console.error('Dashboard: Failed to fetch stats:', statsResponse.status, statsResponse.statusText);
-        // Use fallback data for better user experience
+        console.error('Dashboard: Failed to fetch stats');
         setDashboardStats({
           devices: { total: agents.length, online: agents.filter(a => a.status === 'connected').length, offline: agents.filter(a => a.status !== 'connected').length, health_percentage: agents.length > 0 ? Math.round((agents.filter(a => a.status === 'connected').length / agents.length) * 100) : 0 },
           deployments: { total: 0, successful: 0, failed: 0, pending: 0, success_rate: 0 },
@@ -480,72 +497,38 @@ export default function Dashboard({ onLogout }) {
         });
       }
       
-      // Fetch recent activity
-      const activityResponse = await fetch(`${getApiUrl()}/api/dashboard/recent-activity`, {
-        headers
-      });
-      
-      if (activityResponse.ok) {
-        const activityData = await activityResponse.json();
+      // Process activity response
+      if (activityResponse.status === 'fulfilled' && activityResponse.value.ok) {
+        const activityData = await activityResponse.value.json();
         console.log('Dashboard: Received activity data:', activityData);
         setRecentActivity(activityData.activity || []);
-      } else if (activityResponse.status === 401) {
-        console.log('Dashboard: Authentication failed for activity data');
-        // Only auto-logout for non-persistent sessions
+      } else if (activityResponse.status === 'fulfilled' && activityResponse.value.status === 401) {
         if (!authService.isPersistentSession()) {
           authService.logout();
           onLogout();
           return;
         }
-      } else {
-        console.error('Dashboard: Failed to fetch activity:', activityResponse.status, activityResponse.statusText);
       }
       
-      // Fetch device chart data
-      const chartResponse = await fetch(`${getApiUrl()}/api/dashboard/device-status-chart`, {
-        headers
-      });
-      
-      if (chartResponse.ok) {
-        const chartData = await chartResponse.json();
+      // Process chart response
+      if (chartResponse.status === 'fulfilled' && chartResponse.value.ok) {
+        const chartData = await chartResponse.value.json();
         console.log('Dashboard: Received chart data:', chartData);
         setDeviceChart(chartData.chart_data || []);
-      } else if (chartResponse.status === 401) {
-        console.log('Dashboard: Authentication failed for chart data');
-        // Only auto-logout for non-persistent sessions
-        if (!authService.isPersistentSession()) {
-          authService.logout();
-          onLogout();
-          return;
-        }
-      } else {
-        console.error('Dashboard: Failed to fetch chart:', chartResponse.status, chartResponse.statusText);
       }
       
-      // Fetch system metrics
-      const metricsResponse = await fetch(`${getApiUrl()}/api/dashboard/system-metrics`, {
-        headers
-      });
-      
-      if (metricsResponse.ok) {
-        const metricsData = await metricsResponse.json();
+      // Process metrics response
+      if (metricsResponse.status === 'fulfilled' && metricsResponse.value.ok) {
+        const metricsData = await metricsResponse.value.json();
         console.log('Dashboard: Received metrics data:', metricsData);
         setSystemMetrics(metricsData);
-      } else {
-        console.error('Dashboard: Failed to fetch metrics:', metricsResponse.status, metricsResponse.statusText);
       }
       
-      // Fetch deployment trends
-      const trendsResponse = await fetch(`${getApiUrl()}/api/dashboard/deployment-trends`, {
-        headers
-      });
-      
-      if (trendsResponse.ok) {
-        const trendsData = await trendsResponse.json();
+      // Process trends response
+      if (trendsResponse.status === 'fulfilled' && trendsResponse.value.ok) {
+        const trendsData = await trendsResponse.value.json();
         console.log('Dashboard: Received trends data:', trendsData);
         setDeploymentTrends(trendsData.trends || []);
-      } else {
-        console.error('Dashboard: Failed to fetch trends:', trendsResponse.status, trendsResponse.statusText);
       }
       
     } catch (error) {
@@ -560,10 +543,10 @@ export default function Dashboard({ onLogout }) {
     const fetchStartTime = performance.now();
     
     try {
-      // Check cache first (refresh every 30 seconds)
+      // Check cache first (refresh every 45 seconds for better performance)
       const now = Date.now();
-      if (!forceRefresh && devicesLastFetch && (now - devicesLastFetch) < 30000 && devicesData.length > 0) {
-        console.log('⚡ Dashboard: Using cached devices data');
+      if (!forceRefresh && devicesLastFetch && (now - devicesLastFetch) < 45000 && devicesData.length > 0) {
+        console.log('⚡ Dashboard: Using cached devices data (age: ' + Math.round((now - devicesLastFetch) / 1000) + 's)');
         return;
       }
 
@@ -671,10 +654,10 @@ export default function Dashboard({ onLogout }) {
     const fetchStartTime = performance.now();
     
     try {
-      // Check cache first (refresh every 30 seconds)
+      // Check cache first (refresh every 45 seconds for better performance)
       const now = Date.now();
-      if (!forceRefresh && groupsLastFetch && (now - groupsLastFetch) < 30000 && groupsData.length > 0) {
-        console.log('⚡ Dashboard: Using cached groups data');
+      if (!forceRefresh && groupsLastFetch && (now - groupsLastFetch) < 45000 && groupsData.length > 0) {
+        console.log('⚡ Dashboard: Using cached groups data (age: ' + Math.round((now - groupsLastFetch) / 1000) + 's)');
         return;
       }
 
@@ -848,11 +831,10 @@ export default function Dashboard({ onLogout }) {
     setGroupsLastFetch(null);
     setDevicesLastFetch(null);
     
-    // Fetch fresh data (groups, devices, and dashboard stats)
+    // Fetch fresh data (groups and devices only, stats not needed for group operations)
     await Promise.all([
       fetchGroupsData(true),
-      fetchDevicesData(true),
-      fetchDashboardData() // Add dashboard stats refresh to update overview cards
+      fetchDevicesData(true)
     ]);
     
     // Force re-render for both groups and devices
@@ -873,11 +855,15 @@ export default function Dashboard({ onLogout }) {
   useEffect(() => {
     isMountedRef.current = true;
     
-    // Fetch initial dashboard data
-    fetchDashboardData();
+    // Don't fetch initial data here - it's handled by the section loading effect
     
-    // Set up periodic refresh
-    const interval = setInterval(fetchDashboardData, 30000); // Refresh every 30 seconds
+    // Set up periodic refresh only for overview section (reduced from 30s to 60s)
+    const interval = setInterval(() => {
+      if (activeSection === 'overview') {
+        console.log('🔄 Periodic refresh for overview section');
+        fetchDashboardData();
+      }
+    }, 60000); // Refresh every 60 seconds
     
     const initializeSocket = () => {
       if (socketRef.current) return;
@@ -1467,7 +1453,7 @@ export default function Dashboard({ onLogout }) {
   return (
     <div className="min-h-screen bg-gray-900">
       {/* Header */}
-      <header className="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 px-6 py-4">
+      <header className="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 px-6 py-4 sticky top-0 z-50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-gradient-to-r from-primary-500 to-accent-cyan rounded-xl flex items-center justify-center shadow-lg">
@@ -1529,16 +1515,16 @@ export default function Dashboard({ onLogout }) {
 
               {/* Profile Dropdown Menu */}
               {showProfileDropdown && (
-                <div className="absolute right-0 mt-2 w-56 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50">
-                  <div className="py-2">
-                    <div className="px-4 py-3 border-b border-gray-700">
+                <div className="absolute right-0 mt-2 w-56 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl z-[100] backdrop-blur-sm">
+                  <div className="py-2 bg-gray-800">
+                    <div className="px-4 py-3 border-b border-gray-700 bg-gray-800">
                       <p className="text-white font-medium">{user?.username}</p>
                       <p className="text-gray-400 text-sm">{user?.email}</p>
                     </div>
                     
                     <button
                       onClick={() => handleProfileOptionClick('username')}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-gray-700/50 transition-colors"
+                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-gray-700 bg-gray-800 transition-colors"
                     >
                       <Edit className="w-4 h-4" />
                       <span>Change Username</span>
@@ -1546,7 +1532,7 @@ export default function Dashboard({ onLogout }) {
                     
                     <button
                       onClick={() => handleProfileOptionClick('password')}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-gray-700/50 transition-colors"
+                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-gray-700 bg-gray-800 transition-colors"
                     >
                       <Lock className="w-4 h-4" />
                       <span>Change Password</span>
@@ -1554,16 +1540,16 @@ export default function Dashboard({ onLogout }) {
                     
                     <button
                       onClick={() => handleProfileOptionClick('email')}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-gray-700/50 transition-colors"
+                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-gray-700 bg-gray-800 transition-colors"
                     >
                       <Mail className="w-4 h-4" />
                       <span>Change Email</span>
                     </button>
                     
-                    <div className="border-t border-gray-700 mt-2">
+                    <div className="border-t border-gray-700 mt-2 bg-gray-800">
                       <button
                         onClick={() => handleProfileOptionClick('logout')}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 transition-colors"
+                        className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/20 bg-gray-800 transition-colors"
                       >
                         <LogOut className="w-4 h-4" />
                         <span>Logout</span>
@@ -1571,7 +1557,7 @@ export default function Dashboard({ onLogout }) {
                       
                       <button
                         onClick={() => handleProfileOptionClick('delete-account')}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 transition-colors"
+                        className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/20 bg-gray-800 transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                         <span>Delete Account</span>
@@ -1624,7 +1610,11 @@ export default function Dashboard({ onLogout }) {
 
               {/* Quick Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="card-dark">
+                <div 
+                  className="card-dark cursor-pointer hover:bg-gray-800/80 transition-all hover:scale-105"
+                  onClick={() => setActiveSection('devices')}
+                  title="Click to view all devices"
+                >
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-gray-400 text-sm font-medium">Connected Devices</p>
@@ -1668,7 +1658,11 @@ export default function Dashboard({ onLogout }) {
                   </div>
                 </div>
 
-                <div className="card-dark">
+                <div 
+                  className="card-dark cursor-pointer hover:bg-gray-800/80 transition-all hover:scale-105"
+                  onClick={() => setActiveSection('deployments')}
+                  title="Click to view software deployments"
+                >
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-gray-400 text-sm font-medium">Deployments</p>
@@ -1686,7 +1680,11 @@ export default function Dashboard({ onLogout }) {
                   </div>
                 </div>
 
-                <div className="card-dark">
+                <div 
+                  className="card-dark cursor-pointer hover:bg-gray-800/80 transition-all hover:scale-105"
+                  onClick={() => setActiveSection('deployment')}
+                  title="Click to view command execution"
+                >
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-gray-400 text-sm font-medium">Active Commands</p>
@@ -2268,53 +2266,37 @@ export default function Dashboard({ onLogout }) {
                   <h3 className="text-lg font-semibold text-white">Quick Actions</h3>
                   <Zap className="w-5 h-5 text-yellow-400" />
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
                   <button 
                     onClick={() => setActiveSection('shell')}
-                    className="flex flex-col items-center gap-3 p-4 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-lg transition-all group"
+                    className="flex flex-col items-center gap-3 p-6 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-lg transition-all group"
                   >
-                    <TerminalIcon className="w-8 h-8 text-cyan-400 group-hover:scale-110 transition-transform" />
+                    <TerminalIcon className="w-10 h-10 text-cyan-400 group-hover:scale-110 transition-transform" />
                     <span className="text-white text-sm font-medium">Terminal</span>
                   </button>
                   
                   <button 
                     onClick={() => setActiveSection('files')}
-                    className="flex flex-col items-center gap-3 p-4 bg-green-500/10 hover:bg-green-500/20 border border-green-500/30 rounded-lg transition-all group"
+                    className="flex flex-col items-center gap-3 p-6 bg-green-500/10 hover:bg-green-500/20 border border-green-500/30 rounded-lg transition-all group"
                   >
-                    <FolderOpen className="w-8 h-8 text-green-400 group-hover:scale-110 transition-transform" />
+                    <FolderOpen className="w-10 h-10 text-green-400 group-hover:scale-110 transition-transform" />
                     <span className="text-white text-sm font-medium">Files</span>
                   </button>
                   
                   <button 
                     onClick={() => setActiveSection('deployments')}
-                    className="flex flex-col items-center gap-3 p-4 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-lg transition-all group"
+                    className="flex flex-col items-center gap-3 p-6 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-lg transition-all group"
                   >
-                    <Play className="w-8 h-8 text-purple-400 group-hover:scale-110 transition-transform" />
+                    <Play className="w-10 h-10 text-purple-400 group-hover:scale-110 transition-transform" />
                     <span className="text-white text-sm font-medium">Deploy</span>
                   </button>
                   
                   <button 
-                    onClick={() => setActiveSection('system')}
-                    className="flex flex-col items-center gap-3 p-4 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg transition-all group"
-                  >
-                    <Activity className="w-8 h-8 text-emerald-400 group-hover:scale-110 transition-transform" />
-                    <span className="text-white text-sm font-medium">Monitor</span>
-                  </button>
-                  
-                  <button 
                     onClick={() => setActiveSection('groups')}
-                    className="flex flex-col items-center gap-3 p-4 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-lg transition-all group"
+                    className="flex flex-col items-center gap-3 p-6 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-lg transition-all group"
                   >
-                    <Monitor className="w-8 h-8 text-orange-400 group-hover:scale-110 transition-transform" />
+                    <Monitor className="w-10 h-10 text-orange-400 group-hover:scale-110 transition-transform" />
                     <span className="text-white text-sm font-medium">Groups</span>
-                  </button>
-                  
-                  <button 
-                    onClick={() => setActiveSection('network')}
-                    className="flex flex-col items-center gap-3 p-4 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-lg transition-all group"
-                  >
-                    <Network className="w-8 h-8 text-indigo-400 group-hover:scale-110 transition-transform" />
-                    <span className="text-white text-sm font-medium">Network</span>
                   </button>
                 </div>
               </div>

@@ -49,7 +49,7 @@ export default function Login() {
         type: "success",
         message: "Login successful! Redirecting to dashboard...",
       });
-      // Navigate immediately; App will also gate by auth state
+      // Navigate immediately for instant transition
       navigate("/dashboard");
     } catch (error) {
       setNotification({
