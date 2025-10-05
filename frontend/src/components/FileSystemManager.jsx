@@ -377,18 +377,25 @@ export default function FileSystemManager() {
             if (!isComplete) {
               setTimeout(pollProgress, 2000); // Poll every 2 seconds
             } else {
+              // Deployment complete - re-enable button and show results
+              setIsDeploying(false);
               setShowResults(true);
+              
               const successCount = progressResponse.results.filter(r => r.status === 'success').length;
               const totalCount = progressResponse.results.length;
               
               if (successCount === totalCount) {
-                addNotification(`All ${totalCount} deployments completed successfully!`, 'success');
+                addNotification(`✅ All ${totalCount} deployments completed successfully!`, 'success');
+              } else if (successCount === 0) {
+                addNotification(`❌ All ${totalCount} deployments failed`, 'error');
               } else {
-                addNotification(`${successCount}/${totalCount} deployments successful`, 'warning');
+                addNotification(`⚠️ ${successCount}/${totalCount} deployments successful`, 'warning');
               }
             }
           } catch (error) {
             console.error('Failed to get progress:', error);
+            setIsDeploying(false);
+            addNotification('Failed to fetch deployment progress', 'error');
           }
         };
         
@@ -401,11 +408,9 @@ export default function FileSystemManager() {
       
     } catch (error) {
       console.error('Deployment error:', error);
-      addNotification(`Deployment failed: ${error.message}`, 'error');
-      
-      // Fallback to simulation if real API fails
-      await simulateDeployment(targetDevices);
-    } finally {
+      // Better error message handling
+      const errorMessage = typeof error === 'string' ? error : (error?.message || 'Deployment failed');
+      addNotification(`Deployment failed: ${errorMessage}`, 'error');
       setIsDeploying(false);
     }
   };

@@ -26,11 +26,8 @@ class FilesService {
         }
       }
 
-      const response = await api.post('/files/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      // Don't set Content-Type - let browser set it with boundary for FormData
+      const response = await api.post('/files/upload', formData);
       
       // Check if response has the expected structure
       if (response && response.success !== undefined) {
@@ -46,9 +43,11 @@ class FilesService {
       }
     } catch (error) {
       console.error('Failed to upload files:', error);
+      // Better error message extraction
+      const errorMessage = error?.message || 'Upload failed';
       return {
         success: false,
-        message: error.response?.data?.detail || error.message || 'Upload failed',
+        message: errorMessage,
         file_ids: [],
         files: []
       };

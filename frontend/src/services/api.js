@@ -85,14 +85,21 @@ class ApiClient {
     const url = `${baseUrl}${cleanEndpoint}`;
     const token = this.getToken();
     
+    // Build headers - don't set Content-Type for FormData (browser will set it with boundary)
+    const headers = {
+      'Accept': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` }),
+      ...options.headers,
+    };
+    
+    // Only set Content-Type if body is not FormData
+    if (!(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
+    
     const config = {
       method: options.method || 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-        ...options.headers,
-      },
+      headers,
       ...options,
     };
 
@@ -274,10 +281,11 @@ class ApiClient {
     });
   }
 
-  async post(endpoint, data = null) {
+  async post(endpoint, data = null, options = {}) {
     return this.request(endpoint, {
       method: 'POST',
-      body: data ? JSON.stringify(data) : null,
+      body: data instanceof FormData ? data : (data ? JSON.stringify(data) : null),
+      ...options,
     });
   }
 

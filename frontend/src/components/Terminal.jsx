@@ -432,7 +432,8 @@ const TerminalComponent = ({ height = '70vh' }) => {
     console.log('Attempting to connect to backend...');
     
     try {
-      socketRef.current = io('http://localhost:8000', {
+      const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      socketRef.current = io(socketUrl, {
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionDelay: 1000,

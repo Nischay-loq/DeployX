@@ -731,6 +731,76 @@ async def deployment_command_completed(sid, data):
         logger.error(f"Error handling deployment command completion: {e}")
 
 @sio.event
+async def file_transfer_result(sid, data):
+    """Handle file transfer result from agent"""
+    try:
+        deployment_id = data.get('deployment_id')
+        file_id = data.get('file_id')
+        success = data.get('success', False)
+        message = data.get('message', '')
+        error = data.get('error', '')
+        path_created = data.get('path_created', False)
+        file_path = data.get('file_path', '')
+        
+        logger.info(f"File transfer result - deployment: {deployment_id}, file: {file_id}, success: {success}")
+        
+        # Get agent_id from sid
+        agent_id = conn_manager.get_agent_by_sid(sid)
+        
+        if not agent_id:
+            logger.error(f"Could not find agent for sid {sid}")
+            return
+        
+        # Update database with result
+        from app.auth.database import get_db
+        from app.files import crud
+        from app.grouping.models import Device
+        
+        db = next(get_db())
+        try:
+            # Find device by agent_id
+            device = db.query(Device).filter(Device.agent_id == agent_id).first()
+            
+            if not device:
+                logger.error(f"Could not find device for agent {agent_id}")
+                return
+            
+            # Create deployment result
+            status = "success" if success else "error"
+            result_message = message if success else error
+            
+            crud.create_deployment_result(
+                db, 
+                deployment_id, 
+                device.id, 
+                file_id, 
+                status,
+                result_message,
+                path_created=path_created,
+                error_details=error if not success else None
+            )
+            
+            logger.info(f"Updated deployment result for device {device.id}")
+            
+            # Notify all frontends about the file transfer result
+            await sio.emit('file_transfer_update', {
+                'deployment_id': deployment_id,
+                'device_id': device.id,
+                'device_name': device.device_name,
+                'file_id': file_id,
+                'success': success,
+                'message': result_message,
+                'path_created': path_created
+            })
+            
+        finally:
+            db.close()
+            
+    except Exception as e:
+        logger.error(f"Error handling file transfer result: {e}")
+        logger.exception(e)
+
+@sio.event
 async def execute_deployment_command(sid, data):
     """Handle execute deployment command request from frontend or internal system"""
     try:

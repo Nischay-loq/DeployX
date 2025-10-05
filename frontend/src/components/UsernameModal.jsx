@@ -21,7 +21,8 @@ const UsernameModal = ({ onClose }) => {
     setMessage('');
     
     try {
-      const response = await fetch('http://localhost:8000/auth/update-username', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/auth/update-username`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

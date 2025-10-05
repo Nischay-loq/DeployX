@@ -4,6 +4,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
+import os
 import jwt
 import requests
 from . import models, schemas, utils
@@ -662,7 +663,9 @@ def request_password_change(
         request_password_change.requests = password_reset_requests
         
         # Send reset email
-        reset_link = f"http://localhost:5173/reset-password?token={token}"
+        # Generate password reset link
+        frontend_url = os.environ.get("FRONTEND_URL", "https://deployxsystem.vercel.app")
+        reset_link = f"{frontend_url}/reset-password?token={token}"
         
         try:
             utils.send_email(

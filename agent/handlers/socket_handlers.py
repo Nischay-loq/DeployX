@@ -308,6 +308,116 @@ class SocketEventHandler:
                     'error': error_msg
                 })
 
+    async def handle_receive_file(self, data: Dict[str, Any]):
+        """Handle file transfer from backend."""
+        try:
+            import os
+            import base64
+            from pathlib import Path
+            
+            deployment_id = data.get('deployment_id')
+            file_id = data.get('file_id')
+            filename = data.get('filename')
+            file_data = data.get('file_data')  # Base64 encoded
+            target_path = data.get('target_path')
+            create_path = data.get('create_path_if_not_exists', True)
+            
+            logger.info(f"Received file transfer request: {filename} to {target_path}")
+            
+            if not all([deployment_id, file_id, filename, file_data, target_path]):
+                error_msg = "Missing required file transfer parameters"
+                logger.error(error_msg)
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('file_transfer_result', {
+                        'deployment_id': deployment_id,
+                        'file_id': file_id,
+                        'success': False,
+                        'error': error_msg
+                    })
+                return
+            
+            try:
+                # Decode file data
+                file_bytes = base64.b64decode(file_data)
+                
+                # Create target path if it doesn't exist
+                target_dir = Path(target_path)
+                if not target_dir.exists():
+                    if create_path:
+                        logger.info(f"Creating directory: {target_path}")
+                        target_dir.mkdir(parents=True, exist_ok=True)
+                        path_created = True
+                    else:
+                        error_msg = f"Target path does not exist: {target_path}"
+                        logger.error(error_msg)
+                        if self._connection and self._connection.connected:
+                            await self._connection.emit('file_transfer_result', {
+                                'deployment_id': deployment_id,
+                                'file_id': file_id,
+                                'success': False,
+                                'error': error_msg
+                            })
+                        return
+                else:
+                    path_created = False
+                
+                # Save file
+                file_path = target_dir / filename
+                logger.info(f"Saving file to: {file_path}")
+                
+                with open(file_path, 'wb') as f:
+                    f.write(file_bytes)
+                
+                file_size = len(file_bytes)
+                success_msg = f"File saved successfully to {file_path} ({file_size} bytes)"
+                if path_created:
+                    success_msg += " (path created)"
+                
+                logger.info(success_msg)
+                
+                # Send success response
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('file_transfer_result', {
+                        'deployment_id': deployment_id,
+                        'file_id': file_id,
+                        'success': True,
+                        'message': success_msg,
+                        'file_path': str(file_path),
+                        'path_created': path_created
+                    })
+                    
+            except PermissionError as e:
+                error_msg = f"Permission denied: {str(e)}"
+                logger.error(error_msg)
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('file_transfer_result', {
+                        'deployment_id': deployment_id,
+                        'file_id': file_id,
+                        'success': False,
+                        'error': error_msg
+                    })
+            except Exception as e:
+                error_msg = f"File save error: {str(e)}"
+                logger.exception(error_msg)
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('file_transfer_result', {
+                        'deployment_id': deployment_id,
+                        'file_id': file_id,
+                        'success': False,
+                        'error': error_msg
+                    })
+                    
+        except Exception as e:
+            error_msg = f"Error handling file transfer: {str(e)}"
+            logger.exception(error_msg)
+            if self._connection and self._connection.connected:
+                await self._connection.emit('file_transfer_result', {
+                    'deployment_id': data.get('deployment_id'),
+                    'file_id': data.get('file_id'),
+                    'success': False,
+                    'error': error_msg
+                })
+
     def get_handlers(self) -> Dict[str, Callable]:
         """Get all event handlers.
         
@@ -326,7 +436,8 @@ class SocketEventHandler:
             'get_shells': self.handle_get_shells,
             'stop_shell_request': self._handle_stop_shell_request,
             'execute_deployment_command': self.handle_execute_deployment_command,
-            'execute_batch_persistent': self.handle_execute_batch_persistent
+            'execute_batch_persistent': self.handle_execute_batch_persistent,
+            'receive_file': self.handle_receive_file
         }
 
     async def _handle_stop_shell_request(self, data: Dict[str, Any]):

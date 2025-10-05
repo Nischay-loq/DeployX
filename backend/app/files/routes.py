@@ -8,6 +8,7 @@ import shutil
 import hashlib
 import json
 import asyncio
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -20,6 +21,9 @@ from app.Devices.crud import get_device, get_devices_by_ids
 from app.grouping.crud import get_group, get_devices_in_groups
 
 router = APIRouter(prefix="/files", tags=["files"])
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Configuration
 UPLOAD_DIR = "uploads"
@@ -177,62 +181,87 @@ async def deploy_files(
 
 async def process_file_deployment(deployment_id: int, files: List[UploadedFile], 
                                 devices: List, deployment_request: schemas.FileDeploymentRequest, db: Session):
-    """Process file deployment asynchronously"""
+    """Process file deployment asynchronously - Real implementation using Socket.IO"""
+    from app.main import sio, conn_manager
+    import base64
     
     # Update deployment status to in_progress
     crud.update_deployment_status(db, deployment_id, "in_progress", started_at=datetime.utcnow())
     
     successful_deployments = 0
     failed_deployments = 0
+    pending_deployments = 0
     
     try:
         for device in devices:
+            # Check if agent is connected
+            if not device.agent_id:
+                logger.warning(f"Device {device.id} ({device.device_name}) has no agent_id")
+                # Create failure result for all files
+                for file_obj in files:
+                    crud.create_deployment_result(
+                        db, deployment_id, device.id, file_obj.id, "error",
+                        "Device has no agent configured",
+                        error_details="Device is not associated with an agent"
+                    )
+                    failed_deployments += 1
+                continue
+            
+            agent_sid = conn_manager.get_agent_sid(device.agent_id)
+            if not agent_sid:
+                logger.warning(f"Agent {device.agent_id} for device {device.id} is not connected")
+                # Create failure result for all files
+                for file_obj in files:
+                    crud.create_deployment_result(
+                        db, deployment_id, device.id, file_obj.id, "error",
+                        f"Agent {device.agent_id} is not connected",
+                        error_details="Agent is offline or disconnected"
+                    )
+                    failed_deployments += 1
+                continue
+            
+            # Deploy each file to this device
             for file_obj in files:
                 try:
-                    # Simulate file deployment (replace with actual deployment logic)
-                    await asyncio.sleep(1)  # Simulate network delay
-                    
-                    # Check if path exists (simulated)
-                    path_exists = await simulate_path_check(device.id, deployment_request.target_path)
-                    
-                    # Create path if needed (simulated)
-                    path_created = False
-                    if not path_exists and deployment_request.create_path_if_not_exists:
-                        path_created = await simulate_path_creation(device.id, deployment_request.target_path)
-                        if not path_created:
-                            crud.create_deployment_result(
-                                db, deployment_id, device.id, file_obj.id, "error",
-                                f"Failed to create path: {deployment_request.target_path}",
-                                path_created=False,
-                                error_details="Path creation failed - permission denied or invalid path"
-                            )
-                            failed_deployments += 1
-                            continue
-                    
-                    # Deploy file (simulated)
-                    deployment_success = await simulate_file_deployment(
-                        device.id, file_obj.file_path, deployment_request.target_path
-                    )
-                    
-                    if deployment_success:
-                        message = f"File deployed successfully to {deployment_request.target_path}"
-                        if path_created:
-                            message += " (path created)"
-                        
-                        crud.create_deployment_result(
-                            db, deployment_id, device.id, file_obj.id, "success",
-                            message, path_created=path_created
-                        )
-                        successful_deployments += 1
-                    else:
+                    # Read file and encode to base64
+                    if not os.path.exists(file_obj.file_path):
                         crud.create_deployment_result(
                             db, deployment_id, device.id, file_obj.id, "error",
-                            "File deployment failed",
-                            error_details="Network error or permission denied"
+                            f"Source file not found: {file_obj.file_path}",
+                            error_details="File may have been deleted from server"
                         )
                         failed_deployments += 1
-                        
+                        continue
+                    
+                    with open(file_obj.file_path, 'rb') as f:
+                        file_data = f.read()
+                    
+                    file_data_b64 = base64.b64encode(file_data).decode('utf-8')
+                    
+                    # Send file to agent via Socket.IO
+                    logger.info(f"Sending file {file_obj.original_filename} to device {device.device_name} (agent: {device.agent_id})")
+                    
+                    await sio.emit('receive_file', {
+                        'deployment_id': deployment_id,
+                        'file_id': file_obj.id,
+                        'filename': file_obj.original_filename,
+                        'file_data': file_data_b64,
+                        'target_path': deployment_request.target_path,
+                        'create_path_if_not_exists': deployment_request.create_path_if_not_exists
+                    }, room=agent_sid)
+                    
+                    # Note: Results will be handled asynchronously via file_transfer_result event
+                    # For now, create a "pending" result that will be updated when agent responds
+                    crud.create_deployment_result(
+                        db, deployment_id, device.id, file_obj.id, "pending",
+                        f"File transfer initiated to {deployment_request.target_path}"
+                    )
+                    pending_deployments += 1
+                    
+                    logger.info(f"File transfer initiated for {file_obj.original_filename} to device {device.device_name}")
+                    
                 except Exception as e:
+                    logger.exception(f"Error deploying file {file_obj.id} to device {device.id}: {e}")
                     crud.create_deployment_result(
                         db, deployment_id, device.id, file_obj.id, "error",
                         f"Deployment error: {str(e)}",
@@ -240,33 +269,64 @@ async def process_file_deployment(deployment_id: int, files: List[UploadedFile],
                     )
                     failed_deployments += 1
         
-        # Update deployment status
-        final_status = "completed" if failed_deployments == 0 else "partial_failure"
-        if successful_deployments == 0:
+        # If we have pending deployments, schedule a task to check and update final status
+        if pending_deployments > 0:
+            # Keep status as in_progress, will be updated when agents respond
+            logger.info(f"Deployment {deployment_id} has {pending_deployments} pending transfers")
+            # Schedule status check after 30 seconds
+            asyncio.create_task(update_deployment_final_status(deployment_id, db))
+        else:
+            # No pending transfers (all failed immediately)
             final_status = "failed"
-        
-        crud.update_deployment_status(db, deployment_id, final_status, completed_at=datetime.utcnow())
+            crud.update_deployment_status(db, deployment_id, final_status, completed_at=datetime.utcnow())
         
     except Exception as e:
+        logger.exception(f"Error in process_file_deployment: {e}")
         crud.update_deployment_status(db, deployment_id, "failed", completed_at=datetime.utcnow())
 
-async def simulate_path_check(device_id: int, path: str) -> bool:
-    """Simulate checking if path exists on device"""
-    # This would be replaced with actual device communication
-    await asyncio.sleep(0.5)
-    return random.random() > 0.3  # 70% chance path exists
-
-async def simulate_path_creation(device_id: int, path: str) -> bool:
-    """Simulate creating path on device"""
-    # This would be replaced with actual device communication
-    await asyncio.sleep(0.5)
-    return random.random() > 0.1  # 90% success rate
-
-async def simulate_file_deployment(device_id: int, file_path: str, target_path: str) -> bool:
-    """Simulate deploying file to device"""
-    # This would be replaced with actual file transfer
-    await asyncio.sleep(1)
-    return random.random() > 0.2  # 80% success rate
+async def update_deployment_final_status(deployment_id: int, db: Session, check_delay: int = 30):
+    """Check deployment results and update final status after delay"""
+    try:
+        # Wait for agents to respond
+        await asyncio.sleep(check_delay)
+        
+        # Get all deployment results
+        results = crud.get_deployment_results(db, deployment_id)
+        
+        if not results:
+            crud.update_deployment_status(db, deployment_id, "failed", completed_at=datetime.utcnow())
+            return
+        
+        pending_count = len([r for r in results if r.status == "pending"])
+        success_count = len([r for r in results if r.status == "success"])
+        error_count = len([r for r in results if r.status == "error"])
+        
+        # Determine final status
+        if pending_count > 0:
+            # Still waiting for some responses, check again later (max 2 more retries)
+            if check_delay > 0:  # Only retry if not already in retry mode
+                logger.info(f"Deployment {deployment_id} still has {pending_count} pending transfers, checking again in 30s")
+                await asyncio.sleep(30)
+                await update_deployment_final_status(deployment_id, db, check_delay=0)
+            else:
+                # Mark pending as timed out
+                logger.warning(f"Deployment {deployment_id} timed out with {pending_count} pending transfers")
+                final_status = "partial_failure" if success_count > 0 else "failed"
+                crud.update_deployment_status(db, deployment_id, final_status, completed_at=datetime.utcnow())
+            return
+        
+        if error_count == 0:
+            final_status = "completed"
+        elif success_count == 0:
+            final_status = "failed"
+        else:
+            final_status = "partial_failure"
+        
+        crud.update_deployment_status(db, deployment_id, final_status, completed_at=datetime.utcnow())
+        logger.info(f"Updated deployment {deployment_id} final status to {final_status}")
+        
+    except Exception as e:
+        logger.exception(f"Error updating deployment final status: {e}")
 
 @router.get("/deployments/{deployment_id}/progress", response_model=schemas.FileDeploymentProgress)
 async def get_deployment_progress(
