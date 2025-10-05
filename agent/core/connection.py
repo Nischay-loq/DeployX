@@ -28,10 +28,8 @@ class ConnectionManager:
             reconnection=True,
             reconnection_attempts=0,  # Infinite reconnection attempts
             reconnection_delay=1,  # Fast reconnection
-            reconnection_delay_max=5,  # Max 5 second delay
-            randomization_factor=0,  # No randomization for consistent reconnection
-            ping_interval=25,  # Keep connection alive
-            ping_timeout=60  # Long ping timeout
+            reconnection_delay_max=5  # Max 5 second delay
+            # Removed randomization_factor, ping_interval, ping_timeout - not compatible with python-socketio 5.x
         )
         self.connected = False
         self._event_handlers: Dict[str, Callable] = {}
