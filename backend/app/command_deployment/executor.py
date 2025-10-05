@@ -24,8 +24,8 @@ class CommandExecutor:
         self.sio = sio
         self.conn_manager = conn_manager
     
-    async def execute_command(self, cmd_id: str, timeout: int = 300) -> bool:
-        """Execute a command by sending it to the appropriate agent with timeout."""
+    async def execute_command(self, cmd_id: str, timeout: int = 0) -> bool:
+        """Execute a command by sending it to the appropriate agent with no timeout (persistent execution)."""
         # Prevent race conditions with locks
         if cmd_id not in self.execution_locks:
             self.execution_locks[cmd_id] = asyncio.Lock()
@@ -69,9 +69,10 @@ class CommandExecutor:
                     logger.error(f"Failed to update command {cmd_id} status to running")
                     return False
                 
-                # Set up timeout handling
-                timeout_task = asyncio.create_task(self._handle_command_timeout(cmd_id, timeout))
-                self.command_timeouts[cmd_id] = timeout_task
+                # Skip timeout handling for persistent execution
+                if timeout > 0:
+                    timeout_task = asyncio.create_task(self._handle_command_timeout(cmd_id, timeout))
+                    self.command_timeouts[cmd_id] = timeout_task
                 
                 # Use the new deployment command system for better tracking
                 await self.sio.emit('execute_deployment_command', {

@@ -1,10 +1,12 @@
 """WebSocket connection handling for DeployX agent."""
+
 import socketio
 import logging
 from typing import Optional, Dict, Any, Callable
 from agent.utils.machine_id import generate_agent_id, get_system_info
 
 logger = logging.getLogger(__name__)
+
 
 class ConnectionManager:
     def __init__(self, server_url: str, agent_id: str = None):
@@ -24,8 +26,12 @@ class ConnectionManager:
             logger=False,  # Reduce logging noise
             engineio_logger=False,
             reconnection=True,
-            reconnection_attempts=5,
-            reconnection_delay=2
+            reconnection_attempts=0,  # Infinite reconnection attempts
+            reconnection_delay=1,  # Fast reconnection
+            reconnection_delay_max=5,  # Max 5 second delay
+            randomization_factor=0,  # No randomization for consistent reconnection
+            ping_interval=25,  # Keep connection alive
+            ping_timeout=60  # Long ping timeout
         )
         self.connected = False
         self._event_handlers: Dict[str, Callable] = {}
@@ -87,12 +93,13 @@ class ConnectionManager:
         """Connect to the backend server."""
         try:
             logger.info(f"Attempting to connect to {self.server_url}")
-            await self.sio.connect(self.server_url, wait_timeout=10)
+            await self.sio.connect(self.server_url, wait_timeout=None)  # No timeout
             self.connected = True
             logger.info("Successfully connected to backend")
             return True
         except Exception as e:
             logger.error(f"Failed to connect to backend: {e}")
+            self.connected = False
             return False
 
     async def disconnect(self):
@@ -153,6 +160,16 @@ class ConnectionManager:
             if not self.system_info:
                 self._initialize_system_info()
 
+            # Debug shell detection
+            logger.info(f"Shells parameter type: {type(shells)}")
+            logger.info(f"Shells content: {shells}")
+            
+            if not shells:
+                logger.warning("No shells detected! Trying to re-detect...")
+                from agent.utils.shell_detector import detect_shells
+                shells = detect_shells()
+                logger.info(f"Re-detected shells: {shells}")
+
             registration_data = {
                 'agent_id': self.agent_id,
                 'machine_id': self.machine_id,
@@ -162,7 +179,8 @@ class ConnectionManager:
                 'shells': list(shells.keys()),
                 'system_info': self.system_info
             }
-            logger.info(f"Registering agent with data: {registration_data}")
+            logger.info(f"Registering agent with shells: {list(shells.keys())}")
+            logger.info(f"Full registration data: {registration_data}")
             await self.emit('agent_register', registration_data)
             return True
         except Exception as e:
