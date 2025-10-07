@@ -70,6 +70,7 @@ export default function Dashboard({ onLogout }) {
   const [connectionError, setConnectionError] = useState(null);
   const socketRef = useRef(null);
   const isMountedRef = useRef(true);
+  const lastErrorTimeRef = useRef(0);
   const user = authService.getCurrentUser();
 
   // Add authentication debugging
@@ -869,13 +870,13 @@ export default function Dashboard({ onLogout }) {
       socketRef.current = io(socketUrl, {
         transports: ['websocket', 'polling'],
         reconnection: true,
-        reconnectionDelay: 500,  // Fast reconnection
-        reconnectionAttempts: 0,  // Infinite reconnection attempts
-        timeout: 0,  // No connection timeout
+        reconnectionDelay: 1000,  // Wait 1 second between attempts
+        reconnectionAttempts: 5,  // Limit to 5 reconnection attempts
+        timeout: 5000,  // 5 second connection timeout
         forceNew: true,
         autoConnect: true,
-        pingTimeout: 0,  // No ping timeout
-        pingInterval: 10000  // Ping every 10 seconds to keep connection alive
+        pingTimeout: 10000,  // 10 second ping timeout
+        pingInterval: 25000  // Ping every 25 seconds (matches backend)
       });
 
       // Connection successful
@@ -902,7 +903,13 @@ export default function Dashboard({ onLogout }) {
       socketRef.current.on('connect_error', (error) => {
         if (!isMountedRef.current) return;
         
-        console.error('Dashboard: Connection error:', error);
+        // Throttle error logging to prevent spam
+        const now = Date.now();
+        if (now - lastErrorTimeRef.current > 5000) { // Only log every 5 seconds
+          console.error('Dashboard: Connection error:', error);
+          lastErrorTimeRef.current = now;
+        }
+        
         setIsConnected(false);
         setConnectionError(`Failed to connect: ${error.message}`);
       });
@@ -923,6 +930,15 @@ export default function Dashboard({ onLogout }) {
         
         // Don't reset dashboard stats on socket disconnect
         // They will be updated via API calls
+      });
+
+      // Reconnection failed after max attempts
+      socketRef.current.on('reconnect_failed', () => {
+        if (!isMountedRef.current) return;
+        
+        console.log('Dashboard: Reconnection failed after maximum attempts');
+        setIsConnected(false);
+        setConnectionError('Connection failed. Please check if the backend server is running and refresh the page.');
       });
 
       // Agents list received
