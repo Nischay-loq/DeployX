@@ -687,6 +687,8 @@ export default function Dashboard({ onLogout }) {
         headers
       });
       
+      const groupsResponse = await Promise.race([fetchPromise, timeoutPromise]);
+      
       if (groupsResponse.ok) {
         const groupsDataResponse = await groupsResponse.json();
         const fetchEndTime = performance.now();
@@ -2330,6 +2332,8 @@ export default function Dashboard({ onLogout }) {
                   >
                     <Monitor className="w-10 h-10 text-orange-400 group-hover:scale-110 transition-transform" />
                     <span className="text-white text-sm font-medium">Groups</span>
+         <Network className="w-8 h-8 text-indigo-400 group-hover:scale-110 transition-transform" />
+                    <span className="text-white text-sm font-medium">Network</span>
                   </button>
                 </div>
               </div>

@@ -27,7 +27,7 @@ async def main():
     parser = argparse.ArgumentParser(description="DeployX Remote Command Execution Agent")
     parser.add_argument(
         "--server", 
-        default="https://deployx-server.onrender.com",  # Changed to hosted backend
+        default="http://localhost:8000",  # Fixed typo
         help="Backend server URL"
     )
     parser.add_argument(
@@ -93,8 +93,8 @@ async def main():
                 else:
                     logger.error("Agent registration failed")
                 
-                # Heartbeat interval (in seconds)
-                heartbeat_interval = 30  
+                # Heartbeat interval (in seconds) - reduced for better connectivity monitoring
+                heartbeat_interval = 10  
                 last_heartbeat = 0
 
                 # Keep the agent running until running flag is cleared
@@ -105,11 +105,14 @@ async def main():
                         # Send periodic heartbeat
                         last_heartbeat += 1
                         if last_heartbeat >= heartbeat_interval:
-                            await connection.send_heartbeat()
+                            heartbeat_success = await connection.send_heartbeat()
+                            if not heartbeat_success:
+                                logger.warning("Heartbeat failed, connection may be lost")
+                                break
                             last_heartbeat = 0
 
                         # Check if connection is still alive
-                        if not connection.connected:
+                        if not connection.connected or not connection.sio.connected:
                             logger.warning("Connection lost, attempting to reconnect...")
                             break
                     except asyncio.CancelledError:
@@ -118,8 +121,9 @@ async def main():
                 # If we exit the inner loop due to disconnection, retry connection
                 if running.is_set() and not connection.connected:
                     logger.info("Connection lost, will retry...")
+                    # Wait a bit longer before reconnecting to avoid race conditions
+                    await asyncio.sleep(3)
                     retry_count = 0  # Reset retry count on disconnection
-                    await asyncio.sleep(retry_delay)
                     continue
                 else:
                     break  # Normal exit

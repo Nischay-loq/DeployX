@@ -52,13 +52,24 @@ class CommandExecutor:
                     )
                     return False
                 
+                # Validate agent connection more thoroughly
                 agent_sid = self.conn_manager.get_agent_sid(cmd.agent_id)
                 if not agent_sid:
-                    logger.error(f"Agent {cmd.agent_id} not connected")
+                    logger.error(f"Agent {cmd.agent_id} not connected - no SID found")
                     command_queue.update_command_status(
                         cmd_id, 
                         CommandStatus.FAILED, 
                         error=f"Agent {cmd.agent_id} not connected"
+                    )
+                    return False
+                
+                # Check if agent is truly connected and responsive
+                if hasattr(self.conn_manager, 'is_agent_connected') and not self.conn_manager.is_agent_connected(cmd.agent_id):
+                    logger.error(f"Agent {cmd.agent_id} appears to be unresponsive (no recent heartbeat)")
+                    command_queue.update_command_status(
+                        cmd_id, 
+                        CommandStatus.FAILED, 
+                        error=f"Agent {cmd.agent_id} is unresponsive"
                     )
                     return False
                 

@@ -70,8 +70,8 @@ sio = socketio.AsyncServer(
     logger=False,  # Disable verbose socket.io logging
     engineio_logger=False,  # Disable verbose engine.io logging
     async_mode='asgi',
-    ping_timeout=0,  # Disable ping timeout - persistent connection
-    ping_interval=10  # Frequent ping to keep connection alive
+    ping_timeout=60,  # 60 second timeout for better stability
+    ping_interval=25  # 25 second ping interval
 )
 
 models.Base.metadata.create_all(bind=engine)
@@ -336,6 +336,21 @@ class ConnectionManager:
         """Get socket ID for an agent"""
         return self.agents.get(agent_id, {}).get('sid')
     
+    def is_agent_connected(self, agent_id: str) -> bool:
+        """Check if agent is truly connected and responsive"""
+        agent_data = self.agents.get(agent_id)
+        if not agent_data:
+            return False
+        
+        # Check if connection is recent (within last 30 seconds)
+        from datetime import datetime, timedelta
+        last_seen = agent_data.get('last_heartbeat', agent_data.get('connected_at'))
+        if last_seen and isinstance(last_seen, datetime):
+            time_diff = datetime.now() - last_seen
+            return time_diff.total_seconds() < 30
+        
+        return True  # Default to true if no timestamp available
+    
     def get_agent_by_sid(self, sid: str) -> str:
         """Get agent ID by session ID"""
         return self.sid_to_agent.get(sid)
@@ -562,6 +577,10 @@ async def agent_heartbeat(sid, data):
             agent_id = conn_manager.get_agent_by_sid(sid)
         
         if agent_id:
+            # Update last heartbeat timestamp in connection manager
+            if agent_id in conn_manager.agents:
+                conn_manager.agents[agent_id]['last_heartbeat'] = datetime.now()
+            
             db = next(get_db())
             try:
                 device_crud.update_device_last_seen(db, agent_id)

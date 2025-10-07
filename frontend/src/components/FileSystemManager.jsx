@@ -939,46 +939,179 @@ export default function FileSystemManager() {
 
       {/* Deployment Results Modal */}
       {showResults && deploymentResults.length > 0 && (
-        <div className="card-dark">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-white">Deployment Results</h3>
-            <button
-              onClick={() => setShowResults(false)}
-              className="text-gray-400 hover:text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          
-          <div className="max-h-64 overflow-y-auto space-y-2">
-            {deploymentResults.map((result, index) => (
-              <div
-                key={index}
-                className={`p-3 rounded-lg border ${
-                  result.status === 'success'
-                    ? 'bg-green-500/10 border-green-500/30'
-                    : 'bg-red-500/10 border-red-500/30'
-                }`}
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-500/20 rounded-lg">
+                  <CheckCircle className="w-6 h-6 text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-white">File Deployment Results</h3>
+                  <p className="text-gray-400">
+                    {deploymentResults.filter(r => r.status === 'success').length} of {deploymentResults.length} operations completed successfully
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowResults(false)}
+                className="text-gray-400 hover:text-white transition-colors"
               >
-                <div className="flex items-start gap-3">
-                  {result.status === 'success' ? (
-                    <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                  ) : (
-                    <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                  )}
-                  <div className="flex-1">
-                    <div className="font-medium text-white">
-                      {result.fileName} → {result.deviceName}
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-hidden p-6">
+              <div className="space-y-6">
+                {/* Summary Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-white">
+                      {deploymentResults.length}
                     </div>
-                    <div className={`text-sm ${
-                      result.status === 'success' ? 'text-green-300' : 'text-red-300'
-                    }`}>
-                      {result.message}
+                    <div className="text-sm text-gray-400">Total Operations</div>
+                  </div>
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-green-400">
+                      {deploymentResults.filter(r => r.status === 'success').length}
                     </div>
+                    <div className="text-sm text-green-300">Successful</div>
+                  </div>
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-red-400">
+                      {deploymentResults.filter(r => r.status === 'error' || r.status === 'failed').length}
+                    </div>
+                    <div className="text-sm text-red-300">Failed</div>
+                  </div>
+                  <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-blue-400">
+                      {deploymentResults.filter(r => r.pathCreated).length}
+                    </div>
+                    <div className="text-sm text-blue-300">Paths Created</div>
+                  </div>
+                </div>
+
+                {/* Detailed Results Table */}
+                <div className="bg-gray-900/50 border border-gray-700 rounded-lg overflow-hidden">
+                  <div className="p-4 border-b border-gray-700">
+                    <h4 className="text-lg font-semibold text-white flex items-center gap-2">
+                      <HardDrive className="w-5 h-5 text-blue-400" />
+                      Deployment Details ({deploymentResults.length} operations)
+                    </h4>
+                  </div>
+                  
+                  <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-800/50 sticky top-0">
+                        <tr className="border-b border-gray-700">
+                          <th className="text-left py-3 px-4 text-gray-300 font-medium">File Name</th>
+                          <th className="text-left py-3 px-4 text-gray-300 font-medium">Device</th>
+                          <th className="text-left py-3 px-4 text-gray-300 font-medium">IP Address</th>
+                          <th className="text-left py-3 px-4 text-gray-300 font-medium">Status</th>
+                          <th className="text-left py-3 px-4 text-gray-300 font-medium">Path Created</th>
+                          <th className="text-left py-3 px-4 text-gray-300 font-medium">Message</th>
+                          <th className="text-left py-3 px-4 text-gray-300 font-medium">Deployed At</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {deploymentResults.map((result, index) => {
+                          const device = devices.find(d => d.id === result.deviceId);
+                          return (
+                            <tr key={index} className="border-b border-gray-700/30 hover:bg-gray-800/30 transition-colors">
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-2">
+                                  <File className="w-4 h-4 text-blue-400" />
+                                  <span className="text-white font-medium">{result.fileName}</span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-white">
+                                {result.deviceName || device?.device_name || `Device ${result.deviceId}`}
+                              </td>
+                              <td className="py-3 px-4 text-gray-400">
+                                {device?.ip_address || 'N/A'}
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                                  result.status === 'success' 
+                                    ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                                    : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                }`}>
+                                  {result.status === 'success' ? (
+                                    <CheckCircle className="w-3 h-3" />
+                                  ) : (
+                                    <AlertCircle className="w-3 h-3" />
+                                  )}
+                                  {result.status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4">
+                                {result.pathCreated ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                                    <Plus className="w-3 h-3" />
+                                    Yes
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-500 text-xs">No</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className={`text-sm ${
+                                  result.status === 'success' ? 'text-green-300' : 'text-red-300'
+                                }`}>
+                                  {result.message}
+                                </div>
+                                {result.errorDetails && (
+                                  <div className="text-xs text-red-400 mt-1 opacity-75">
+                                    {result.errorDetails}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-gray-400 text-sm">
+                                {result.deployedAt ? new Date(result.deployedAt).toLocaleString() : 
+                                 result.status === 'success' ? 'Just now' : 'N/A'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-between items-center pt-4 border-t border-gray-700">
+                  <div className="text-sm text-gray-400">
+                    Target Path: <span className="text-white font-mono">{customPath.trim() || '/tmp/deployed_files'}</span>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        // Clear current results and prepare for new deployment
+                        setDeploymentResults([]);
+                        setShowResults(false);
+                        setCurrentStep(0);
+                        setUploadedFiles([]);
+                        setSelectedGroups([]);
+                        setSelectedDevices([]);
+                        setCustomPath('');
+                      }}
+                      className="btn-secondary"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      New Deployment
+                    </button>
+                    <button
+                      onClick={() => setShowResults(false)}
+                      className="btn-primary"
+                    >
+                      Close
+                    </button>
                   </div>
                 </div>
               </div>
-            ))}
+            </div>
           </div>
         </div>
       )}

@@ -27,9 +27,9 @@ class ConnectionManager:
             engineio_logger=False,
             reconnection=True,
             reconnection_attempts=0,  # Infinite reconnection attempts
-            reconnection_delay=1,  # Fast reconnection
-            reconnection_delay_max=5  # Max 5 second delay
-            # Removed randomization_factor, ping_interval, ping_timeout - not compatible with python-socketio 5.x
+            reconnection_delay=2,  # Slower reconnection to prevent race conditions
+            reconnection_delay_max=10  # Max 10 second delay
+            # Removed ping configuration - not compatible with python-socketio 5.x
         )
         self.connected = False
         self._event_handlers: Dict[str, Callable] = {}
@@ -90,8 +90,14 @@ class ConnectionManager:
     async def connect(self):
         """Connect to the backend server."""
         try:
+            # Check if already connected
+            if self.sio.connected:
+                logger.info("Already connected to backend")
+                self.connected = True
+                return True
+                
             logger.info(f"Attempting to connect to {self.server_url}")
-            await self.sio.connect(self.server_url, wait_timeout=None)  # No timeout
+            await self.sio.connect(self.server_url, wait_timeout=10)  # 10 second timeout
             self.connected = True
             logger.info("Successfully connected to backend")
             return True
@@ -188,11 +194,28 @@ class ConnectionManager:
     async def send_heartbeat(self):
         """Send heartbeat to backend to update last_seen and maintain online status."""
         try:
-            if not self.connected:
+            if not self.connected or not self.sio.connected:
+                logger.warning("Connection lost, marking as disconnected")
+                self.connected = False
                 return False
             
-            await self.emit('agent_heartbeat', {'agent_id': self.agent_id})
+            # Send heartbeat with connection validation
+            success = await self.emit('agent_heartbeat', {
+                'agent_id': self.agent_id,
+                'timestamp': self.sio.eio.ping_timestamp if hasattr(self.sio.eio, 'ping_timestamp') else None
+            })
+            
+            if not success:
+                logger.warning("Heartbeat failed, connection may be lost")
+                self.connected = False
+                return False
+                
             return True
         except Exception as e:
             logger.error(f"Failed to send heartbeat: {e}")
+            self.connected = False
             return False
+
+    def is_alive(self) -> bool:
+        """Check if the connection is truly alive."""
+        return self.connected and self.sio.connected if self.sio else False
