@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import authService from '../services/auth.js';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const PasswordModal = ({ onClose }) => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -11,7 +13,7 @@ const PasswordModal = ({ onClose }) => {
     setMessage('');
     
     try {
-      const response = await fetch('http://localhost:8000/auth/request-password-change', {
+      const response = await fetch(`${API_BASE_URL}/auth/request-password-change`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

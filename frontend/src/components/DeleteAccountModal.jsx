@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import authService from '../services/auth.js';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const DeleteAccountModal = ({ onClose }) => {
   const [password, setPassword] = useState('');
   const [confirmationText, setConfirmationText] = useState('');
@@ -17,7 +19,7 @@ const DeleteAccountModal = ({ onClose }) => {
   const testAPI = async () => {
     try {
       console.log('Testing API connection...');
-      const response = await fetch('http://localhost:8000/auth/test-auth', {
+      const response = await fetch(`${API_BASE_URL}/auth/test-auth`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${authService.getToken()}`,
@@ -40,7 +42,7 @@ const DeleteAccountModal = ({ onClose }) => {
       // First test the API connection
       await testAPI();
       
-      const response = await fetch('http://localhost:8000/auth/check-account-type', {
+      const response = await fetch(`${API_BASE_URL}/auth/check-account-type`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${authService.getToken()}`,
@@ -96,7 +98,7 @@ const DeleteAccountModal = ({ onClose }) => {
       
       console.log('Sending delete request with body:', requestBody);
       
-      const response = await fetch('http://localhost:8000/auth/delete-account', {
+      const response = await fetch(`${API_BASE_URL}/auth/delete-account`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${authService.getToken()}`,

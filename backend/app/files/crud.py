@@ -3,8 +3,10 @@ from sqlalchemy import and_, or_
 from typing import List, Optional
 import json
 from datetime import datetime
-from app.files.models import UploadedFile, FileDeployment, FileDeploymentResult
-from app.files.schemas import FileDeploymentRequest, FileDeploymentResult as FileDeploymentResultSchema
+from app.files.models import (
+    UploadedFile, FileDeployment, FileDeploymentResult,
+    FileDeploymentRequest, FileDeploymentResultSchema
+)
 
 def create_uploaded_file(db: Session, filename: str, original_filename: str, 
                         file_path: str, file_size: int, content_type: str, 

@@ -26,7 +26,6 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
   const googleRequestRef = useRef(null);
   const navigate = useNavigate();
 
-  // Reset form when modal opens/closes or mode changes
   useEffect(() => {
     if (isOpen) {
       setFormData({
@@ -44,7 +43,6 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
     }
   }, [isOpen, initialMode]);
 
-  // Handle escape key
   useEffect(() => {
     const handleEscape = (e) => {
       if (e.key === 'Escape' && isOpen) {
@@ -55,7 +53,6 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
-  // Prevent body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -67,7 +64,6 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
     };
   }, [isOpen]);
 
-  // Load Google Identity Services script once
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -276,7 +272,6 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
         setSuccess('If an account exists for this email, a reset link has been sent. Please check your inbox.');
       } else if (mode === 'signup') {
         if (signupStep === 'form') {
-          // Step 1: Send OTP (don't create user yet)
           await authService.signupRequest({
             username: formData.username,
             email: formData.email,
@@ -285,7 +280,6 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
           setSignupStep('otp');
           setSuccess('OTP sent to your email. Please verify to complete signup.');
         } else if (signupStep === 'otp') {
-          // Step 2: Verify OTP and create user
           await authService.signupComplete(formData.email, formData.otp);
           setSuccess('Account created successfully! Please sign in.');
           setMode('signin');

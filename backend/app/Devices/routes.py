@@ -3,15 +3,43 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from app.auth.database import get_db
 from app.grouping.models import Device
-from app.Devices.schemas import DeviceCreate, DeviceResponse
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+from pydantic import BaseModel
 import json
 
-# Simple in-memory cache
+class DeviceCreate(BaseModel):
+    device_name: str
+    ip_address: str
+    mac_address: str
+    os: str
+    status: str
+    connection_type: Optional[str] = None
+    last_seen: Optional[str] = None
+
+class GroupInfo(BaseModel):
+    id: int
+    group_name: str
+    description: Optional[str] = None
+    color: Optional[str] = None
+
+class DeviceResponse(BaseModel):
+    id: int
+    device_name: Optional[str] = None
+    ip_address: Optional[str] = None
+    mac_address: Optional[str] = None
+    os: Optional[str] = None
+    status: Optional[str] = None
+    connection_type: Optional[str] = None
+    last_seen: Optional[datetime] = None
+    group: Optional[GroupInfo] = None
+    groups: List[GroupInfo] = []
+
+    model_config = {"from_attributes": True}
+
 _devices_cache = {
     "data": None,
     "timestamp": None,
-    "ttl_seconds": 30  # Cache for 30 seconds
+    "ttl_seconds": 30
 }
 
 router = APIRouter(prefix="/devices", tags=["Devices"])
@@ -36,7 +64,6 @@ def get_devices(db: Session = Depends(get_db), force_refresh: bool = False):
     from sqlalchemy.orm import joinedload, selectinload
     from sqlalchemy import and_
     
-    # Return cached data if valid and not force refresh
     if not force_refresh and _is_cache_valid():
         print("Returning cached devices data")
         return _devices_cache["data"]
@@ -44,16 +71,13 @@ def get_devices(db: Session = Depends(get_db), force_refresh: bool = False):
     print("Fetching fresh devices data from database")
     
     try:
-        # Single optimized query with all relationships preloaded
         devices = db.query(Device).options(
-            joinedload(Device.group),  # Eager load direct group
-            selectinload(Device.device_group_mappings).joinedload(DeviceGroupMap.group)  # Preload mapping groups
+            joinedload(Device.group),
+            selectinload(Device.device_group_mappings).joinedload(DeviceGroupMap.group)
         ).all()
         
-        # Fast in-memory processing - no additional DB queries
         result = []
         for device in devices:
-            # Build device dict with preloaded data
             device_dict = {
                 "id": device.id,
                 "device_name": device.device_name,
@@ -63,11 +87,10 @@ def get_devices(db: Session = Depends(get_db), force_refresh: bool = False):
                 "status": device.status,
                 "connection_type": device.connection_type,
                 "last_seen": device.last_seen,
-                "group": device.group,  # Direct group relationship (already loaded)
-                "groups": []  # Additional groups from mapping table
+                "group": device.group,
+                "groups": []
             }
             
-            # Process preloaded group mappings (no DB query)
             if hasattr(device, 'device_group_mappings') and device.device_group_mappings:
                 additional_groups = []
                 for mapping in device.device_group_mappings:
@@ -82,14 +105,11 @@ def get_devices(db: Session = Depends(get_db), force_refresh: bool = False):
             
             result.append(device_dict)
         
-        # Update cache before returning
         _update_cache(result)
         return result
         
     except Exception as e:
         print(f"Error in optimized get_devices: {e}")
-        # Fallback to original method if optimization fails
-        # Fallback to simple query if optimization fails
         devices = db.query(Device).options(joinedload(Device.group)).all()
         fallback_result = [
             {
@@ -176,7 +196,7 @@ def update_device_status(device: DeviceCreate, db: Session = Depends(get_db)):
         print(f"=== ERROR TYPE: {type(e)} ===")
         import traceback
         traceback.print_exc()
-        db.rollback()  # Rollback on error
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 def handle_device_offline(device: Device, db: Session):

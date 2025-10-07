@@ -4,13 +4,10 @@ from app.grouping.models import Device, DeviceGroup
 from datetime import datetime, timezone, timedelta
 import ipaddress
 
-# IST timezone (UTC+5:30)
 IST = timezone(timedelta(hours=5, minutes=30))
 
 def get_ist_now():
     """Get current time in IST (Indian Standard Time) as naive datetime."""
-    # Return naive datetime representing IST time (without timezone info)
-    # This is because the database DateTime columns don't preserve timezone
     return datetime.now(IST).replace(tzinfo=None)
 
 def get_devices(db: Session):
@@ -57,9 +54,7 @@ def get_device_by_machine_id(db: Session, machine_id: str) -> Optional[Device]:
 
 def register_or_update_device(db: Session, registration_data) -> Device:
     """Register a new device or update existing one based on agent registration."""
-    # Support both dict and Pydantic model
     if hasattr(registration_data, 'agent_id'):
-        # Pydantic model
         agent_id = registration_data.agent_id
         machine_id = registration_data.machine_id
         device_name = registration_data.device_name
@@ -68,7 +63,6 @@ def register_or_update_device(db: Session, registration_data) -> Device:
         shells = registration_data.shells
         system_info = registration_data.system_info
     else:
-        # Dict
         agent_id = registration_data.get("agent_id")
         machine_id = registration_data.get("machine_id")
         device_name = registration_data.get("device_name")
@@ -77,11 +71,9 @@ def register_or_update_device(db: Session, registration_data) -> Device:
         shells = registration_data.get("shells")
         system_info = registration_data.get("system_info")
     
-    # First try to find by agent_id
     existing_device = get_device_by_agent_id(db, agent_id)
     
     if existing_device:
-        # Update existing device
         existing_device.device_name = device_name
         existing_device.ip_address = ip_address
         existing_device.os = os_val

@@ -39,7 +39,6 @@ export default function ForgotPassword() {
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(0,255,247,0.12),transparent_35%),radial-gradient(circle_at_80%_80%,rgba(0,168,255,0.12),transparent_35%)]">
-      {/* motion particles */}
       <div className="particles-background">
         {Array.from({ length: 20 }).map((_, i) => (
           <div

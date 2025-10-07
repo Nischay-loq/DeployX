@@ -8,15 +8,14 @@ from email.message import EmailMessage
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from .database import get_db
-from . import models
+from .database import get_db, User
 
 SECRET_KEY = "your-secret-key"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 RESET_TOKEN_EXPIRE_MINUTES = int(os.environ.get("PASSWORD_RESET_TOKEN_MINUTES", "30"))
-FRONTEND_RESET_URL = os.environ.get("FRONTEND_RESET_URL", "https://deployx-nu.vercel.app/reset-password")
+FRONTEND_RESET_URL = os.environ.get("FRONTEND_RESET_URL", "http://localhost:5173/reset-password")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
@@ -174,7 +173,7 @@ def get_current_user(
     db: Session = Depends(get_db)
 ):
     username = verify_token(credentials.credentials)
-    user = db.query(models.User).filter(models.User.username == username).first()
+    user = db.query(User).filter(User.username == username).first()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

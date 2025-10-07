@@ -2,22 +2,19 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import datetime, timedelta
-from app.auth.database import get_db
+from app.auth.database import get_db, User
 from app.auth.utils import get_current_user
-from app.auth.models import User
-from . import crud, schemas
+from . import crud
 from . import models
 
-# Simple in-memory cache for groups
 _groups_cache = {
     "data": None,
     "timestamp": None,
-    "ttl_seconds": 30  # Cache for 30 seconds
+    "ttl_seconds": 30
 }
 
 router = APIRouter(prefix="/groups", tags=["Groups"])
 
-# --- CRUD routes for Groups ---
 def _is_groups_cache_valid() -> bool:
     """Check if groups cache is still valid"""
     if _groups_cache["data"] is None or _groups_cache["timestamp"] is None:
@@ -31,13 +28,12 @@ def _update_groups_cache(data):
     _groups_cache["data"] = data
     _groups_cache["timestamp"] = datetime.now()
 
-@router.get("/", response_model=list[schemas.GroupResponse])
+@router.get("/", response_model=list[models.GroupResponse])
 def list_groups(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     force_refresh: bool = False
 ):
-    # Check cache first (skip user-specific caching for simplicity - could be improved)
     if not force_refresh and _is_groups_cache_valid():
         print("Returning cached groups data")
         return _groups_cache["data"]
@@ -45,13 +41,12 @@ def list_groups(
     print("Fetching fresh groups data from database")
     groups_data = crud.get_groups(db, current_user.id)
     
-    # Update cache
     _update_groups_cache(groups_data)
     return groups_data
 
-@router.post("/", response_model=schemas.GroupResponse)
+@router.post("/", response_model=models.GroupResponse)
 def create_group(
-    group: schemas.GroupCreate, 
+    group: models.GroupCreate, 
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -59,7 +54,6 @@ def create_group(
     if group.device_ids:
         for device_id in group.device_ids:
             crud.assign_device_to_group(db, device_id, new_group.id, current_user.id)
-    # Return group with device details
     device_maps = db.query(models.DeviceGroupMap).filter_by(group_id=new_group.id).all()
     devices = []
     for dm in device_maps:
@@ -75,7 +69,6 @@ def create_group(
                 "connection_type": device.connection_type,
                 "last_seen": device.last_seen.isoformat() if device.last_seen else None,
             })
-    # Invalidate cache to ensure fresh data on next fetch
     _groups_cache["data"] = []
     _groups_cache["timestamp"] = datetime.min
     
@@ -87,10 +80,10 @@ def create_group(
         "devices": devices
     }
 
-@router.put("/{group_id}", response_model=schemas.GroupResponse)
+@router.put("/{group_id}", response_model=models.GroupResponse)
 def update_group(
     group_id: int, 
-    group: schemas.GroupUpdate, 
+    group: models.GroupUpdate, 
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -101,23 +94,18 @@ def update_group(
     if not db_group:
         raise HTTPException(status_code=404, detail="Group not found")
     
-    # Update basic group attributes
     for key, value in group.dict(exclude_unset=True, exclude={"device_ids"}).items():
         setattr(db_group, key, value)
     db.commit()
     db.refresh(db_group)
 
-    # Update device assignments if provided
     if hasattr(group, "device_ids") and group.device_ids is not None:
-        # Remove all current device mappings for this group
         db.query(models.DeviceGroupMap).filter_by(group_id=group_id).delete()
         db.commit()
-        # Add new device mappings
         for device_id in group.device_ids:
             db.add(models.DeviceGroupMap(device_id=device_id, group_id=group_id))
         db.commit()
 
-    # Return the updated group with device details
     device_maps = db.query(models.DeviceGroupMap).filter_by(group_id=db_group.id).all()
     devices = []
     for dm in device_maps:
@@ -134,7 +122,6 @@ def update_group(
                 "last_seen": device.last_seen.isoformat() if device.last_seen else None,
             })
     
-    # Invalidate cache to ensure fresh data on next fetch
     _groups_cache["data"] = []
     _groups_cache["timestamp"] = datetime.min
     
@@ -156,7 +143,6 @@ def delete_group(
     if not deleted:
         raise HTTPException(status_code=404, detail="Group not found")
     
-    # Invalidate cache to ensure fresh data on next fetch
     _groups_cache["data"] = []
     _groups_cache["timestamp"] = datetime.min
     
@@ -169,7 +155,6 @@ def assign_device(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Check if device exists
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
@@ -178,7 +163,6 @@ def assign_device(
     if not result:
         raise HTTPException(status_code=404, detail="Group not found or access denied")
     
-    # Invalidate cache to ensure fresh data on next fetch
     _groups_cache["data"] = []
     _groups_cache["timestamp"] = datetime.min
     
@@ -195,13 +179,11 @@ def remove_device(
     if not result:
         raise HTTPException(status_code=404, detail="Group not found, device not in group, or access denied")
     
-    # Invalidate cache to ensure fresh data on next fetch
     _groups_cache["data"] = []
     _groups_cache["timestamp"] = datetime.min
     
     return {"message": "Device removed successfully"}
 
-# --- Get all devices with group info ---
 @router.get("/devices")
 def get_devices(
     db: Session = Depends(get_db),
@@ -228,4 +210,3 @@ def get_devices(
         for row in result
     ]
     return devices
-#some changes done for checking my contribution count

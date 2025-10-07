@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from . import models, schemas
+from . import models
 
 def get_all_groups(db: Session):
     """Get all groups regardless of user (for testing)"""
@@ -62,8 +62,7 @@ def get_groups(db: Session, user_id: int):
         })
     return result
 
-def create_group(db: Session, group: schemas.GroupCreate, user_id: int):
-    # Extract only the fields that belong to the DeviceGroup model
+def create_group(db: Session, group: models.GroupCreate, user_id: int):
     group_data = {
         'group_name': group.group_name,
         'description': group.description,
@@ -76,7 +75,7 @@ def create_group(db: Session, group: schemas.GroupCreate, user_id: int):
     db.refresh(new_group)
     return new_group
 
-def update_group(db: Session, group_id: int, group: schemas.GroupUpdate, user_id: int):
+def update_group(db: Session, group_id: int, group: models.GroupUpdate, user_id: int):
     db_group = db.query(models.DeviceGroup).filter(
         models.DeviceGroup.id == group_id,
         models.DeviceGroup.user_id == user_id
@@ -84,7 +83,6 @@ def update_group(db: Session, group_id: int, group: schemas.GroupUpdate, user_id
     if not db_group:
         return None
     
-    # Update only the fields that belong to the DeviceGroup model
     update_data = group.dict(exclude_unset=True, exclude={'device_ids'})
     for key, value in update_data.items():
         setattr(db_group, key, value)
@@ -103,7 +101,6 @@ def delete_group(db: Session, group_id: int, user_id: int):
     return group
 
 def assign_device_to_group(db: Session, device_id: int, group_id: int, user_id: int):
-    # Check if the group belongs to the user
     group = db.query(models.DeviceGroup).filter(
         models.DeviceGroup.id == group_id,
         models.DeviceGroup.user_id == user_id
@@ -111,29 +108,24 @@ def assign_device_to_group(db: Session, device_id: int, group_id: int, user_id: 
     if not group:
         return None
     
-    # Check if device exists
     device = db.query(models.Device).filter(models.Device.id == device_id).first()
     if not device:
         return None
     
-    # Check if this device is already in this group
     existing_mapping = db.query(models.DeviceGroupMap).filter(
         models.DeviceGroupMap.device_id == device_id,
         models.DeviceGroupMap.group_id == group_id
     ).first()
     
-    # If mapping already exists, return it
     if existing_mapping:
         return existing_mapping
     
-    # Create new mapping (device can be in multiple groups)
     mapping = models.DeviceGroupMap(device_id=device_id, group_id=group_id)
     db.add(mapping)
     db.commit()
     return mapping
 
 def remove_device_from_group(db: Session, device_id: int, group_id: int, user_id: int):
-    # Check if the group belongs to the user
     group = db.query(models.DeviceGroup).filter(
         models.DeviceGroup.id == group_id,
         models.DeviceGroup.user_id == user_id
@@ -141,7 +133,6 @@ def remove_device_from_group(db: Session, device_id: int, group_id: int, user_id
     if not group:
         return None
     
-    # Remove specific mapping (device can still be in other groups)
     mapping = db.query(models.DeviceGroupMap).filter(
         models.DeviceGroupMap.device_id == device_id,
         models.DeviceGroupMap.group_id == group_id

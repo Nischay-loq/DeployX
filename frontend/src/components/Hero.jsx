@@ -2,16 +2,12 @@ import { ArrowRight, Play, Shield, Zap, Globe } from 'lucide-react';
 
 export default function Hero({ onOpenAuth }) {
   const handleVideoError = (e) => {
-    console.warn('Video failed to load:', e);
-    // Hide video element if it fails to load
     e.target.style.display = 'none';
   };
 
   return (
     <section id="home" className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* Background */}
       <div className="absolute inset-0">
-        {/* Video Background - Larger size */}
         <video
           autoPlay
           loop
@@ -26,35 +22,28 @@ export default function Hero({ onOpenAuth }) {
           Your browser does not support the video tag.
         </video>
         
-        {/* Gradient Overlays */}
         <div className="absolute inset-0 bg-gradient-to-br from-gray-900/80 via-gray-900/70 to-gray-800/80"></div>
         <div className="absolute inset-0 bg-gradient-to-t from-gray-900/90 via-transparent to-transparent"></div>
         
-        {/* Grid Pattern */}
         <div className="absolute inset-0 grid-pattern opacity-20"></div>
       </div>
 
-      {/* Content */}
       <div className="relative z-10 max-w-7xl mx-auto px-6 py-20 text-center">
         <div className="max-w-4xl mx-auto">
 
-          {/* Main Headline */}
           <h1 className="text-headline font-display bg-gradient-to-r from-white via-gray-100 to-gray-300 bg-clip-text text-transparent mt-6 mb-6 animate-slide-up">
             DeployX
           </h1>
 
-          {/* Subheadline */}
           <p className="text-subheadline text-gray-300 mb-4 animate-slide-up" style={{ animationDelay: '0.1s' }}>
             Simple deployment management system
           </p>
 
-          {/* Description */}
           <p className="text-body-large text-gray-400 max-w-2xl mx-auto mb-12 animate-slide-up" style={{ animationDelay: '0.2s' }}>
             A student project for managing software deployments across multiple systems. 
             Built to learn about remote access and automation concepts.
           </p>
 
-          {/* CTA Buttons - Made wider */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 animate-slide-up" style={{ animationDelay: '0.3s' }}>
             <button
               onClick={() => onOpenAuth('signup')}
@@ -70,7 +59,6 @@ export default function Hero({ onOpenAuth }) {
             </button>
           </div>
 
-          {/* Feature Highlights - Toned down */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto animate-slide-up" style={{ animationDelay: '0.4s' }}>
             <div className="glass-panel rounded-xl p-6 text-left hover-lift">
               <div className="w-12 h-12 bg-gradient-to-r from-primary-500 to-primary-600 rounded-lg flex items-center justify-center mb-4">
@@ -98,7 +86,6 @@ export default function Hero({ onOpenAuth }) {
           </div>
         </div>
 
-        {/* Scroll Indicator */}
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
           <div className="w-6 h-10 border-2 border-gray-400 rounded-full flex justify-center">
             <div className="w-1 h-3 bg-gradient-to-b from-primary-400 to-transparent rounded-full mt-2 animate-pulse"></div>

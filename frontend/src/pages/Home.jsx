@@ -24,17 +24,13 @@ export default function Home() {
 
   return (
     <div className="relative bg-gray-900 overflow-hidden transition-colors duration-300">
-      {/* Navigation */}
       <Navbar onOpenAuth={openAuthModal} />
       
-      {/* Hero Section */}
       <Hero onOpenAuth={openAuthModal} />
       
-      {/* Particles Background - Only for sections below hero */}
       <div className="relative">
         <ParticlesBackground />
         
-        {/* Main Content Sections */}
         <main className="relative z-10 space-y-20">
           <Features />
           <Services />
@@ -43,25 +39,19 @@ export default function Home() {
         </main>
       </div>
       
-      {/* Footer */}
       <Footer />
       
-      {/* Auth Modal */}
       <AuthModal 
         isOpen={authModalOpen}
         onClose={closeAuthModal}
         initialMode={authMode}
       />
       
-      {/* Background Effects */}
       <div className="fixed inset-0 -z-10">
-        {/* Gradient Background */}
         <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900"></div>
         
-        {/* Subtle Grid Pattern */}
         <div className="absolute inset-0 grid-pattern opacity-5"></div>
         
-        {/* Radial Gradients for Depth */}
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary-500/10 rounded-full blur-3xl"></div>
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent-cyan/10 rounded-full blur-3xl"></div>
       </div>

@@ -25,7 +25,7 @@ router = APIRouter(prefix="/files", tags=["files"])
 logger = logging.getLogger(__name__)
 
 UPLOAD_DIR = "uploads"
-MAX_FILE_SIZE = 100 * 1024 * 1024
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 ALLOWED_EXTENSIONS = {
     ".txt", ".pdf", ".doc", ".docx", ".xlsx", ".pptx", ".zip", ".tar", ".gz",
     ".jpg", ".jpeg", ".png", ".gif", ".mp4", ".avi", ".mp3", ".wav",
@@ -72,21 +72,26 @@ async def upload_files(
     
     try:
         for file in files:
+
             is_valid, message = validate_file(file)
             if not is_valid:
                 raise HTTPException(status_code=400, detail=f"{file.filename}: {message}")
             
+
             timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
             file_ext = Path(file.filename).suffix
             unique_filename = f"{timestamp}_{file.filename}"
             file_path = os.path.join(UPLOAD_DIR, unique_filename)
             
+
             with open(file_path, 'wb') as f:
                 content = await file.read()
                 f.write(content)
             
+
             file_hash = calculate_file_hash(file_path)
             
+
             db_file = crud.create_uploaded_file(
                 db=db,
                 filename=unique_filename,
@@ -115,6 +120,7 @@ async def upload_files(
         )
         
     except Exception as e:
+
         for file_info in uploaded_files:
             try:
                 file_obj = crud.get_uploaded_file(db, file_info["id"], current_user.id)
@@ -134,6 +140,7 @@ async def deploy_files(
 ):
     """Deploy files to devices"""
     
+
     files = []
     for file_id in deployment_request.file_ids:
         file_obj = crud.get_uploaded_file(db, file_id, current_user.id)
@@ -141,8 +148,10 @@ async def deploy_files(
             raise HTTPException(status_code=404, detail=f"File with ID {file_id} not found")
         files.append(file_obj)
     
+
     target_device_ids = set(deployment_request.device_ids)
     
+
     if deployment_request.group_ids:
         group_devices = get_devices_in_groups(db, deployment_request.group_ids)
         target_device_ids.update([device.id for device in group_devices])
@@ -150,12 +159,15 @@ async def deploy_files(
     if not target_device_ids:
         raise HTTPException(status_code=400, detail="No target devices specified")
     
+
     devices = get_devices_by_ids(db, list(target_device_ids))
     if len(devices) != len(target_device_ids):
         raise HTTPException(status_code=404, detail="Some target devices not found")
     
+
     deployment = crud.create_file_deployment(db, deployment_request, current_user.id)
     
+
     asyncio.create_task(process_file_deployment(deployment.id, files, devices, deployment_request, db))
     
     return schemas.FileDeploymentResponse(
@@ -170,6 +182,7 @@ async def process_file_deployment(deployment_id: int, files: List[UploadedFile],
     from app.main import sio, conn_manager
     import base64
     
+
     crud.update_deployment_status(db, deployment_id, "in_progress", started_at=datetime.utcnow())
     
     successful_deployments = 0
@@ -178,10 +191,10 @@ async def process_file_deployment(deployment_id: int, files: List[UploadedFile],
     
     try:
         for device in devices:
-            # Check if agent is connected
+
             if not device.agent_id:
                 logger.warning(f"Device {device.id} ({device.device_name}) has no agent_id")
-                # Create failure result for all files
+
                 for file_obj in files:
                     crud.create_deployment_result(
                         db, deployment_id, device.id, file_obj.id, "error",
@@ -194,6 +207,7 @@ async def process_file_deployment(deployment_id: int, files: List[UploadedFile],
             agent_sid = conn_manager.get_agent_sid(device.agent_id)
             if not agent_sid:
                 logger.warning(f"Agent {device.agent_id} for device {device.id} is not connected")
+
                 for file_obj in files:
                     crud.create_deployment_result(
                         db, deployment_id, device.id, file_obj.id, "error",
@@ -203,8 +217,10 @@ async def process_file_deployment(deployment_id: int, files: List[UploadedFile],
                     failed_deployments += 1
                 continue
             
+
             for file_obj in files:
                 try:
+
                     if not os.path.exists(file_obj.file_path):
                         crud.create_deployment_result(
                             db, deployment_id, device.id, file_obj.id, "error",
@@ -219,6 +235,7 @@ async def process_file_deployment(deployment_id: int, files: List[UploadedFile],
                     
                     file_data_b64 = base64.b64encode(file_data).decode('utf-8')
                     
+
                     logger.info(f"Sending file {file_obj.original_filename} to device {device.device_name} (agent: {device.agent_id})")
                     
                     await sio.emit('receive_file', {
@@ -230,6 +247,8 @@ async def process_file_deployment(deployment_id: int, files: List[UploadedFile],
                         'create_path_if_not_exists': deployment_request.create_path_if_not_exists
                     }, room=agent_sid)
                     
+
+
                     crud.create_deployment_result(
                         db, deployment_id, device.id, file_obj.id, "pending",
                         f"File transfer initiated to {deployment_request.target_path}"
@@ -247,10 +266,14 @@ async def process_file_deployment(deployment_id: int, files: List[UploadedFile],
                     )
                     failed_deployments += 1
         
+
         if pending_deployments > 0:
+
             logger.info(f"Deployment {deployment_id} has {pending_deployments} pending transfers")
+
             asyncio.create_task(update_deployment_final_status(deployment_id, db))
         else:
+
             final_status = "failed"
             crud.update_deployment_status(db, deployment_id, final_status, completed_at=datetime.utcnow())
         
@@ -261,8 +284,10 @@ async def process_file_deployment(deployment_id: int, files: List[UploadedFile],
 async def update_deployment_final_status(deployment_id: int, db: Session, check_delay: int = 30):
     """Check deployment results and update final status after delay"""
     try:
+
         await asyncio.sleep(check_delay)
         
+
         results = crud.get_deployment_results(db, deployment_id)
         
         if not results:
@@ -273,12 +298,15 @@ async def update_deployment_final_status(deployment_id: int, db: Session, check_
         success_count = len([r for r in results if r.status == "success"])
         error_count = len([r for r in results if r.status == "error"])
         
+
         if pending_count > 0:
+
             if check_delay > 0:  # Only retry if not already in retry mode
                 logger.info(f"Deployment {deployment_id} still has {pending_count} pending transfers, checking again in 30s")
                 await asyncio.sleep(30)
                 await update_deployment_final_status(deployment_id, db, check_delay=0)
             else:
+
                 logger.warning(f"Deployment {deployment_id} timed out with {pending_count} pending transfers")
                 final_status = "partial_failure" if success_count > 0 else "failed"
                 crud.update_deployment_status(db, deployment_id, final_status, completed_at=datetime.utcnow())
@@ -311,10 +339,12 @@ async def get_deployment_progress(
     
     results = crud.get_deployment_results(db, deployment_id)
     
+
     device_ids = [r.device_id for r in results]
     devices = get_devices_by_ids(db, device_ids)
     device_map = {d.id: d for d in devices}
     
+
     file_ids = json.loads(deployment.file_ids or "[]")
     files = []
     for file_id in file_ids:
@@ -387,10 +417,11 @@ async def delete_file(
     if not file_obj:
         raise HTTPException(status_code=404, detail="File not found")
     
+
     if os.path.exists(file_obj.file_path):
         os.remove(file_obj.file_path)
     
-    # Remove database record
+
     success = crud.delete_uploaded_file(db, file_id, current_user.id)
     
     if success:

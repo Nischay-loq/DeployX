@@ -17,6 +17,9 @@ import {
 } from 'lucide-react';
 import io from 'socket.io-client';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const DEPLOYMENT_STRATEGIES = [
   { value: 'transactional', label: 'Transactional', icon: '🔄', description: 'Package manager transactions with rollback' },
   { value: 'blue_green', label: 'Blue-Green', icon: '🔵', description: 'Zero-downtime deployments' },
@@ -61,12 +64,17 @@ export default function DeploymentManager({
   const [batchMode, setBatchMode] = useState(false);
   const [batchCommands, setBatchCommands] = useState(['']);
 
-  // API base URL - adjust as needed
-  const API_BASE = 'http://localhost:8000/api/deployment';
-
   useEffect(() => {
     // Initialize socket.io connection
-    const newSocket = io('http://localhost:8000');
+    const newSocket = io(SOCKET_URL, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 500,
+      reconnectionAttempts: Infinity,
+      timeout: 20000,  // Connection timeout: 20 seconds
+      pingTimeout: 60000,  // Ping timeout: 60 seconds
+      pingInterval: 25000  // Ping every 25 seconds
+    });
     setSocket(newSocket);
 
     // Listen for real-time deployment updates
@@ -112,7 +120,7 @@ export default function DeploymentManager({
 
   const loadCommands = async () => {
     try {
-      const response = await fetch(`${API_BASE}/commands`);
+      const response = await fetch(`${API_BASE_URL}/api/deployment/commands`);
       if (response.ok) {
         const data = await response.json();
         setCommands(data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
@@ -124,7 +132,7 @@ export default function DeploymentManager({
 
   const loadStats = async () => {
     try {
-      const response = await fetch(`${API_BASE}/stats`);
+      const response = await fetch(`${API_BASE_URL}/api/deployment/stats`);
       if (response.ok) {
         const data = await response.json();
         setStats(data.stats);
@@ -144,7 +152,7 @@ export default function DeploymentManager({
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/commands`, {
+      const response = await fetch(`${API_BASE_URL}/api/deployment/commands`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -181,7 +189,7 @@ export default function DeploymentManager({
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/commands/batch`, {
+      const response = await fetch(`${API_BASE_URL}/api/deployment/commands/batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -210,7 +218,7 @@ export default function DeploymentManager({
 
   const pauseCommand = async (cmdId) => {
     try {
-      const response = await fetch(`${API_BASE}/commands/${cmdId}/pause`, { method: 'POST' });
+      const response = await fetch(`${API_BASE_URL}/api/deployment/commands/${cmdId}/pause`, { method: 'POST' });
       if (response.ok) {
         setCommands(prev => prev.map(cmd => 
           cmd.id === cmdId ? { ...cmd, status: 'paused' } : cmd
@@ -224,7 +232,7 @@ export default function DeploymentManager({
 
   const resumeCommand = async (cmdId) => {
     try {
-      const response = await fetch(`${API_BASE}/commands/${cmdId}/resume`, { method: 'POST' });
+      const response = await fetch(`${API_BASE_URL}/api/deployment/commands/${cmdId}/resume`, { method: 'POST' });
       if (response.ok) {
         setCommands(prev => prev.map(cmd => 
           cmd.id === cmdId ? { ...cmd, status: 'pending' } : cmd
@@ -240,7 +248,7 @@ export default function DeploymentManager({
     if (!confirm('Are you sure you want to rollback this command?')) return;
 
     try {
-      const response = await fetch(`${API_BASE}/commands/${cmdId}/rollback`, { method: 'POST' });
+      const response = await fetch(`${API_BASE_URL}/api/deployment/commands/${cmdId}/rollback`, { method: 'POST' });
       if (response.ok) {
         const result = await response.json();
         alert(result.message);
@@ -256,7 +264,7 @@ export default function DeploymentManager({
     if (!confirm('Are you sure you want to delete this command?')) return;
 
     try {
-      const response = await fetch(`${API_BASE}/commands/${cmdId}`, { method: 'DELETE' });
+      const response = await fetch(`${API_BASE_URL}/api/deployment/commands/${cmdId}`, { method: 'DELETE' });
       if (response.ok) {
         setCommands(prev => prev.filter(cmd => cmd.id !== cmdId));
         loadStats();
@@ -270,7 +278,7 @@ export default function DeploymentManager({
     if (!confirm('Clear all completed and failed commands?')) return;
 
     try {
-      const response = await fetch(`${API_BASE}/commands/completed`, { method: 'DELETE' });
+      const response = await fetch(`${API_BASE_URL}/api/deployment/commands/completed`, { method: 'DELETE' });
       if (response.ok) {
         loadCommands();
         loadStats();
