@@ -58,9 +58,6 @@ from app.software import models as software_models  # Import software models
 from app.files import models as file_models  # Import file models
 from app.auth.database import get_db
 from app.agents import crud as agent_crud, schemas as agent_schemas
-from app.grouping import models as grouping_models
-from app.Deployments import models as deployment_models
-from app.files import models as file_models
 from app.agents import schemas as agent_schemas, crud as agent_crud
 from app.Devices import crud as device_crud
 from app.grouping.models import Device
@@ -858,6 +855,12 @@ async def software_installation_status(sid, data):
                 
                 db.commit()
                 logger.info(f"Updated deployment target {target.id} status to {target.status}")
+                
+                # Update overall deployment status when a device completes or fails
+                if status in ['completed', 'failed']:
+                    from app.Deployments.routes import update_deployment_status
+                    update_deployment_status(deployment_id, db)
+                    
         finally:
             db.close()
         

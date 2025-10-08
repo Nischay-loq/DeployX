@@ -9,42 +9,128 @@ from .executor import SoftwareDeploymentExecutor
 from app.grouping.models import DeviceGroupMap, Device as Devices, DeviceGroup as DeviceGroups
 from app.auth.database import get_db, User
 from app.auth.utils import get_current_user
+from app.software.models import Software
 from datetime import datetime
 from typing import List, Optional
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/deployments", tags=["Deployments"])
 
+
+def update_deployment_status(deployment_id: int, db: Session):
+    """Update overall deployment status based on target device statuses"""
+    try:
+        deployment = db.query(Deployment).filter(Deployment.id == deployment_id).first()
+        if not deployment:
+            logger.error(f"Deployment {deployment_id} not found")
+            return
+        
+        # Get all deployment targets
+        targets = db.query(DeploymentTarget).filter(
+            DeploymentTarget.deployment_id == deployment_id
+        ).all()
+        
+        if not targets:
+            deployment.status = "failed"
+            deployment.ended_at = datetime.utcnow()
+            db.commit()
+            return
+        
+        # Count statuses
+        total = len(targets)
+        completed = sum(1 for t in targets if t.status == "success")
+        failed = sum(1 for t in targets if t.status == "failed")
+        in_progress = sum(1 for t in targets if t.status == "in_progress")
+        pending = sum(1 for t in targets if t.status == "pending")
+        
+        # Determine overall status
+        if completed == total:
+            deployment.status = "completed"
+            deployment.ended_at = datetime.utcnow()
+        elif failed == total:
+            deployment.status = "failed"
+            deployment.ended_at = datetime.utcnow()
+        elif failed > 0 and (completed + failed) == total:
+            deployment.status = "partial"
+            deployment.ended_at = datetime.utcnow()
+        elif in_progress > 0 or pending > 0:
+            deployment.status = "in_progress"
+        else:
+            deployment.status = "completed"
+            deployment.ended_at = datetime.utcnow()
+        
+        db.commit()
+        logger.info(
+            f"Updated deployment {deployment_id} status to {deployment.status} "
+            f"(total: {total}, completed: {completed}, failed: {failed}, in_progress: {in_progress}, pending: {pending})"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error updating deployment status: {e}", exc_info=True)
+
+
+# Add a simple test endpoint without auth
+@router.get("/test")
+def test_endpoint():
+    """Test endpoint without authentication"""
+    return {"message": "Deployments router is working"}
+
+@router.get("", response_model=List[DeploymentListResponse])
 @router.get("/", response_model=List[DeploymentListResponse])
 def get_user_deployments(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get all deployments for the current user"""
-    deployments = db.query(Deployment).filter(
-        Deployment.initiated_by == current_user.id
-    ).order_by(Deployment.started_at.desc()).all()
-    
-    result = []
-    for deployment in deployments:
-        # Count total devices in deployment
-        device_count = db.query(DeploymentTarget).filter(
-            DeploymentTarget.deployment_id == deployment.id
-        ).count()
+    try:
+        logger.info(f"Fetching deployments for user {current_user.id}")
+        deployments = db.query(Deployment).filter(
+            Deployment.initiated_by == current_user.id
+        ).order_by(Deployment.started_at.desc()).all()
         
-        result.append({
-            "id": deployment.id,
-            "deployment_name": deployment.deployment_name,
-            "status": deployment.status,
-            "started_at": deployment.started_at.isoformat() if deployment.started_at else None,
-            "ended_at": deployment.ended_at.isoformat() if deployment.ended_at else None,
-            "device_count": device_count,
-            "rollback_performed": deployment.rollback_performed
-        })
-    
-    return result
+        logger.info(f"Found {len(deployments)} deployments")
+        
+        result = []
+        for deployment in deployments:
+            # Count total devices in deployment
+            device_count = db.query(DeploymentTarget).filter(
+                DeploymentTarget.deployment_id == deployment.id
+            ).count()
+            
+            # Get software information
+            software_list = []
+            if deployment.software_ids:
+                try:
+                    software_ids = json.loads(deployment.software_ids)
+                    if software_ids:
+                        software_items = db.query(Software).filter(
+                            Software.id.in_(software_ids)
+                        ).all()
+                        software_list = [{"id": sw.id, "name": sw.name, "version": sw.version} for sw in software_items]
+                except (json.JSONDecodeError, TypeError):
+                    software_list = []
+            
+            result.append({
+                "id": deployment.id,
+                "deployment_name": deployment.deployment_name,
+                "status": deployment.status,
+                "started_at": deployment.started_at.isoformat() if deployment.started_at else None,
+                "ended_at": deployment.ended_at.isoformat() if deployment.ended_at else None,
+                "device_count": device_count,
+                "rollback_performed": deployment.rollback_performed,
+                "software": software_list,
+                "custom_software": deployment.custom_software
+            })
+        
+        logger.info(f"Returning {len(result)} deployments")
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching deployments: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error fetching deployments: {str(e)}")
+
 
 @router.post("/install", response_model=DeploymentResponse)
 async def install_software(
@@ -58,7 +144,9 @@ async def install_software(
         deployment_name=data.deployment_name or "Software Installation",
         initiated_by=current_user.id,
         status="in_progress",
-        started_at=datetime.utcnow()
+        started_at=datetime.utcnow(),
+        software_ids=json.dumps(data.software_ids) if data.software_ids else None,
+        custom_software=data.custom_software
     )
     db.add(deployment)
     db.commit()
@@ -140,8 +228,18 @@ def execute_deployment_background(
             custom_software
         )
         logger.info(f"[BACKGROUND] Deployment {deployment_id} completed: {result}")
+        
+        # Update overall deployment status
+        update_deployment_status(deployment_id, db)
+        
     except Exception as e:
         logger.error(f"[BACKGROUND] Error in deployment {deployment_id}: {e}", exc_info=True)
+        # Mark deployment as failed
+        deployment = db.query(Deployment).filter(Deployment.id == deployment_id).first()
+        if deployment:
+            deployment.status = "failed"
+            deployment.ended_at = datetime.utcnow()
+            db.commit()
     finally:
         db.close()
 
@@ -245,3 +343,36 @@ def retry_failed(
         db.add(checkpoint)
     db.commit()
     return {"status": "retrying"}
+
+@router.get("/{deployment_id}/details")
+def get_deployment_details(
+    deployment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get detailed information for a specific deployment"""
+    deployment = db.query(Deployment).filter(
+        Deployment.id == deployment_id,
+        Deployment.initiated_by == current_user.id
+    ).first()
+    
+    if not deployment:
+        raise HTTPException(status_code=404, detail="Deployment not found")
+    
+    # Get software information
+    software_list = []
+    if deployment.software_ids:
+        try:
+            software_ids = json.loads(deployment.software_ids)
+            if software_ids:
+                software_items = db.query(Software).filter(
+                    Software.id.in_(software_ids)
+                ).all()
+                software_list = [{"id": sw.id, "name": sw.name, "version": sw.version} for sw in software_items]
+        except (json.JSONDecodeError, TypeError):
+            software_list = []
+    
+    return {
+        "software": software_list,
+        "custom_software": deployment.custom_software
+    }

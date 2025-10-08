@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from app.auth.database import Base
 from pydantic import BaseModel
 from typing import List, Optional
+import json
 
 class Deployment(Base):
     __tablename__ = "deployments"
@@ -15,6 +16,8 @@ class Deployment(Base):
     rollback_performed = Column(Boolean, default=False)
     rollback_time = Column(DateTime, nullable=True)
     rollback_reason = Column(Text, nullable=True)
+    software_ids = Column(Text, nullable=True)  # JSON string of software IDs
+    custom_software = Column(Text, nullable=True)  # Custom software command/script
     
     targets = relationship("DeploymentTarget", back_populates="deployment", cascade="all, delete-orphan")
     checkpoints = relationship("Checkpoint", back_populates="deployment", cascade="all, delete-orphan")
@@ -61,6 +64,8 @@ class DeploymentListResponse(BaseModel):
     ended_at: Optional[str]
     device_count: int
     rollback_performed: bool
+    software: List[dict] = []
+    custom_software: Optional[str] = None
     
     model_config = {"from_attributes": True}
 
