@@ -228,24 +228,24 @@ export default function Services() {
           </div>
 
           {/* Navigation Controls */}
-          <div className="flex items-center justify-center gap-8 mt-10">
+          <div className="flex items-center justify-center gap-4 sm:gap-8 mt-10">
             <button
               onClick={prevSlide}
-              className="w-14 h-14 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/30 rounded-full flex items-center justify-center transition-all duration-300 hover:border-primary-400/70 hover:scale-110 backdrop-blur-sm hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]"
+              className="w-12 h-12 sm:w-14 sm:h-14 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/30 rounded-full flex items-center justify-center transition-all duration-300 hover:border-primary-400/70 hover:scale-110 backdrop-blur-sm hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]"
             >
-              <ChevronLeft className="w-6 h-6 text-gray-300 hover:text-primary-400 transition-colors" />
+              <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 text-gray-300 hover:text-primary-400 transition-colors" />
             </button>
 
             {/* Progress Indicators */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               {services.map((_, idx) => (
                 <button
                   key={idx}
                   onClick={() => setCurrentIndex(idx)}
                   className={`transition-all duration-300 ${
                     idx === currentIndex 
-                      ? 'w-8 h-3 bg-primary-400 rounded-full' 
-                      : 'w-3 h-3 bg-gray-600 hover:bg-gray-500 rounded-full'
+                      ? 'w-6 h-2 sm:w-8 sm:h-3 bg-primary-400 rounded-full' 
+                      : 'w-2 h-2 sm:w-3 sm:h-3 bg-gray-600 hover:bg-gray-500 rounded-full'
                   }`}
                 />
               ))}
@@ -253,9 +253,9 @@ export default function Services() {
 
             <button
               onClick={nextSlide}
-              className="w-14 h-14 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/30 rounded-full flex items-center justify-center transition-all duration-300 hover:border-primary-400/70 hover:scale-110 backdrop-blur-sm hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]"
+              className="w-12 h-12 sm:w-14 sm:h-14 bg-gray-800/80 hover:bg-gray-700/80 border border-gray-600/30 rounded-full flex items-center justify-center transition-all duration-300 hover:border-primary-400/70 hover:scale-110 backdrop-blur-sm hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]"
             >
-              <ChevronRight className="w-6 h-6 text-gray-300 hover:text-primary-400 transition-colors" />
+              <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-gray-300 hover:text-primary-400 transition-colors" />
             </button>
           </div>
         </div>

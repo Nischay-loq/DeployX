@@ -134,21 +134,21 @@ export default function Signup() {
       <style>{`@keyframes float{from{transform:translateY(0)}to{transform:translateY(-20px)}}`}</style>
 
       {/* Navigation back to home */}
-      <div className="absolute top-6 left-6 z-10">
-        <Link to="/" className="px-4 py-2 border border-electricBlue rounded-lg text-electricBlue hover:bg-electricBlue hover:text-cyberBlue transition-all cursor-pointer">
+      <div className="absolute top-4 sm:top-6 left-4 sm:left-6 z-10">
+        <Link to="/" className="px-3 py-2 sm:px-4 text-xs sm:text-sm border border-electricBlue rounded-lg text-electricBlue hover:bg-electricBlue hover:text-cyberBlue transition-all cursor-pointer">
           ← Back to Home
         </Link>
       </div>
 
-      <div className="absolute inset-0 flex items-center justify-center p-6 form-container">
-        <div className="glass-light border-trace rounded-3xl w-full max-w-md p-8">
+      <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-6 form-container">
+        <div className="glass-light border-trace rounded-3xl w-full max-w-md p-6 sm:p-8">
           {showSuccess ? (
             <div className="text-center">
               <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-white text-2xl">✓</span>
               </div>
-              <h2 className="text-2xl font-bold text-softWhite mb-2">Account Verified!</h2>
-              <p className="text-gray-300 mb-4">Redirecting to login page...</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-softWhite mb-2">Account Verified!</h2>
+              <p className="text-sm sm:text-base text-gray-300 mb-4">Redirecting to login page...</p>
               <div className="animate-pulse text-electricBlue">Please wait...</div>
             </div>
           ) : step === 'otp' ? (

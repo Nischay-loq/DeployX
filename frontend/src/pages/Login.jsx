@@ -97,14 +97,14 @@ export default function Login() {
         <X size={28} />
       </button>
 
-      <div className="absolute inset-0 flex items-center justify-center p-6 form-container">
-        <div className="glass-light border-trace rounded-3xl w-full max-w-md p-8">
+      <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-6 form-container">
+        <div className="glass-light border-trace rounded-3xl w-full max-w-md p-6 sm:p-8">
           {/* Header */}
           <div className="text-center mb-6">
-            <h1 className="text-3xl font-bold text-electricBlue mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-electricBlue mb-2">
               DeployX
             </h1>
-            <p className="text-gray-300 text-sm">Access your command center</p>
+            <p className="text-gray-300 text-xs sm:text-sm">Access your command center</p>
           </div>
 
           {/* Notification */}
@@ -167,7 +167,7 @@ export default function Login() {
             </div>
 
             {/* Remember + Forgot Password */}
-            <div className="flex items-center justify-between text-sm mb-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs sm:text-sm mb-4 gap-2">
               <label className="flex items-center gap-2 text-gray-400 cursor-pointer">
                 <input
                   type="checkbox"

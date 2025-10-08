@@ -47,7 +47,8 @@ import {
   EyeOff,
   X,
   Trash2,
-  Plus
+  Plus,
+  Menu
 } from 'lucide-react';
 import GroupsManager from '../components/GroupsManager.jsx';
 import DeploymentsManager from '../components/DeploymentsManager.jsx';
@@ -61,6 +62,7 @@ import groupsService from '../services/groups.js';
 
 export default function Dashboard({ onLogout }) {
   const [activeSection, setActiveSection] = useState('overview');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [agents, setAgents] = useState([]);
   const [currentAgent, setCurrentAgent] = useState('');
   const [shells, setShells] = useState([]);
@@ -1503,14 +1505,23 @@ export default function Dashboard({ onLogout }) {
   return (
     <div className="min-h-screen bg-gray-900">
       {/* Header */}
-      <header className="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 px-6 py-4 sticky top-0 z-50">
+      <header className="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 px-4 sm:px-6 py-4 sticky top-0 z-50">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-gradient-to-r from-primary-500 to-accent-cyan rounded-xl flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-xl font-display">DX</span>
+          <div className="flex items-center gap-2 sm:gap-4">
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+              className="lg:hidden p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+              aria-label="Toggle menu"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-primary-500 to-accent-cyan rounded-xl flex items-center justify-center shadow-lg">
+              <span className="text-white font-bold text-lg sm:text-xl font-display">DX</span>
             </div>
             <div>
-              <h1 className="text-2xl font-bold font-display text-white">DeployX</h1>
+              <h1 className="text-lg sm:text-2xl font-bold font-display text-white">DeployX</h1>
               {/* <p className="text-sm text-gray-400">
                 {user?.username ? `Welcome back, ${user.username}` : 'Remote System Management Console'}
               </p> */}
@@ -1621,14 +1632,27 @@ export default function Dashboard({ onLogout }) {
         </div>
       </header>
 
-      <div className="flex h-[calc(100vh-80px)]">
+      <div className="flex h-[calc(100vh-80px)] relative">
+        {/* Mobile Sidebar Overlay */}
+        {isMobileSidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            onClick={() => setIsMobileSidebarOpen(false)}
+          />
+        )}
+        
         {/* Sidebar */}
-        <aside className="w-72 bg-gray-800/30 backdrop-blur-sm border-r border-gray-700 p-4">
+        <aside className={`fixed lg:relative inset-y-0 left-0 z-50 w-72 bg-gray-900 lg:bg-gray-800/30 backdrop-blur-sm border-r border-gray-700 p-4 transform transition-transform duration-300 ease-in-out lg:transform-none shadow-2xl lg:shadow-none ${
+          isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        } h-[calc(100vh-80px)] lg:h-auto top-[80px] lg:top-0`}>
           <nav className="space-y-2">
             {sections.map(section => (
               <button
                 key={section.id}
-                onClick={() => setActiveSection(section.id)}
+                onClick={() => {
+                  setActiveSection(section.id);
+                  setIsMobileSidebarOpen(false);
+                }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${
                   activeSection === section.id
                     ? 'bg-primary-500/20 border border-primary-500/30 text-primary-400 shadow-lg'
@@ -1643,18 +1667,18 @@ export default function Dashboard({ onLogout }) {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 p-6 overflow-auto bg-gray-900/50">
+        <main className="flex-1 p-4 sm:p-6 overflow-auto bg-gray-900/50">
           {activeSection === 'overview' && (
             <div className="space-y-6">
               {/* Welcome Header */}
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h1 className="text-3xl font-bold text-white mb-2">Welcome back, {user?.username || 'Admin'}!</h1>
-                  <p className="text-gray-400">Here's what's happening with your systems today</p>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Welcome back, {user?.username || 'Admin'}!</h1>
+                  <p className="text-sm sm:text-base text-gray-400">Here's what's happening with your systems today</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm text-gray-400">Last updated</p>
-                  <p className="text-white font-medium">{new Date().toLocaleTimeString()}</p>
+                <div className="text-left sm:text-right">
+                  <p className="text-xs sm:text-sm text-gray-400">Last updated</p>
+                  <p className="text-sm sm:text-base text-white font-medium">{new Date().toLocaleTimeString()}</p>
                 </div>
               </div>
 
