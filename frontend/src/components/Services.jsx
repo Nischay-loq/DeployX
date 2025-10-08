@@ -101,15 +101,6 @@ const colorMap = {
 export default function Services() {
   const [currentIndex, setCurrentIndex] = useState(0)
 
-  // Auto-advance carousel
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % services.length)
-    }, 5000)
-    
-    return () => clearInterval(interval)
-  }, [])
-
   const nextSlide = () => {
     setCurrentIndex((prev) => (prev + 1) % services.length)
   }
@@ -266,22 +257,6 @@ export default function Services() {
             >
               <ChevronRight className="w-6 h-6 text-gray-300 hover:text-primary-400 transition-colors" />
             </button>
-          </div>
-
-          {/* Current Service Info */}
-          <div className="text-center mt-8 space-y-2">
-            <div className="flex items-center justify-center gap-2">
-              <span className="text-primary-400 font-semibold">
-                {String(currentIndex + 1).padStart(2, '0')}
-              </span>
-              <span className="text-gray-500">/</span>
-              <span className="text-gray-400">
-                {String(services.length).padStart(2, '0')}
-              </span>
-            </div>
-            <p className="text-gray-500 text-sm">
-              {services[currentIndex]?.title} - {services[currentIndex]?.subtitle}
-            </p>
           </div>
         </div>
 

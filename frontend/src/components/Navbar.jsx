@@ -8,6 +8,7 @@ export default function Navbar({ onOpenAuth }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
 
+  // Update scrolled state for nav background
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20)
@@ -27,10 +28,58 @@ export default function Navbar({ onOpenAuth }) {
     }
   }
 
-  const handleNavClick = (item) => {
-    setActive(item)
-    setIsMobileMenuOpen(false)
+  // Smooth scroll and set active link
+  const scrollToSection = (id, item) => {
+    const el = document.getElementById(id)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      setActive(item)
+    }
   }
+
+  // Close mobile menu and scroll
+  const handleNavClick = (item) => {
+    const id = getSectionId(item)
+    setIsMobileMenuOpen(false)
+    scrollToSection(id, item)
+  }
+
+  // Scrollspy: observe sections and update active nav item
+  useEffect(() => {
+    const sectionIds = items.map(getSectionId)
+    const observers = []
+
+    const options = {
+      root: null,
+      rootMargin: '0px 0px -40% 0px', // trigger when section is near top/mid
+      threshold: 0
+    }
+
+    const callback = (entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const id = entry.target.id
+          // find item that maps to this id
+          const matched = items.find(it => getSectionId(it) === id)
+          if (matched) setActive(matched)
+        }
+      })
+    }
+
+    const io = new IntersectionObserver(callback, options)
+    sectionIds.forEach(id => {
+      const el = document.getElementById(id)
+      if (el) {
+        io.observe(el)
+        observers.push(el)
+      }
+    })
+
+    return () => {
+      if (io) observers.forEach(el => io.unobserve(el))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <nav className={`w-full fixed top-0 z-50 transition-all duration-300 ${

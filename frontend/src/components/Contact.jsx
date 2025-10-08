@@ -160,10 +160,10 @@ export default function Contact() {
                 
                 <button 
                   type="submit" 
-                  className="btn-cta w-full group"
+                  className="w-full btn-cta group flex items-center justify-center gap-3"
                 >
-                  <Send className="w-5 h-5 mr-2 transition-transform group-hover:translate-x-1" />
-                  Send Message
+                  <Send className="w-5 h-5 transition-transform group-hover:translate-x-1 group-hover:rotate-[-10deg]" />
+                  <span>Send Message</span>
                 </button>
               </form>
             </div>
@@ -198,8 +198,8 @@ export default function Contact() {
                   </div>
                   <div>
                     <h4 className="font-medium text-white mb-1">Phone</h4>
-                    <p className="text-gray-400 text-sm">+1 (555) 123-4567</p>
-                    <p className="text-gray-500 text-xs">Mon-Fri, 9 AM - 6 PM EST</p>
+                    <p className="text-gray-400 text-sm">+91 82919 35109</p>
+                    <p className="text-gray-500 text-xs">Mon-Fri, 9 AM - 6 PM IST</p>
                   </div>
                 </div>
                 
@@ -209,8 +209,8 @@ export default function Contact() {
                   </div>
                   <div>
                     <h4 className="font-medium text-white mb-1">Address</h4>
-                    <p className="text-gray-400 text-sm">123 Innovation Drive</p>
-                    <p className="text-gray-400 text-sm">Tech Valley, CA 94105</p>
+                    <p className="text-gray-400 text-sm">Don Bosco Institute of Technology</p>
+                    <p className="text-gray-400 text-sm">Kurla West, Mumbai - 400070</p>
                   </div>
                 </div>
               </div>
