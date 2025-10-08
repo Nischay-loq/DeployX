@@ -54,31 +54,68 @@ def get_dashboard_stats(
         recent_deployments = 0
         
         try:
-            total_deployments = db.query(Deployment).filter(
+            from app.files.models import FileDeployment
+            
+            # Software deployments
+            software_total = db.query(Deployment).filter(
                 Deployment.initiated_by == current_user.id
             ).count()
             
-            successful_deployments = db.query(Deployment).filter(
+            software_successful = db.query(Deployment).filter(
                 Deployment.initiated_by == current_user.id,
                 Deployment.status == "completed"
             ).count()
             
-            failed_deployments = db.query(Deployment).filter(
+            software_failed = db.query(Deployment).filter(
                 Deployment.initiated_by == current_user.id,
                 Deployment.status == "failed"
             ).count()
             
-            pending_deployments = db.query(Deployment).filter(
+            software_pending = db.query(Deployment).filter(
                 Deployment.initiated_by == current_user.id,
                 Deployment.status.in_(["pending", "in_progress"])
             ).count()
             
+            # File deployments
+            file_total = db.query(FileDeployment).filter(
+                FileDeployment.created_by == current_user.id
+            ).count()
+            
+            file_successful = db.query(FileDeployment).filter(
+                FileDeployment.created_by == current_user.id,
+                FileDeployment.status == "completed"
+            ).count()
+            
+            file_failed = db.query(FileDeployment).filter(
+                FileDeployment.created_by == current_user.id,
+                FileDeployment.status == "failed"
+            ).count()
+            
+            file_pending = db.query(FileDeployment).filter(
+                FileDeployment.created_by == current_user.id,
+                FileDeployment.status.in_(["pending", "in_progress"])
+            ).count()
+            
+            # Combine totals
+            total_deployments = software_total + file_total
+            successful_deployments = software_successful + file_successful
+            failed_deployments = software_failed + file_failed
+            pending_deployments = software_pending + file_pending
+            
             # Recent activity (last 7 days)
             seven_days_ago = datetime.utcnow() - timedelta(days=7)
-            recent_deployments = db.query(Deployment).filter(
+            recent_software = db.query(Deployment).filter(
                 Deployment.initiated_by == current_user.id,
                 Deployment.started_at >= seven_days_ago
             ).count()
+            
+            recent_files = db.query(FileDeployment).filter(
+                FileDeployment.created_by == current_user.id,
+                FileDeployment.started_at >= seven_days_ago
+            ).count()
+            
+            recent_deployments = recent_software + recent_files
+            
         except Exception as deployment_error:
             logger.warning(f"Could not query deployments: {deployment_error}")
             # Use fallback values
@@ -156,7 +193,7 @@ def get_recent_activity(
     try:
         all_activities = []
         
-        # 1. Get recent deployments
+        # 1. Get recent deployments (software)
         try:
             recent_deployments = db.query(Deployment).filter(
                 Deployment.initiated_by == current_user.id
@@ -173,14 +210,15 @@ def get_recent_activity(
                 # Add deployment start activity
                 all_activities.append({
                     "id": f"deploy-{deployment.id}",
-                    "type": "deployment",
-                    "title": f"Started deployment to {device_count} device(s)",
+                    "type": "software_deployment",
+                    "title": f"Started software deployment to {device_count} device(s)",
                     "status": deployment.status,
                     "timestamp": deployment.started_at.isoformat() if deployment.started_at else datetime.utcnow().isoformat(),
                     "details": {
                         "deployment_id": str(deployment.id),
                         "device_count": device_count,
-                        "status": deployment.status
+                        "status": deployment.status,
+                        "deployment_type": "software"
                     }
                 })
                 
@@ -189,17 +227,75 @@ def get_recent_activity(
                     all_activities.append({
                         "id": f"deploy-complete-{deployment.id}",
                         "type": "deployment_complete",
-                        "title": f"Deployment {'completed successfully' if deployment.status == 'completed' else 'failed'} on {device_count} device(s)",
+                        "title": f"Software deployment {'completed successfully' if deployment.status == 'completed' else 'failed'} on {device_count} device(s)",
                         "status": deployment.status,
                         "timestamp": deployment.ended_at.isoformat(),
                         "details": {
                             "deployment_id": str(deployment.id),
                             "device_count": device_count,
-                            "duration": str(deployment.ended_at - deployment.started_at) if deployment.started_at else "Unknown"
+                            "duration": str(deployment.ended_at - deployment.started_at) if deployment.started_at else "Unknown",
+                            "deployment_type": "software"
                         }
                     })
         except Exception as deployment_error:
             logger.warning(f"Could not query deployments: {deployment_error}")
+        
+        # 1b. Get recent file deployments
+        try:
+            from app.files.models import FileDeployment
+            import json
+            
+            recent_file_deployments = db.query(FileDeployment).filter(
+                FileDeployment.created_by == current_user.id
+            ).order_by(desc(FileDeployment.created_at)).limit(limit).all()
+            
+            for file_deployment in recent_file_deployments:
+                try:
+                    # Parse device_ids from JSON
+                    device_ids = json.loads(file_deployment.device_ids) if file_deployment.device_ids else []
+                    group_ids = json.loads(file_deployment.group_ids) if file_deployment.group_ids else []
+                    file_ids = json.loads(file_deployment.file_ids) if file_deployment.file_ids else []
+                    
+                    device_count = len(device_ids)
+                    file_count = len(file_ids)
+                except Exception:
+                    device_count = 0
+                    file_count = 1
+                
+                # Add file deployment start activity
+                all_activities.append({
+                    "id": f"file-deploy-{file_deployment.id}",
+                    "type": "file_deployment",
+                    "title": f"Started file deployment: {file_count} file(s) to {device_count} device(s)",
+                    "status": file_deployment.status,
+                    "timestamp": file_deployment.created_at.isoformat() if file_deployment.created_at else datetime.utcnow().isoformat(),
+                    "details": {
+                        "deployment_id": str(file_deployment.id),
+                        "device_count": device_count,
+                        "file_count": file_count,
+                        "status": file_deployment.status,
+                        "deployment_type": "file"
+                    }
+                })
+                
+                # Add file deployment completion activity if completed
+                if file_deployment.completed_at and file_deployment.status in ['completed', 'failed']:
+                    all_activities.append({
+                        "id": f"file-deploy-complete-{file_deployment.id}",
+                        "type": "deployment_complete",
+                        "title": f"File deployment {'completed successfully' if file_deployment.status == 'completed' else 'failed'}: {file_count} file(s) to {device_count} device(s)",
+                        "status": file_deployment.status,
+                        "timestamp": file_deployment.completed_at.isoformat(),
+                        "details": {
+                            "deployment_id": str(file_deployment.id),
+                            "device_count": device_count,
+                            "file_count": file_count,
+                            "duration": str(file_deployment.completed_at - file_deployment.started_at) if file_deployment.started_at else "Unknown",
+                            "deployment_type": "file"
+                        }
+                    })
+        except Exception as file_deployment_error:
+            logger.warning(f"Could not query file deployments: {file_deployment_error}")
         
         # 2. Get recent device groups created/updated
         try:
@@ -393,60 +489,6 @@ def get_device_status_chart(
             ]
         }
 
-@router.get("/deployment-trends")
-def get_deployment_trends(
-    days: int = 7,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Get deployment trends over time"""
-    try:
-        end_date = datetime.utcnow()
-        start_date = end_date - timedelta(days=days)
-        
-        # Get deployments grouped by day
-        deployments = db.query(
-            func.date(Deployment.started_at).label('date'),
-            func.count(Deployment.id).label('count'),
-            Deployment.status
-        ).filter(
-            Deployment.initiated_by == current_user.id,
-            Deployment.started_at >= start_date
-        ).group_by(
-            func.date(Deployment.started_at),
-            Deployment.status
-        ).all()
-        
-        # Process data for chart
-        chart_data = {}
-        for date, count, status in deployments:
-            date_str = date.strftime('%Y-%m-%d')
-            if date_str not in chart_data:
-                chart_data[date_str] = {'date': date_str}
-            chart_data[date_str][status] = count
-        
-        # Convert to list and fill missing dates
-        result = []
-        current_date = start_date.date()
-        while current_date <= end_date.date():
-            date_str = current_date.strftime('%Y-%m-%d')
-            if date_str in chart_data:
-                result.append(chart_data[date_str])
-            else:
-                result.append({
-                    'date': date_str,
-                    'completed': 0,
-                    'failed': 0,
-                    'pending': 0
-                })
-            current_date += timedelta(days=1)
-        
-        return {"trend_data": result}
-        
-    except Exception as e:
-        logger.error(f"Error getting deployment trends: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch deployment trends")
-
 @router.get("/system-metrics")
 def get_system_metrics(
     db: Session = Depends(get_db),
@@ -491,8 +533,10 @@ def get_deployment_trends_data(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get actual deployment trends over specified days"""
+    """Get actual deployment trends over specified days - includes both software and file deployments"""
     try:
+        from app.files.models import FileDeployment
+        
         end_date = datetime.utcnow().date()
         start_date = end_date - timedelta(days=days-1)
         
@@ -502,15 +546,33 @@ def get_deployment_trends_data(
         
         while current_date <= end_date:
             try:
-                day_deployments = db.query(Deployment).filter(
+                # Get software deployments for this day
+                software_deployments = db.query(Deployment).filter(
                     Deployment.initiated_by == current_user.id,
                     func.date(Deployment.started_at) == current_date
                 ).all()
                 
-                successful = len([d for d in day_deployments if d.status == 'completed'])
-                failed = len([d for d in day_deployments if d.status == 'failed'])
-                pending = len([d for d in day_deployments if d.status in ['pending', 'in_progress']])
-                total = len(day_deployments)
+                # Get file deployments for this day
+                file_deployments = db.query(FileDeployment).filter(
+                    FileDeployment.created_by == current_user.id,
+                    func.date(FileDeployment.started_at) == current_date
+                ).all()
+                
+                # Count successful software deployments
+                software_successful = len([d for d in software_deployments if d.status == 'completed'])
+                software_failed = len([d for d in software_deployments if d.status == 'failed'])
+                software_pending = len([d for d in software_deployments if d.status in ['pending', 'in_progress']])
+                
+                # Count successful file deployments
+                file_successful = len([d for d in file_deployments if d.status == 'completed'])
+                file_failed = len([d for d in file_deployments if d.status == 'failed'])
+                file_pending = len([d for d in file_deployments if d.status in ['pending', 'in_progress']])
+                
+                # Combine totals
+                successful = software_successful + file_successful
+                failed = software_failed + file_failed
+                pending = software_pending + file_pending
+                total = len(software_deployments) + len(file_deployments)
                 
                 deployment_data.append({
                     "date": current_date.isoformat(),
@@ -518,6 +580,8 @@ def get_deployment_trends_data(
                     "failed": failed,
                     "pending": pending,
                     "total": total,
+                    "software_deployments": len(software_deployments),
+                    "file_deployments": len(file_deployments),
                     "success_rate": round((successful / total * 100) if total > 0 else 0, 1)
                 })
             except Exception as day_error:
@@ -528,6 +592,8 @@ def get_deployment_trends_data(
                     "failed": 0,
                     "pending": 0,
                     "total": 0,
+                    "software_deployments": 0,
+                    "file_deployments": 0,
                     "success_rate": 0
                 })
             

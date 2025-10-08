@@ -37,6 +37,54 @@ def get_socketio_components():
             return None, None
     return sio, conn_manager
 
+async def emit_file_deployment_notification(deployment_id: int, db: Session):
+    """Emit socket.io notification when file deployment completes"""
+    try:
+        sio, _ = get_socketio_components()
+        if sio is None:
+            logger.warning("Socket.IO not available, skipping notification")
+            return
+        
+        deployment = crud.get_file_deployment_by_id(db, deployment_id)
+        if not deployment:
+            return
+        
+        # Get deployment results statistics
+        results = crud.get_deployment_results(db, deployment_id)
+        
+        total_count = len(results)
+        success_count = sum(1 for r in results if r.status == 'success')
+        failure_count = sum(1 for r in results if r.status == 'error')
+        
+        # Get first file name for the notification
+        file_names = []
+        for result in results[:3]:  # Get up to 3 file names
+            file_obj = crud.get_uploaded_file_by_id(db, result.file_id)
+            if file_obj:
+                file_names.append(file_obj.filename)
+        
+        file_name = ', '.join(file_names) if file_names else 'Unknown files'
+        if len(results) > 3:
+            file_name += f' and {len(results) - 3} more'
+        
+        notification_data = {
+            'deployment_id': deployment.id,
+            'file_name': file_name,
+            'status': deployment.status,
+            'success_count': success_count,
+            'failure_count': failure_count,
+            'total_count': total_count,
+            'created_at': deployment.created_at.isoformat() if deployment.created_at else None,
+            'completed_at': deployment.completed_at.isoformat() if deployment.completed_at else None
+        }
+        
+        # Emit to all connected frontend clients
+        await sio.emit('file_deployment_completed', notification_data)
+        logger.info(f"Emitted file_deployment_completed notification for deployment {deployment_id}")
+        
+    except Exception as e:
+        logger.error(f"Error emitting file deployment notification: {e}", exc_info=True)
+
 router = APIRouter(prefix="/files", tags=["files"])
 
 logger = logging.getLogger(__name__)
@@ -160,9 +208,28 @@ async def deploy_files(
     
     target_device_ids = set(deployment_request.device_ids)
     
+    # Add devices from selected groups (only user's own groups)
     if deployment_request.group_ids:
-        group_devices = get_devices_in_groups(db, deployment_request.group_ids)
-        target_device_ids.update([device.id for device in group_devices])
+        logger.info(f"Processing group_ids: {deployment_request.group_ids} for user {current_user.id}")
+        # First verify that all group_ids belong to the current user
+        from app.grouping.models import DeviceGroup, DeviceGroupMap
+        
+        user_group_ids = db.query(DeviceGroup.id).filter(
+            DeviceGroup.id.in_(deployment_request.group_ids),
+            DeviceGroup.user_id == current_user.id
+        ).all()
+        user_group_ids = [g[0] for g in user_group_ids]
+        logger.info(f"Found {len(user_group_ids)} groups belonging to user: {user_group_ids}")
+        
+        if user_group_ids:
+            group_device_ids = db.query(DeviceGroupMap.device_id).filter(
+                DeviceGroupMap.group_id.in_(user_group_ids)
+            ).all()
+            group_device_ids = [d[0] for d in group_device_ids]
+            logger.info(f"Found {len(group_device_ids)} devices in groups: {group_device_ids}")
+            target_device_ids.update(group_device_ids)
+    
+    logger.info(f"Total target devices for file deployment: {len(target_device_ids)} - IDs: {list(target_device_ids)}")
     
     if not target_device_ids:
         raise HTTPException(status_code=400, detail="No target devices specified")
@@ -357,6 +424,9 @@ async def update_deployment_final_status(deployment_id: int, db: Session, check_
         
         crud.update_deployment_status(db, deployment_id, final_status, completed_at=datetime.utcnow())
         logger.info(f"Updated deployment {deployment_id} final status to {final_status}")
+        
+        # Emit socket notification
+        await emit_file_deployment_notification(deployment_id, db)
         
     except Exception as e:
         logger.exception(f"Error updating deployment final status: {e}")

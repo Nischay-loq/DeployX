@@ -47,7 +47,8 @@ import {
   EyeOff,
   X,
   Trash2,
-  Plus
+  Plus,
+  FileText
 } from 'lucide-react';
 import GroupsManager from '../components/GroupsManager.jsx';
 import DeploymentsManager from '../components/DeploymentsManager.jsx';
@@ -156,6 +157,11 @@ export default function Dashboard({ onLogout }) {
   // Group Create Modal State
   const [showGroupCreateModal, setShowGroupCreateModal] = useState(false);
   
+  // Notification states
+  const [notifications, setNotifications] = useState([]);
+  const [showNotificationPanel, setShowNotificationPanel] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  
   // Force refresh key for group and device cards
   const [groupsRefreshKey, setGroupsRefreshKey] = useState(0);
   const [devicesRefreshKey, setDevicesRefreshKey] = useState(0);
@@ -257,11 +263,19 @@ export default function Dashboard({ onLogout }) {
     { id: 'files', name: 'File System', color: 'text-green-400', icon: FolderOpen },
   ];
 
-  // Click outside handler for profile dropdown
+  // Click outside handler for profile dropdown and notification panel
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (showProfileDropdown && !event.target.closest('.profile-dropdown')) {
         setShowProfileDropdown(false);
+      }
+      if (showNotificationPanel) {
+        // Check if click is inside notification area (button or panel)
+        const notificationArea = event.target.closest('.notification-container');
+        if (!notificationArea) {
+          console.log('Click outside notification panel, closing...');
+          setShowNotificationPanel(false);
+        }
       }
     };
 
@@ -269,7 +283,7 @@ export default function Dashboard({ onLogout }) {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showProfileDropdown]);
+  }, [showProfileDropdown, showNotificationPanel]);
 
   // Optimized data loading - only load on initial mount, section changes use cached data
   useEffect(() => {
@@ -297,6 +311,19 @@ export default function Dashboard({ onLogout }) {
 
     loadInitialData();
   }, []); // Only run once on mount
+  
+  // Add a test notification on mount for debugging
+  useEffect(() => {
+    if (!initialLoading) {
+      console.log('🔔 Adding test notification for debugging');
+      addNotification(
+        'info',
+        'Welcome to DeployX',
+        'Notification system is active and ready!',
+        { type: 'system', test: true }
+      );
+    }
+  }, [initialLoading]);
   
   // Lazy load data when switching to sections that need it
   useEffect(() => {
@@ -374,44 +401,82 @@ export default function Dashboard({ onLogout }) {
         'Content-Type': 'application/json'
       };
 
-      // Fetch deployment details from API
-      const response = await fetch(`${getApiUrl()}/deployments/${deployment.id}`, {
-        headers
-      });
+      // Check if this is a day-based deployment (from trends chart)
+      const isDayDeployment = deployment.id && deployment.id.toString().startsWith('day-');
+      
+      if (isDayDeployment) {
+        // Extract date from ID (format: day-2025-10-08)
+        const date = deployment.id.toString().replace('day-', '');
+        
+        // Fetch all deployments for this date
+        const response = await fetch(`${getApiUrl()}/deployments/by-date/${date}`, {
+          headers
+        });
 
-      if (response.ok) {
-        const deploymentDetails = await response.json();
-        console.log('Deployment details:', deploymentDetails);
-        
-        // Extract devices and groups from deployment details
-        setDeploymentDevices(deploymentDetails.devices || []);
-        setDeploymentGroups(deploymentDetails.groups || []);
-        
-        // Update selected deployment with full details
-        setSelectedDeployment({
-          ...deployment,
-          ...deploymentDetails,
-          software_details: deploymentDetails.software_details || [],
-          installation_paths: deploymentDetails.installation_paths || [],
-          target_devices: deploymentDetails.target_devices || [],
-          target_groups: deploymentDetails.target_groups || []
-        });
+        if (response.ok) {
+          const dateData = await response.json();
+          console.log('Deployments for date:', dateData);
+          
+          // Update selected deployment with date-based data
+          setSelectedDeployment({
+            ...deployment,
+            date_deployments: dateData,
+            is_date_view: true,
+            software_deployments: dateData.software_deployments || [],
+            file_deployments: dateData.file_deployments || [],
+            summary: dateData.summary || {}
+          });
+          
+          // Set empty devices/groups for date view
+          setDeploymentDevices([]);
+          setDeploymentGroups([]);
+        } else {
+          console.error('Failed to fetch date deployments:', response.status);
+          setDeploymentDevices([]);
+          setDeploymentGroups([]);
+        }
       } else {
-        console.error('Failed to fetch deployment details:', response.status);
-        // Use fallback data structure
-        setDeploymentDevices([]);
-        setDeploymentGroups([]);
-        setSelectedDeployment({
-          ...deployment,
-          software_details: deployment.software_name ? [{
-            name: deployment.software_name,
-            version: deployment.version || 'Unknown',
-            installation_path: deployment.installation_path || '/default/path',
-            size: deployment.file_size || 'Unknown'
-          }] : [],
-          target_devices: deployment.target_devices || [],
-          target_groups: deployment.target_groups || []
+        // Normal deployment detail fetch
+        const response = await fetch(`${getApiUrl()}/deployments/${deployment.id}`, {
+          headers
         });
+
+        if (response.ok) {
+          const deploymentDetails = await response.json();
+          console.log('Deployment details:', deploymentDetails);
+          
+          // Extract devices and groups from deployment details
+          setDeploymentDevices(deploymentDetails.devices || []);
+          setDeploymentGroups(deploymentDetails.groups || []);
+          
+          // Update selected deployment with full details
+          setSelectedDeployment({
+            ...deployment,
+            ...deploymentDetails,
+            is_date_view: false,
+            software_details: deploymentDetails.software_details || [],
+            installation_paths: deploymentDetails.installation_paths || [],
+            target_devices: deploymentDetails.target_devices || [],
+            target_groups: deploymentDetails.target_groups || []
+          });
+        } else {
+          console.error('Failed to fetch deployment details:', response.status);
+          // Use fallback data structure
+          setDeploymentDevices([]);
+          setDeploymentGroups([]);
+          setSelectedDeployment({
+            ...deployment,
+            is_date_view: false,
+            software_details: deployment.software_name ? [{
+              name: deployment.software_name,
+              version: deployment.version || 'Unknown',
+              installation_path: deployment.installation_path || '/default/path',
+              size: deployment.file_size || 'Unknown'
+            }] : [],
+            target_devices: deployment.target_devices || [],
+            target_groups: deployment.target_groups || []
+          });
+        }
       }
     } catch (error) {
       console.error('Error fetching deployment details:', error);
@@ -420,6 +485,7 @@ export default function Dashboard({ onLogout }) {
       setDeploymentGroups([]);
       setSelectedDeployment({
         ...deployment,
+        is_date_view: false,
         software_details: [],
         target_devices: [],
         target_groups: []
@@ -427,6 +493,46 @@ export default function Dashboard({ onLogout }) {
     } finally {
       setLoadingDeploymentDetails(false);
     }
+  };
+
+  // Notification helper functions
+  const addNotification = (type, title, message, metadata = {}) => {
+    const notification = {
+      id: Date.now() + Math.random(),
+      type, // 'success', 'error', 'info', 'warning'
+      title,
+      message,
+      metadata,
+      timestamp: new Date(),
+      read: false
+    };
+    
+    setNotifications(prev => [notification, ...prev].slice(0, 50)); // Keep last 50 notifications
+    setUnreadCount(prev => prev + 1);
+    
+    // Auto-dismiss success notifications after 5 seconds
+    if (type === 'success') {
+      setTimeout(() => {
+        setNotifications(prev => prev.filter(n => n.id !== notification.id));
+      }, 5000);
+    }
+  };
+
+  const markNotificationAsRead = (notificationId) => {
+    setNotifications(prev => 
+      prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
+    );
+    setUnreadCount(prev => Math.max(0, prev - 1));
+  };
+
+  const markAllAsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setUnreadCount(0);
+  };
+
+  const clearAllNotifications = () => {
+    setNotifications([]);
+    setUnreadCount(0);
   };
 
   // Fetch dashboard data from API
@@ -1044,6 +1150,115 @@ export default function Dashboard({ onLogout }) {
         
         // Also refresh dashboard stats for accurate counts
         fetchDashboardData();
+        
+        // Add notification for device status change
+        const statusText = deviceInfo.status === 'online' ? 'came online' : 'went offline';
+        addNotification(
+          deviceInfo.status === 'online' ? 'success' : 'warning',
+          'Device Status Changed',
+          `Device "${deviceInfo.device_name || deviceInfo.agent_id}" ${statusText}`,
+          { type: 'device_status', deviceInfo }
+        );
+      });
+
+      // Software deployment completed
+      socketRef.current.on('deployment_completed', (deploymentInfo) => {
+        if (!isMountedRef.current) return;
+        
+        console.log('Dashboard: Deployment completed:', deploymentInfo);
+        
+        const { deployment_id, deployment_name, status, success_count, failure_count, total_count } = deploymentInfo;
+        
+        const isSuccess = status === 'completed' && failure_count === 0;
+        const isPartial = status === 'partial' || (success_count > 0 && failure_count > 0);
+        
+        let notifType = isSuccess ? 'success' : isPartial ? 'warning' : 'error';
+        let message = `${success_count}/${total_count} devices deployed successfully`;
+        
+        if (failure_count > 0) {
+          message += ` (${failure_count} failed)`;
+        }
+        
+        addNotification(
+          notifType,
+          `Deployment ${isSuccess ? 'Completed' : isPartial ? 'Partially Completed' : 'Failed'}`,
+          `"${deployment_name}": ${message}`,
+          { type: 'deployment', deploymentInfo }
+        );
+        
+        // Refresh dashboard data
+        fetchDashboardData();
+      });
+
+      // File deployment completed
+      socketRef.current.on('file_deployment_completed', (deploymentInfo) => {
+        if (!isMountedRef.current) return;
+        
+        console.log('Dashboard: File deployment completed:', deploymentInfo);
+        
+        const { deployment_id, file_name, status, success_count, failure_count, total_count } = deploymentInfo;
+        
+        const isSuccess = status === 'completed' && failure_count === 0;
+        const isPartial = status === 'partial' || (success_count > 0 && failure_count > 0);
+        
+        let notifType = isSuccess ? 'success' : isPartial ? 'warning' : 'error';
+        let message = `${success_count}/${total_count} targets deployed successfully`;
+        
+        if (failure_count > 0) {
+          message += ` (${failure_count} failed)`;
+        }
+        
+        addNotification(
+          notifType,
+          `File Deployment ${isSuccess ? 'Completed' : isPartial ? 'Partially Completed' : 'Failed'}`,
+          `"${file_name}": ${message}`,
+          { type: 'file_deployment', deploymentInfo }
+        );
+        
+        // Refresh dashboard data
+        fetchDashboardData();
+      });
+
+      // Agent connected
+      socketRef.current.on('agent_connected', (agentInfo) => {
+        if (!isMountedRef.current) return;
+        
+        console.log('Dashboard: Agent connected:', agentInfo);
+        
+        addNotification(
+          'info',
+          'Agent Connected',
+          `Agent "${agentInfo.agent_id}" connected from ${agentInfo.ip_address || 'unknown IP'}`,
+          { type: 'agent_connected', agentInfo }
+        );
+      });
+
+      // Agent disconnected
+      socketRef.current.on('agent_disconnected', (agentInfo) => {
+        if (!isMountedRef.current) return;
+        
+        console.log('Dashboard: Agent disconnected:', agentInfo);
+        
+        addNotification(
+          'warning',
+          'Agent Disconnected',
+          `Agent "${agentInfo.agent_id}" disconnected`,
+          { type: 'agent_disconnected', agentInfo }
+        );
+      });
+
+      // System error notification
+      socketRef.current.on('system_error', (errorInfo) => {
+        if (!isMountedRef.current) return;
+        
+        console.log('Dashboard: System error:', errorInfo);
+        
+        addNotification(
+          'error',
+          'System Error',
+          errorInfo.message || 'An error occurred in the system',
+          { type: 'system_error', errorInfo }
+        );
       });
     };
 
@@ -1517,7 +1732,7 @@ export default function Dashboard({ onLogout }) {
             </div>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             {/* Search */}
             <div className="relative hidden md:block">
               {/* <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" /> */}
@@ -1529,10 +1744,138 @@ export default function Dashboard({ onLogout }) {
             </div>
             
             {/* Notifications */}
-            <button className="relative p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all">
-              <Bell className="w-5 h-5" />
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
-            </button>
+            <div className="relative notification-container">
+              <button 
+                onClick={() => {
+                  console.log('Notification bell clicked. Current state:', showNotificationPanel);
+                  console.log('Notifications array:', notifications);
+                  console.log('Unread count:', unreadCount);
+                  setShowNotificationPanel(!showNotificationPanel);
+                }}
+                aria-label="notifications"
+                className="relative w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all"
+              >
+                <Bell className="w-5 h-5" />
+                {unreadCount > 0 && (
+                  <div className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-red-500 rounded-full flex items-center justify-center px-1">
+                    <span className="text-xs font-bold text-white">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                  </div>
+                )}
+              </button>
+
+              {/* Notification Panel */}
+              {showNotificationPanel && (
+                <div 
+                  className="absolute right-0 top-full mt-2 w-96 max-w-[calc(100vw-2rem)] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl overflow-hidden z-[9999]"
+                  style={{ minHeight: '200px' }}
+                >
+                  {console.log('🔔 Notification panel is rendering!', { notifications, showNotificationPanel })}
+                  {/* Header */}
+                  <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-white">Notifications</h3>
+                    <div className="flex items-center gap-2">
+                      {notifications.length > 0 && (
+                        <>
+                          <button
+                            onClick={markAllAsRead}
+                            className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
+                          >
+                            Mark all read
+                          </button>
+                          <span className="text-gray-600">|</span>
+                          <button
+                            onClick={clearAllNotifications}
+                            className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                          >
+                            Clear all
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => setShowNotificationPanel(false)}
+                        className="ml-2 text-gray-400 hover:text-white transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Notifications List */}
+                  <div className="max-h-96 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="p-8 text-center text-gray-400">
+                        <Bell className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                        <p>No notifications</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-gray-700">
+                        {notifications.map((notification) => {
+                          const getNotificationIcon = () => {
+                            switch (notification.type) {
+                              case 'success':
+                                return <CheckCircle className="w-5 h-5 text-green-400" />;
+                              case 'error':
+                                return <XCircle className="w-5 h-5 text-red-400" />;
+                              case 'warning':
+                                return <AlertTriangle className="w-5 h-5 text-yellow-400" />;
+                              default:
+                                return <Bell className="w-5 h-5 text-blue-400" />;
+                            }
+                          };
+
+                          const getNotificationBg = () => {
+                            if (notification.read) return 'bg-gray-800/50';
+                            switch (notification.type) {
+                              case 'success':
+                                return 'bg-green-500/5';
+                              case 'error':
+                                return 'bg-red-500/5';
+                              case 'warning':
+                                return 'bg-yellow-500/5';
+                              default:
+                                return 'bg-blue-500/5';
+                            }
+                          };
+
+                          return (
+                            <div
+                              key={notification.id}
+                              onClick={() => !notification.read && markNotificationAsRead(notification.id)}
+                              className={`p-4 cursor-pointer hover:bg-gray-700/50 transition-colors ${getNotificationBg()}`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className="flex-shrink-0 mt-0.5">
+                                  {getNotificationIcon()}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <h4 className={`text-sm font-medium ${notification.read ? 'text-gray-400' : 'text-white'}`}>
+                                      {notification.title}
+                                    </h4>
+                                    {!notification.read && (
+                                      <div className="w-2 h-2 bg-primary-500 rounded-full flex-shrink-0 mt-1"></div>
+                                    )}
+                                  </div>
+                                  <p className={`text-sm mt-1 ${notification.read ? 'text-gray-500' : 'text-gray-300'}`}>
+                                    {notification.message}
+                                  </p>
+                                  <p className="text-xs text-gray-500 mt-2">
+                                    {new Date(notification.timestamp).toLocaleTimeString([], { 
+                                      hour: '2-digit', 
+                                      minute: '2-digit'
+                                    })}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             
             {/* Connection Status */}
             <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
@@ -2150,14 +2493,58 @@ export default function Dashboard({ onLogout }) {
                         )}
                         
                         {/* Tooltip */}
-                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-10">
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-2 px-3 whitespace-nowrap z-10 shadow-lg border border-gray-700">
                           {hasDeployments ? (
                             <>
-                              <div>Total: {dayData.total}</div>
-                              <div>Success: {dayData.successful}</div>
-                              <div>Failed: {dayData.failed}</div>
-                              <div>Rate: {dayData.success_rate}%</div>
-                              <div className="text-blue-400 mt-1">Click to view details</div>
+                              <div className="font-semibold text-blue-400 mb-1">
+                                {new Date(dayData.date).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                              </div>
+                              <div className="space-y-1">
+                                <div className="flex justify-between gap-4">
+                                  <span className="text-gray-400">Total:</span>
+                                  <span className="text-white font-medium">{dayData.total}</span>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                  <span className="text-green-400">✓ Success:</span>
+                                  <span className="text-white">{dayData.successful}</span>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                  <span className="text-red-400">✗ Failed:</span>
+                                  <span className="text-white">{dayData.failed}</span>
+                                </div>
+                                {dayData.pending > 0 && (
+                                  <div className="flex justify-between gap-4">
+                                    <span className="text-yellow-400">⏳ Pending:</span>
+                                    <span className="text-white">{dayData.pending}</span>
+                                  </div>
+                                )}
+                                <div className="border-t border-gray-700 my-1"></div>
+                                <div className="flex justify-between gap-4">
+                                  <span className="text-gray-400">Success Rate:</span>
+                                  <span className="text-blue-400 font-medium">{dayData.success_rate}%</span>
+                                </div>
+                                {(dayData.software_deployments > 0 || dayData.file_deployments > 0) && (
+                                  <>
+                                    <div className="border-t border-gray-700 my-1"></div>
+                                    <div className="text-gray-400 text-xs mb-1">Breakdown:</div>
+                                    {dayData.software_deployments > 0 && (
+                                      <div className="flex justify-between gap-4">
+                                        <span className="text-purple-400">📦 Software:</span>
+                                        <span className="text-white">{dayData.software_deployments}</span>
+                                      </div>
+                                    )}
+                                    {dayData.file_deployments > 0 && (
+                                      <div className="flex justify-between gap-4">
+                                        <span className="text-cyan-400">📄 Files:</span>
+                                        <span className="text-white">{dayData.file_deployments}</span>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                              <div className="text-blue-400 mt-2 text-center border-t border-gray-700 pt-1">
+                                Click for details
+                              </div>
                             </>
                           ) : (
                             <div>No deployments</div>
@@ -2347,8 +2734,6 @@ export default function Dashboard({ onLogout }) {
                   >
                     <Monitor className="w-10 h-10 text-orange-400 group-hover:scale-110 transition-transform" />
                     <span className="text-white text-sm font-medium">Groups</span>
-         <Network className="w-8 h-8 text-indigo-400 group-hover:scale-110 transition-transform" />
-                    <span className="text-white text-sm font-medium">Network</span>
                   </button>
                 </div>
               </div>
@@ -2358,12 +2743,15 @@ export default function Dashboard({ onLogout }) {
                 <div className="card-dark">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-white">Agent Status</h3>
-                    <PieChart className="w-5 h-5 text-gray-400" />
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                      <PieChart className="w-5 h-5 text-gray-400" />
+                    </div>
                   </div>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+                        <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
                         <span className="text-gray-300">Online</span>
                       </div>
                       <span className="text-white font-medium">{agents.filter(a => a.status === 'connected').length}</span>
@@ -2377,10 +2765,10 @@ export default function Dashboard({ onLogout }) {
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
-                        <span className="text-gray-300">Pending</span>
+                        <div className="w-3 h-3 bg-blue-400 rounded-full"></div>
+                        <span className="text-gray-300">Total Agents</span>
                       </div>
-                      <span className="text-white font-medium">0</span>
+                      <span className="text-white font-medium">{agents.length}</span>
                     </div>
                   </div>
                 </div>
@@ -3355,7 +3743,123 @@ export default function Dashboard({ onLogout }) {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-500"></div>
                   <span className="ml-3 text-gray-400">Loading deployment details...</span>
                 </div>
+              ) : selectedDeployment?.is_date_view ? (
+                /* Date View - Show all deployments for this date */
+                <div className="space-y-8">
+                  {/* Summary Section */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-gray-700/30 rounded-lg p-4">
+                      <div className="text-gray-400 text-sm mb-1">Total Deployments</div>
+                      <div className="text-2xl font-bold text-white">{selectedDeployment.summary?.software_count + selectedDeployment.summary?.file_count || 0}</div>
+                    </div>
+                    <div className="bg-green-500/10 rounded-lg p-4">
+                      <div className="text-gray-400 text-sm mb-1">Successful</div>
+                      <div className="text-2xl font-bold text-green-400">{selectedDeployment.summary?.total_successful || 0}</div>
+                    </div>
+                    <div className="bg-red-500/10 rounded-lg p-4">
+                      <div className="text-gray-400 text-sm mb-1">Failed</div>
+                      <div className="text-2xl font-bold text-red-400">{selectedDeployment.summary?.total_failed || 0}</div>
+                    </div>
+                    <div className="bg-yellow-500/10 rounded-lg p-4">
+                      <div className="text-gray-400 text-sm mb-1">Pending</div>
+                      <div className="text-2xl font-bold text-yellow-400">{selectedDeployment.summary?.total_pending || 0}</div>
+                    </div>
+                  </div>
+
+                  {/* Software Deployments */}
+                  {selectedDeployment.software_deployments?.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <Database className="h-5 w-5 text-purple-400" />
+                        Software Deployments ({selectedDeployment.software_deployments.length})
+                      </h3>
+                      <div className="space-y-3">
+                        {selectedDeployment.software_deployments.map((deployment, index) => (
+                          <div key={index} className="bg-gray-700/30 rounded-lg p-4 hover:bg-gray-700/50 transition-colors">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3">
+                                  <h4 className="font-medium text-white">{deployment.name}</h4>
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    deployment.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                                    deployment.status === 'failed' ? 'bg-red-500/20 text-red-400' :
+                                    'bg-yellow-500/20 text-yellow-400'
+                                  }`}>
+                                    {deployment.status}
+                                  </span>
+                                </div>
+                                <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
+                                  <div>
+                                    <span className="text-gray-400">Devices: </span>
+                                    <span className="text-white">{deployment.device_count}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-400">Started: </span>
+                                    <span className="text-white">{deployment.started_at ? new Date(deployment.started_at).toLocaleTimeString() : 'N/A'}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* File Deployments */}
+                  {selectedDeployment.file_deployments?.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-cyan-400" />
+                        File Deployments ({selectedDeployment.file_deployments.length})
+                      </h3>
+                      <div className="space-y-3">
+                        {selectedDeployment.file_deployments.map((deployment, index) => (
+                          <div key={index} className="bg-gray-700/30 rounded-lg p-4 hover:bg-gray-700/50 transition-colors">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3">
+                                  <h4 className="font-medium text-white">{deployment.name}</h4>
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    deployment.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                                    deployment.status === 'failed' ? 'bg-red-500/20 text-red-400' :
+                                    'bg-yellow-500/20 text-yellow-400'
+                                  }`}>
+                                    {deployment.status}
+                                  </span>
+                                </div>
+                                <div className="mt-2 grid grid-cols-3 gap-4 text-sm">
+                                  <div>
+                                    <span className="text-gray-400">Files: </span>
+                                    <span className="text-white">{deployment.file_count}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-400">Devices: </span>
+                                    <span className="text-white">{deployment.device_count}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-400">Path: </span>
+                                    <span className="text-white font-mono text-xs">{deployment.target_path}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* No deployments message */}
+                  {(!selectedDeployment.software_deployments?.length && !selectedDeployment.file_deployments?.length) && (
+                    <div className="bg-gray-700/30 rounded-lg p-8 text-center">
+                      <Database className="h-12 w-12 text-gray-600 mx-auto mb-3" />
+                      <p className="text-gray-400">No deployments found for this date</p>
+                    </div>
+                  )}
+                </div>
               ) : (
+                /* Normal Deployment View */
                 <div className="space-y-8">
                   {/* Software Details Section */}
                   <div>
