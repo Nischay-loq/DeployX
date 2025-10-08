@@ -186,6 +186,12 @@ class ConnectionManager:
             logger.info(f"Registering agent with shells: {list(shells.keys())}")
             logger.info(f"Full registration data: {registration_data}")
             await self.emit('agent_register', registration_data)
+            
+            # Join the agent's room for targeted Socket.IO messages
+            logger.info(f"Joining Socket.IO room: {self.agent_id}")
+            await self.emit('join_room', {'room': self.agent_id})
+            logger.info(f"[OK] Joined room {self.agent_id} for receiving deployment commands")
+            
             return True
         except Exception as e:
             logger.error(f"Failed to register agent: {e}")

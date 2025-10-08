@@ -1,13 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from .schemas import DeploymentCreate, DeploymentResponse, DeploymentProgressResponse, RetryRequest, DeploymentListResponse
 from .models import Deployment, DeploymentTarget, Checkpoint
+from .executor import SoftwareDeploymentExecutor
 from app.grouping.models import DeviceGroupMap, Device as Devices, DeviceGroup as DeviceGroups
 from app.auth.database import get_db
 from app.auth.utils import get_current_user
 from app.auth.models import User
 from datetime import datetime
-from typing import List
+from typing import List, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/deployments", tags=["Deployments"])
 
@@ -41,8 +45,9 @@ def get_user_deployments(
     return result
 
 @router.post("/install", response_model=DeploymentResponse)
-def install_software(
-    data: DeploymentCreate, 
+async def install_software(
+    data: DeploymentCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -75,6 +80,9 @@ def install_software(
             ).all()
             target_device_ids.update([d[0] for d in group_device_ids])
 
+    if not target_device_ids:
+        raise HTTPException(status_code=400, detail="No target devices found")
+
     # Create deployment targets for all devices
     for device_id in target_device_ids:
         target = DeploymentTarget(deployment_id=deployment.id, device_id=device_id)
@@ -91,7 +99,49 @@ def install_software(
     db.add(checkpoint)
     db.commit()
 
+    # Execute deployment in background
+    logger.info(f"✓ Created deployment {deployment.id} for {len(target_device_ids)} devices")
+    logger.info(f"✓ Software IDs: {data.software_ids}")
+    logger.info(f"✓ Target devices: {list(target_device_ids)}")
+    
+    # Deploy in background - executor will create its own DB session
+    background_tasks.add_task(
+        execute_deployment_background,
+        deployment.id,
+        data.software_ids,
+        list(target_device_ids),
+        data.custom_software
+    )
+    
+    logger.info(f"✓ Background task added for deployment {deployment.id}")
+
     return {"deployment_id": deployment.id}
+
+def execute_deployment_background(
+    deployment_id: int,
+    software_ids: List[int],
+    device_ids: List[int],
+    custom_software: Optional[str] = None
+):
+    """Execute deployment in background with its own DB session"""
+    from app.auth.database import SessionLocal
+    
+    logger.info(f"[BACKGROUND] Starting deployment {deployment_id}")
+    
+    db = SessionLocal()
+    try:
+        executor = SoftwareDeploymentExecutor(db)
+        result = executor.deploy_to_devices(
+            deployment_id,
+            software_ids,
+            device_ids,
+            custom_software
+        )
+        logger.info(f"[BACKGROUND] Deployment {deployment_id} completed: {result}")
+    except Exception as e:
+        logger.error(f"[BACKGROUND] Error in deployment {deployment_id}: {e}", exc_info=True)
+    finally:
+        db.close()
 
 @router.get("/{deployment_id}/progress", response_model=DeploymentProgressResponse)
 def get_progress(

@@ -44,6 +44,7 @@ def get_cors_origins():
 from app.grouping.route import router as groups_router
 from app.Devices.routes import router as devices_router
 from app.Deployments.routes import router as deployments_router
+from app.software.routes import router as software_router
 from app.files.routes import router as files_router
 from app.agents.routes import router as agents_router
 from app.auth import routes, models
@@ -54,6 +55,7 @@ from app.dashboard.routes import router as dashboard_router
 from app.command_deployment.executor import command_executor
 from app.grouping import models as grouping_models  # Import grouping models
 from app.Deployments import models as deployment_models  # Import deployment models
+from app.software import models as software_models  # Import software models
 from app.files import models as file_models  # Import file models
 from app.auth.database import get_db
 from app.agents import crud as agent_crud, schemas as agent_schemas
@@ -105,6 +107,7 @@ app.include_router(devices_router)
 app.include_router(agents_router)
 app.include_router(deployment_router)
 app.include_router(deployments_router)
+app.include_router(software_router)
 app.include_router(files_router)
 app.include_router(dashboard_router)
 
@@ -367,6 +370,11 @@ class ConnectionManager:
 # Initialize connection manager
 conn_manager = ConnectionManager()
 
+# Helper function to get Socket.IO components
+def get_socketio_components():
+    """Get Socket.IO server and connection manager instances"""
+    return sio, conn_manager
+
 # Helper function to get and send agent list
 async def _update_and_send_agent_list(sid=None):
     """Helper to fetch agents from devices table, update status, and emit to frontends."""
@@ -423,6 +431,22 @@ async def connect(sid, environ, auth):
     """Handle new socket connections"""
     client_origin = environ.get('HTTP_ORIGIN', 'unknown')
     logger.info(f"Client {sid} connected from {client_origin}")
+
+@sio.event
+async def join_room(sid, data):
+    """Handle agent joining its room for targeted messages"""
+    try:
+        room = data.get('room')
+        if room:
+            sio.enter_room(sid, room)
+            logger.info(f"[OK] Session {sid} joined room: {room}")
+            return {'status': 'success', 'room': room}
+        else:
+            logger.error(f"No room specified in join_room request from {sid}")
+            return {'status': 'error', 'message': 'No room specified'}
+    except Exception as e:
+        logger.error(f"Error joining room for sid {sid}: {e}")
+        return {'status': 'error', 'message': str(e)}
 
 @sio.event
 async def disconnect(sid):
@@ -835,15 +859,18 @@ async def file_transfer_result(sid, data):
             logger.info(f"Updated deployment result for device {device.id}")
             
             # Notify all frontends about the file transfer result
-            await sio.emit('file_transfer_update', {
-                'deployment_id': deployment_id,
-                'device_id': device.id,
-                'device_name': device.device_name,
-                'file_id': file_id,
-                'success': success,
-                'message': result_message,
-                'path_created': path_created
-            })
+            try:
+                await sio.emit('file_transfer_update', {
+                    'deployment_id': deployment_id,
+                    'device_id': device.id,
+                    'device_name': device.device_name,
+                    'file_id': file_id,
+                    'success': success,
+                    'message': result_message,
+                    'path_created': path_created
+                })
+            except Exception as emit_error:
+                logger.error(f"Failed to emit file transfer update: {emit_error}")
             
         finally:
             db.close()
@@ -861,6 +888,65 @@ async def execute_deployment_command(sid, data):
         pass
     except Exception as e:
         logger.error(f"Error handling execute deployment command: {e}")
+
+@sio.event
+async def software_installation_status(sid, data):
+    """Handle software installation status updates from agent"""
+    try:
+        deployment_id = data.get('deployment_id')
+        device_id = data.get('device_id')
+        status = data.get('status')
+        progress = data.get('progress', 0)
+        message = data.get('message', '')
+        error = data.get('error')
+        
+        logger.info(f"Software installation status - Deployment: {deployment_id}, Device: {device_id}, Status: {status}, Progress: {progress}%")
+        
+        # Update database
+        db = next(get_db())
+        try:
+            from app.Deployments.models import DeploymentTarget
+            
+            target = db.query(DeploymentTarget).filter(
+                DeploymentTarget.deployment_id == deployment_id,
+                DeploymentTarget.device_id == device_id
+            ).first()
+            
+            if target:
+                target.progress_percent = progress
+                
+                if status == 'completed':
+                    target.status = 'success'
+                    target.completed_at = datetime.utcnow()
+                elif status == 'failed':
+                    target.status = 'failed'
+                    target.error_message = error or message
+                    target.completed_at = datetime.utcnow()
+                elif status in ['in_progress', 'downloading', 'installing']:
+                    target.status = 'in_progress'
+                    if not target.started_at:
+                        target.started_at = datetime.utcnow()
+                
+                db.commit()
+                logger.info(f"Updated deployment target {target.id} status to {target.status}")
+        finally:
+            db.close()
+        
+        # Forward status to all connected frontends
+        await sio.emit('software_deployment_update', data, room='frontends')
+        
+    except Exception as e:
+        logger.error(f"Error handling software installation status: {e}", exc_info=True)
+
+@sio.event
+async def software_download_progress(sid, data):
+    """Handle software download progress updates from agent"""
+    try:
+        logger.debug(f"Software download progress: {data}")
+        # Forward to frontends for real-time updates
+        await sio.emit('software_download_progress', data, room='frontends')
+    except Exception as e:
+        logger.error(f"Error handling software download progress: {e}")
 
 # Health check endpoint
 @app.get("/health")

@@ -437,7 +437,9 @@ class SocketEventHandler:
             'stop_shell_request': self._handle_stop_shell_request,
             'execute_deployment_command': self.handle_execute_deployment_command,
             'execute_batch_persistent': self.handle_execute_batch_persistent,
-            'receive_file': self.handle_receive_file
+            'receive_file': self.handle_receive_file,
+            'install_software': self.handle_install_software,
+            'install_custom_software': self.handle_install_custom_software
         }
 
     async def _handle_stop_shell_request(self, data: Dict[str, Any]):
@@ -695,3 +697,204 @@ class SocketEventHandler:
         
         # Additional smart waiting could be implemented here based on shell type
         # and command patterns - timeout parameter ignored for persistent execution
+
+    async def handle_install_software(self, data: Dict[str, Any]):
+        """Handle software installation request from backend"""
+        try:
+            deployment_id = data.get('deployment_id')
+            device_id = data.get('device_id')
+            software_list = data.get('software_list', [])
+            
+            logger.info(f"[AGENT] Received install_software event for deployment {deployment_id}")
+            logger.info(f"[AGENT] Device ID: {device_id}")
+            logger.info(f"[AGENT] Installing {len(software_list)} package(s)")
+            logger.info(f"[AGENT] Packages: {[s.get('name') for s in software_list]}")
+            
+            # Import installers
+            from agent.installers.downloader import SoftwareDownloader
+            from agent.installers.installer import SoftwareInstaller
+            
+            downloader = SoftwareDownloader()
+            installer = SoftwareInstaller()
+            
+            # Send initial status
+            if self._connection and self._connection.connected:
+                await self._connection.emit('software_installation_status', {
+                    'deployment_id': deployment_id,
+                    'device_id': device_id,
+                    'status': 'in_progress',
+                    'progress': 0,
+                    'message': 'Starting installation...'
+                })
+            
+            total_software = len(software_list)
+            completed = 0
+            failed = 0
+            
+            for idx, software in enumerate(software_list):
+                try:
+                    name = software.get('name', 'Unknown')
+                    download_url = software.get('download_url')
+                    install_command = software.get('install_command')
+                    checksum = software.get('checksum')
+                    
+                    logger.info(f"Processing {name} ({idx+1}/{total_software})")
+                    
+                    # Update progress - downloading
+                    progress = int((idx / total_software) * 100)
+                    if self._connection and self._connection.connected:
+                        await self._connection.emit('software_installation_status', {
+                            'deployment_id': deployment_id,
+                            'device_id': device_id,
+                            'status': 'downloading',
+                            'progress': progress,
+                            'message': f'Downloading {name}...',
+                            'current_software': name
+                        })
+                    
+                    # Download software
+                    async def download_progress(percent):
+                        if self._connection and self._connection.connected:
+                            await self._connection.emit('software_download_progress', {
+                                'deployment_id': deployment_id,
+                                'device_id': device_id,
+                                'software_name': name,
+                                'progress': percent
+                            })
+                    
+                    filepath = await downloader.download(
+                        download_url,
+                        checksum=checksum,
+                        progress_callback=download_progress
+                    )
+                    
+                    if not filepath:
+                        logger.error(f"Failed to download {name}")
+                        failed += 1
+                        continue
+                    
+                    logger.info(f"[AGENT] Downloaded {name} to: {filepath}")
+                    
+                    # Update progress - installing
+                    if self._connection and self._connection.connected:
+                        await self._connection.emit('software_installation_status', {
+                            'deployment_id': deployment_id,
+                            'device_id': device_id,
+                            'status': 'installing',
+                            'progress': progress + 5,
+                            'message': f'Installing {name}...',
+                            'current_software': name
+                        })
+                    
+                    logger.info(f"[AGENT] Starting installation of {name} with command: {install_command}")
+                    
+                    # Install software
+                    result = await installer.install(filepath, install_command)
+                    
+                    logger.info(f"[AGENT] Installation result for {name}: {result}")
+                    
+                    if result['success']:
+                        logger.info(f"✓ Successfully installed {name}")
+                        completed += 1
+                    else:
+                        logger.error(f"✗ Failed to install {name}: {result.get('error')}")
+                        failed += 1
+                    
+                except Exception as e:
+                    logger.error(f"Error processing software {software.get('name')}: {e}")
+                    failed += 1
+            
+            # Send final status
+            final_status = 'completed' if failed == 0 else ('failed' if completed == 0 else 'partial')
+            
+            if self._connection and self._connection.connected:
+                await self._connection.emit('software_installation_status', {
+                    'deployment_id': deployment_id,
+                    'device_id': device_id,
+                    'status': final_status,
+                    'progress': 100,
+                    'message': f'Installation complete: {completed} succeeded, {failed} failed',
+                    'completed': completed,
+                    'failed': failed,
+                    'total': total_software
+                })
+            
+            # Cleanup - keep files on failure for debugging
+            downloader.cleanup(keep_files=(failed > 0))
+            
+            logger.info(f"Software installation completed: {completed}/{total_software} successful")
+            
+        except Exception as e:
+            error_msg = f"Error handling software installation: {str(e)}"
+            logger.exception(error_msg)
+            
+            if self._connection and self._connection.connected:
+                await self._connection.emit('software_installation_status', {
+                    'deployment_id': data.get('deployment_id'),
+                    'device_id': data.get('device_id'),
+                    'status': 'failed',
+                    'progress': 0,
+                    'message': error_msg,
+                    'error': error_msg
+                })
+    
+    async def handle_install_custom_software(self, data: Dict[str, Any]):
+        """Handle custom software installation (command execution)"""
+        try:
+            deployment_id = data.get('deployment_id')
+            device_id = data.get('device_id')
+            command = data.get('command')
+            
+            logger.info(f"Executing custom software command: {command}")
+            
+            # Send initial status
+            if self._connection and self._connection.connected:
+                await self._connection.emit('software_installation_status', {
+                    'deployment_id': deployment_id,
+                    'device_id': device_id,
+                    'status': 'in_progress',
+                    'progress': 0,
+                    'message': 'Executing custom command...'
+                })
+            
+            # Execute command using shell manager
+            success = await self.shell_manager.ensure_shell()
+            
+            if not success:
+                raise Exception("Failed to start shell")
+            
+            # Execute the command
+            await self.shell_manager.execute_command(command)
+            
+            # Wait for completion
+            await asyncio.sleep(2)
+            
+            # Get output
+            output = self.shell_manager.get_output()
+            
+            # Send completion status
+            if self._connection and self._connection.connected:
+                await self._connection.emit('software_installation_status', {
+                    'deployment_id': deployment_id,
+                    'device_id': device_id,
+                    'status': 'completed',
+                    'progress': 100,
+                    'message': 'Custom command executed',
+                    'output': output
+                })
+            
+            logger.info("Custom software command completed")
+            
+        except Exception as e:
+            error_msg = f"Error executing custom software command: {str(e)}"
+            logger.exception(error_msg)
+            
+            if self._connection and self._connection.connected:
+                await self._connection.emit('software_installation_status', {
+                    'deployment_id': data.get('deployment_id'),
+                    'device_id': data.get('device_id'),
+                    'status': 'failed',
+                    'progress': 0,
+                    'message': error_msg,
+                    'error': error_msg
+                })

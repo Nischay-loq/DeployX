@@ -3,6 +3,7 @@ import deploymentsService from '../services/deployments';
 import groupsService from '../services/groups';
 import devicesService from '../services/devices';
 import ProgressModal from './ProgressModal';
+import ConfirmDialog from './ConfirmDialog';
 
 export default function DeploymentsManager() {
   // Software selection
@@ -10,6 +11,8 @@ export default function DeploymentsManager() {
   const [selectedSoftware, setSelectedSoftware] = useState([]);
   const [customSoftware, setCustomSoftware] = useState('');
   const [useCustomSoftware, setUseCustomSoftware] = useState(false);
+  const [softwareFilter, setSoftwareFilter] = useState('all');
+  const [softwareSearch, setSoftwareSearch] = useState('');
 
   // Groups and devices
   const [groups, setGroups] = useState([]);
@@ -26,6 +29,9 @@ export default function DeploymentsManager() {
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [currentDeploymentId, setCurrentDeploymentId] = useState(null);
   const [deploymentProgress, setDeploymentProgress] = useState([]);
+  
+  // Confirmation dialog
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   // Error handling
   const [error, setError] = useState('');
@@ -47,9 +53,17 @@ export default function DeploymentsManager() {
     loadDeployments();
   }, []);
 
-  const loadSoftware = () => {
-    const software = deploymentsService.getAvailableSoftware();
-    setAvailableSoftware(software);
+  const loadSoftware = async () => {
+    setError('');
+    try {
+      const response = await deploymentsService.fetchSoftware();
+      setAvailableSoftware(response || []);
+    } catch (err) {
+      console.error('Failed to load software:', err);
+      // Fallback to hardcoded software
+      const fallbackSoftware = deploymentsService.getAvailableSoftware();
+      setAvailableSoftware(fallbackSoftware);
+    }
   };
 
   const loadGroups = async () => {
@@ -213,9 +227,30 @@ export default function DeploymentsManager() {
   };
 
   const closeProgressModal = () => {
+    // Check if deployment is still in progress
+    const inProgress = deploymentProgress.some(
+      device => device.status === 'in_progress' || device.status === 'downloading' || device.status === 'installing'
+    );
+    
+    if (inProgress) {
+      setShowConfirmDialog(true);
+    } else {
+      // No in-progress deployments, close directly
+      setShowProgressModal(false);
+      setCurrentDeploymentId(null);
+      setDeploymentProgress([]);
+    }
+  };
+  
+  const handleConfirmClose = () => {
+    setShowConfirmDialog(false);
     setShowProgressModal(false);
     setCurrentDeploymentId(null);
     setDeploymentProgress([]);
+  };
+  
+  const handleCancelClose = () => {
+    setShowConfirmDialog(false);
   };
 
   const handleDeploymentClick = async (deployment) => {
@@ -387,19 +422,141 @@ export default function DeploymentsManager() {
           </label>
         </div>
 
+        {/* Search and Filter */}
+        {!useCustomSoftware && (
+          <div className="mb-4 space-y-3">
+            {/* Search Bar */}
+            <div className="relative">
+              <input
+                type="text"
+                value={softwareSearch}
+                onChange={(e) => setSoftwareSearch(e.target.value)}
+                placeholder="Search software..."
+                className="w-full px-4 py-2 pl-10 bg-black/40 border border-gray-600/30 rounded-lg text-softWhite placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-electricBlue focus:border-transparent"
+              />
+              <svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            
+            {/* Category Filter Tabs */}
+            <div className="flex flex-wrap gap-2">
+              {['all', 'browsers', 'development', 'communication', 'utilities', 'productivity', 'media', 'security'].map((category) => (
+                <button
+                  key={category}
+                  onClick={() => setSoftwareFilter(category)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    softwareFilter === category
+                      ? 'bg-electricBlue text-white'
+                      : 'bg-black/40 text-gray-400 hover:bg-black/60 hover:text-softWhite border border-gray-600/30'
+                  }`}
+                >
+                  {category.charAt(0).toUpperCase() + category.slice(1)}
+                </button>
+              ))}
+            </div>
+            
+            {/* Selected Count */}
+            {selectedSoftware.length > 0 && (
+              <div className="flex items-center justify-between bg-electricBlue/10 border border-electricBlue/30 rounded-lg px-4 py-2">
+                <span className="text-sm text-electricBlue font-medium">
+                  {selectedSoftware.length} software selected
+                </span>
+                <button
+                  onClick={() => setSelectedSoftware([])}
+                  className="text-xs text-gray-400 hover:text-softWhite transition-colors"
+                >
+                  Clear All
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Predefined Software Grid */}
         {!useCustomSoftware && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {availableSoftware.map(software => (
-              <label key={software.id} className="flex items-center space-x-3 p-3 bg-black/40 border border-gray-600/30 rounded-lg hover:border-electricBlue/50 cursor-pointer transition-all">
-                <input
-                  type="checkbox"
-                  checked={selectedSoftware.includes(software.id)}
-                  onChange={() => handleSoftwareToggle(software.id)}
-                  className="w-4 h-4 text-electricBlue bg-black/40 border-electricBlue/50 rounded focus:ring-electricBlue focus:ring-2"
-                />
-                <span className="text-sm font-medium text-softWhite">{software.name}</span>
-              </label>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {availableSoftware
+              .filter(software => {
+                // Category filter
+                if (softwareFilter !== 'all' && software.category !== softwareFilter) {
+                  return false;
+                }
+                // Search filter
+                if (softwareSearch && !software.name.toLowerCase().includes(softwareSearch.toLowerCase())) {
+                  return false;
+                }
+                return true;
+              })
+              .map(software => (
+              <div 
+                key={software.id}
+                onClick={() => handleSoftwareToggle(software.id)}
+                className={`group relative p-4 bg-gradient-to-br from-black/40 to-black/20 border rounded-xl cursor-pointer transition-all transform hover:scale-105 ${
+                  selectedSoftware.includes(software.id)
+                    ? 'border-electricBlue shadow-lg shadow-electricBlue/20 bg-electricBlue/10'
+                    : 'border-gray-600/30 hover:border-electricBlue/50'
+                }`}
+              >
+                {/* Logo */}
+                <div className="flex items-center justify-center h-16 mb-3">
+                  {software.icon_url ? (
+                    <img 
+                      src={software.icon_url} 
+                      alt={software.name}
+                      className="h-14 w-14 object-contain"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg>';
+                      }}
+                    />
+                  ) : (
+                    <div className="h-14 w-14 rounded-lg bg-gradient-to-br from-electricBlue/20 to-purple-500/20 flex items-center justify-center">
+                      <span className="text-2xl font-bold text-electricBlue">
+                        {software.name.charAt(0)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Software Name */}
+                <div className="text-center">
+                  <h4 className="text-sm font-semibold text-softWhite mb-1 line-clamp-2">
+                    {software.name}
+                  </h4>
+                  <p className="text-xs text-gray-400">
+                    {software.version}
+                  </p>
+                  {software.category && (
+                    <span className="inline-block mt-2 px-2 py-1 text-xs rounded-full bg-electricBlue/10 text-electricBlue border border-electricBlue/30">
+                      {software.category}
+                    </span>
+                  )}
+                </div>
+                
+                {/* Selected Indicator */}
+                {selectedSoftware.includes(software.id) && (
+                  <div className="absolute top-2 right-2">
+                    <div className="h-6 w-6 rounded-full bg-electricBlue flex items-center justify-center">
+                      <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Hover Tooltip */}
+                {software.description && (
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10">
+                    <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 max-w-xs shadow-xl border border-electricBlue/30">
+                      {software.description}
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                        <div className="border-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -721,6 +878,20 @@ export default function DeploymentsManager() {
           </div>
         </div>
       )}
+      
+      {/* Confirmation Dialog for Closing Progress Modal */}
+      <ConfirmDialog
+        isOpen={showConfirmDialog}
+        title="Deployment in Progress"
+        message="Deployment is still in progress. Are you sure you want to close this window?
+
+Note: The deployment will continue running in the background."
+        confirmText="Close Anyway"
+        cancelText="Keep Open"
+        type="warning"
+        onConfirm={handleConfirmClose}
+        onCancel={handleCancelClose}
+      />
     </div>
   );
 }

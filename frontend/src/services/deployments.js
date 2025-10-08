@@ -99,6 +99,18 @@ class DeploymentsService {
       { id: 8, name: "Notepad++" }
     ];
   }
+
+  // Fetch software from backend API
+  async fetchSoftware() {
+    try {
+      const response = await api.get('/software/');
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch software from API:', error);
+      // Fallback to hardcoded software
+      return this.getAvailableSoftware();
+    }
+  }
 }
 
 export default new DeploymentsService();
