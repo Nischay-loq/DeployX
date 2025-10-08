@@ -390,8 +390,10 @@ async def join_room(sid, data):
     try:
         room = data.get('room')
         if room:
-            sio.enter_room(sid, room)
+            await sio.enter_room(sid, room)
             logger.info(f"[OK] Session {sid} joined room: {room}")
+            # Verify the agent is in the room
+            logger.info(f"[VERIFY] Rooms for sid {sid}: {sio.rooms(sid)}")
             return {'status': 'success', 'room': room}
         else:
             logger.error(f"No room specified in join_room request from {sid}")
@@ -485,6 +487,11 @@ async def agent_register(sid, data):
             
         conn_manager.add_agent(reg_data.agent_id, sid, reg_data.shells)
         
+        # IMPORTANT: Join the agent to its own room for targeted messages
+        await sio.enter_room(sid, reg_data.agent_id)
+        logger.info(f"[AUTO-JOIN] Added agent {reg_data.agent_id} to room {reg_data.agent_id}")
+        logger.info(f"[VERIFY] Rooms for sid {sid}: {sio.rooms(sid)}")
+        
         await sio.emit('device_status_changed', {
             'agent_id': device.agent_id,
             'device_name': device.device_name,
@@ -498,6 +505,10 @@ async def agent_register(sid, data):
         
         await sio.emit('registration_success', {'agent_id': reg_data.agent_id}, room=sid)
         logger.info(f"Agent {reg_data.agent_id} registered successfully via socket.")
+        
+    except Exception as e:
+        logger.error(f"Error registering agent: {e}")
+        await sio.emit('registration_error', {'message': str(e)}, room=sid)
         
     except Exception as e:
         logger.error(f"Error registering agent: {e}")
