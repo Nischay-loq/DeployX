@@ -68,7 +68,7 @@ class ConnectionManager:
             try:
                 if data is None:
                     data = {}
-                logger.info(f"Handling event {event} with data: {data}")
+                logger.info(f"[RECEIVE] Handling event {event} with data: {data if event != 'agent_heartbeat' else 'heartbeat data'}")
                 result = await handler(data)
                 if result is not None:
                     ack_event = f"{event}_ack"
@@ -77,9 +77,9 @@ class ConnectionManager:
                         'agent_id': self.agent_id,
                         'data': result
                     })
-                logger.info(f"Finished handling event {event}")
+                logger.info(f"[COMPLETE] Finished handling event {event}")
             except Exception as e:
-                logger.error(f"Error in handler for {event}: {e}")
+                logger.error(f"[ERROR] Error in handler for {event}: {e}", exc_info=True)
                 await self.emit(f"{event}_ack", {
                     'status': 'error',
                     'agent_id': self.agent_id,

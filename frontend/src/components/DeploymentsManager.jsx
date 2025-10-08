@@ -381,6 +381,16 @@ export default function DeploymentsManager() {
                       Started: {new Date(deployment.started_at).toLocaleString()} • 
                       Devices: {deployment.device_count}
                     </div>
+                    {deployment.software && deployment.software.length > 0 && (
+                      <div className="text-sm text-gray-400 mt-1">
+                        Software: {deployment.software.map(sw => sw.name).join(', ')}
+                      </div>
+                    )}
+                    {deployment.custom_software && (
+                      <div className="text-sm text-gray-400 mt-1">
+                        Custom: {deployment.custom_software.length > 50 ? deployment.custom_software.substring(0, 50) + '...' : deployment.custom_software}
+                      </div>
+                    )}
                     <div className="mt-2 text-xs text-electricBlue/70">
                       Click to view deployment details →
                     </div>
