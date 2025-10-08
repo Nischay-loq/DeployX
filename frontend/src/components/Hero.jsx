@@ -1,4 +1,4 @@
-import { ArrowRight, Play, Shield, Zap, Globe } from 'lucide-react';
+import { ArrowRight, Download, Shield, Zap, Globe } from 'lucide-react';
 
 export default function Hero({ onOpenAuth }) {
   const handleVideoError = (e) => {
@@ -53,10 +53,14 @@ export default function Hero({ onOpenAuth }) {
               <ArrowRight className="w-5 h-5 ml-2 transition-transform group-hover:translate-x-1" />
             </button>
             
-            <button className="btn-outline group bg-white/5 border-white/20 text-white hover:bg-white hover:text-gray-900 w-full sm:w-auto min-w-[180px] flex items-center justify-center">
-              <Play className="w-5 h-5 mr-2" />
-              <span>Watch Demo</span>
-            </button>
+            <a 
+              href="/downloads/deployx-agent.exe" 
+              download
+              className="btn-outline group bg-white/5 border-white/20 text-white hover:bg-white hover:text-gray-900 w-full sm:w-auto min-w-[200px] flex items-center justify-center px-6 py-3 rounded-lg font-medium transition-all duration-200"
+            >
+              <Download className="w-5 h-5 mr-2 transition-transform group-hover:translate-y-1" />
+              <span>Download Agent (.exe)</span>
+            </a>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto animate-slide-up" style={{ animationDelay: '0.4s' }}>
