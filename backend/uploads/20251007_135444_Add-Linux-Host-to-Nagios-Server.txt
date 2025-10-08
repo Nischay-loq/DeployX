@@ -1,0 +1,46 @@
+#Replace :
+# host_name = Your-Hostname
+# alias = Your-Alias
+# address = Your-IP address of host
+
+define host{
+use                     linux-server
+host_name               HG211
+alias                   SlaveDNS
+address                 192.168.1.126
+}
+
+define service{
+use                             local-service
+host_name                       HG211
+service_description             Root / Partition
+check_command                   check_nrpe!check_disk
+}
+
+define service{
+use                             local-service
+host_name                       HG211
+service_description             /mnt Partition
+check_command                   check_nrpe!check_mnt_disk
+}
+
+define service{
+use                             local-service
+host_name                       HG211
+service_description             Current Users
+check_command                   check_nrpe!check_users
+}
+
+define service{
+use                             local-service
+host_name                       HG211
+service_description             Total Processes
+check_command                   check_nrpe!check_total_procs
+}
+
+define service{
+use                             local-service
+host_name                       HG211
+service_description             Current Load
+check_command                   check_nrpe!check_load
+}

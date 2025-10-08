@@ -19,20 +19,20 @@ class GroupBase(BaseModel):
     color: Optional[str] = "#cccccc"
 
 class GroupCreate(GroupBase):
-    pass
+    device_ids: Optional[List[int]] = []
 
 class GroupUpdate(GroupBase):
-    pass
+    device_ids: Optional[List[int]] = None
 
 class DeviceResponse(BaseModel):
     id: int
-    device_name: str
-    ip_address: str
-    mac_address: str
-    os: str
-    status: str
-    connection_type: str
-    last_seen: Optional[str]
+    device_name: Optional[str] = None
+    ip_address: Optional[str] = None
+    mac_address: Optional[str] = None
+    os: Optional[str] = None
+    status: Optional[str] = None
+    connection_type: Optional[str] = None
+    last_seen: Optional[str] = None
 
 class GroupResponse(BaseModel):
     id: int

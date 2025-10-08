@@ -6,16 +6,19 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import asyncio
 import logging
+import uuid
+from datetime import datetime
 
 from .queue import command_queue, CommandStatus, CommandItem
-from .strategies import HybridDeploymentStrategy
+from .strategies import HybridDeploymentStrategy, RollbackValidator
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/deployment", tags=["deployment"])
 
-# Initialize deployment strategy
+# Initialize deployment strategy and rollback validator
 deployment_strategy = HybridDeploymentStrategy()
+rollback_validator = RollbackValidator()
 
 # Request/Response models
 class CommandRequest(BaseModel):
@@ -29,7 +32,15 @@ class CommandBatchRequest(BaseModel):
     commands: List[str]
     agent_id: str
     shell: str = "cmd"
-    strategy: str = "transactional"
+    strategy: str = "batch"
+    config: Dict[str, Any] = {}
+    stop_on_failure: bool = True
+
+class SequentialBatchRequest(BaseModel):
+    commands: List[str]
+    agent_id: str
+    shell: str = "cmd"
+    stop_on_failure: bool = True
     config: Dict[str, Any] = {}
 
 class CommandResponse(BaseModel):
@@ -45,6 +56,19 @@ class CommandResponse(BaseModel):
     started_at: Optional[str]
     completed_at: Optional[str]
 
+class BatchStatusResponse(BaseModel):
+    batch_id: str
+    overall_status: str
+    progress: str
+    total_commands: int
+    successful_commands: int
+    failed_commands: int
+    current_command_index: int
+    started_at: Optional[str]
+    completed_at: Optional[str]
+    commands: List[Dict]
+    execution_log: List[str]
+
 class QueueStatsResponse(BaseModel):
     stats: Dict[str, int]
     active_commands: int
@@ -53,6 +77,30 @@ class QueueStatsResponse(BaseModel):
 async def get_deployment_strategies():
     """Get available deployment strategies."""
     return deployment_strategy.get_available_strategies()
+
+@router.get("/strategies/recommend")
+async def recommend_strategy(command: str, current_strategy: str = "transactional"):
+    """Recommend the best deployment strategy for a given command."""
+    try:
+        if not command:
+            raise HTTPException(status_code=400, detail="Command is required")
+        
+        recommended = deployment_strategy.choose_strategy_for_command(command)
+        
+        warning = None
+        if current_strategy == 'transactional' and recommended == 'snapshot':
+            warning = f"WARNING: Command '{command}' is destructive and may cause data loss. Consider using 'snapshot' strategy for better rollback capability."
+        
+        return {
+            "command": command,
+            "recommended_strategy": recommended,
+            "current_strategy": current_strategy,
+            "warning": warning,
+            "reason": f"Recommended '{recommended}' strategy for this type of operation"
+        }
+    except Exception as e:
+        logger.error(f"Error recommending strategy: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/commands", response_model=CommandResponse)
 async def add_command(request: CommandRequest, background_tasks: BackgroundTasks):
@@ -106,7 +154,7 @@ async def add_command(request: CommandRequest, background_tasks: BackgroundTasks
 
 @router.post("/commands/batch", response_model=List[CommandResponse])
 async def add_command_batch(request: CommandBatchRequest, background_tasks: BackgroundTasks):
-    """Add multiple commands to the execution queue."""
+    """Add multiple commands to the execution queue (parallel execution)."""
     try:
         cmd_ids = []
         responses = []
@@ -124,7 +172,7 @@ async def add_command_batch(request: CommandBatchRequest, background_tasks: Back
             cmd = command_queue.get_command(cmd_id)
             responses.append(CommandResponse(**cmd.dict()))
         
-        # Start execution for all commands in background
+        # Start execution for all commands in background (parallel)
         for cmd_id in cmd_ids:
             background_tasks.add_task(execute_command_async, cmd_id)
         
@@ -132,6 +180,114 @@ async def add_command_batch(request: CommandBatchRequest, background_tasks: Back
     
     except Exception as e:
         logger.error(f"Error adding command batch: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/commands/batch/sequential", response_model=BatchStatusResponse)
+async def add_sequential_batch(request: SequentialBatchRequest, background_tasks: BackgroundTasks):
+    """Add multiple commands for sequential execution with enhanced status tracking."""
+    try:
+        # Validate request
+        if not request.commands or len(request.commands) == 0:
+            raise HTTPException(status_code=400, detail="Commands list cannot be empty")
+        
+        if len(request.commands) > 50:  # Reasonable limit
+            raise HTTPException(status_code=400, detail="Too many commands in batch (max 50)")
+        
+        # Validate agent
+        if not request.agent_id or not request.agent_id.strip():
+            raise HTTPException(status_code=400, detail="Agent ID cannot be empty")
+        
+        # Get batch strategy
+        batch_strategy = deployment_strategy.get_batch_strategy()
+        
+        # Start sequential execution in background
+        background_tasks.add_task(
+            execute_sequential_batch_async, 
+            batch_strategy,
+            request.commands,
+            request.agent_id.strip(),
+            request.shell,
+            request.stop_on_failure,
+            request.config or {}
+        )
+        
+        # Return initial status (will be updated as execution progresses)
+        return BatchStatusResponse(
+            batch_id="pending",  # Will be updated when batch starts
+            overall_status="initializing",
+            progress="⏳ Initializing batch execution...",
+            total_commands=len(request.commands),
+            successful_commands=0,
+            failed_commands=0,
+            current_command_index=0,
+            started_at=None,
+            completed_at=None,
+            commands=[{
+                "command": cmd,
+                "cmd_id": "",
+                "status": "⏳ pending",
+                "output": "",
+                "error": "",
+                "started_at": None,
+                "completed_at": None,
+                "execution_time": 0
+            } for cmd in request.commands],
+            execution_log=["Batch execution queued for processing"]
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding sequential batch: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/batches", response_model=Dict[str, BatchStatusResponse])
+async def get_all_batch_statuses():
+    """Get status of all active batch executions."""
+    try:
+        batch_strategy = deployment_strategy.get_batch_strategy()
+        active_batches = batch_strategy.get_all_active_batches()
+        
+        return {
+            batch_id: BatchStatusResponse(**batch_data)
+            for batch_id, batch_data in active_batches.items()
+        }
+    except Exception as e:
+        logger.error(f"Error getting batch statuses: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/batches/{batch_id}", response_model=BatchStatusResponse)
+async def get_batch_status(batch_id: str):
+    """Get status of a specific batch execution."""
+    try:
+        batch_strategy = deployment_strategy.get_batch_strategy()
+        batch_status = batch_strategy.get_batch_status(batch_id)
+        
+        if not batch_status:
+            raise HTTPException(status_code=404, detail="Batch not found")
+        
+        return BatchStatusResponse(**batch_status)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting batch status for {batch_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/batches/{batch_id}")
+async def cleanup_batch(batch_id: str):
+    """Clean up a completed batch from active tracking."""
+    try:
+        batch_strategy = deployment_strategy.get_batch_strategy()
+        success = batch_strategy.cleanup_completed_batch(batch_id)
+        
+        if not success:
+            raise HTTPException(status_code=400, detail="Cannot cleanup batch (not found or still active)")
+        
+        return {"message": f"Batch {batch_id} cleaned up successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error cleaning up batch {batch_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/commands", response_model=List[CommandResponse])
@@ -201,8 +357,8 @@ async def resume_command(cmd_id: str, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/commands/{cmd_id}/rollback")
-async def rollback_command(cmd_id: str, background_tasks: BackgroundTasks):
-    """Rollback a completed command using its deployment strategy."""
+async def rollback_command(cmd_id: str, background_tasks: BackgroundTasks, force: bool = False):
+    """Enhanced rollback with validation and safety checks."""
     try:
         cmd = command_queue.get_command(cmd_id)
         if not cmd:
@@ -211,6 +367,26 @@ async def rollback_command(cmd_id: str, background_tasks: BackgroundTasks):
         if cmd.status != CommandStatus.COMPLETED:
             raise HTTPException(status_code=400, detail="Can only rollback completed commands")
         
+        # Validate rollback request
+        if not force:
+            validation_passed, validation_message, validation_details = rollback_validator.validate_rollback_request(
+                cmd.command, cmd.config
+            )
+            
+            if not validation_passed:
+                return {
+                    "message": "Rollback validation failed",
+                    "validation_message": validation_message,
+                    "validation_details": validation_details,
+                    "requires_force": True,
+                    "cmd_id": cmd_id
+                }
+            
+            # Update command with validation results
+            cmd.rollback_feasible = validation_details.get("feasible", True)
+            cmd.rollback_risk_level = validation_details.get("risk_assessment", "medium")
+            cmd.rollback_validation_results = validation_details
+        
         # Execute rollback using the deployment strategy
         strategy = deployment_strategy.strategies.get(cmd.strategy)
         if not strategy:
@@ -218,13 +394,20 @@ async def rollback_command(cmd_id: str, background_tasks: BackgroundTasks):
         
         rollback_command_text = strategy.rollback(cmd.config)
         
+        # Update rollback status
+        cmd.rollback_status = "pending"
+        cmd.rollback_timestamp = datetime.now().isoformat()
+        
         # Check if we got a real command or just a message
         if rollback_command_text.startswith('#'):
             # It's just a message, not an executable command
+            cmd.rollback_status = "not_needed"
             return {
                 "message": f"Rollback information for command {cmd_id}",
                 "rollback_info": rollback_command_text,
-                "executable": False
+                "executable": False,
+                "validation_passed": not force,
+                "validation_message": validation_message if not force else "Forced rollback"
             }
         else:
             # It's an executable command, add it to the queue and execute it
@@ -240,6 +423,9 @@ async def rollback_command(cmd_id: str, background_tasks: BackgroundTasks):
                 }
             )
             
+            # Link rollback command
+            cmd.rollback_command_id = rollback_cmd_id
+            
             # Execute the rollback command in background
             background_tasks.add_task(execute_command_async, rollback_cmd_id)
             
@@ -248,13 +434,240 @@ async def rollback_command(cmd_id: str, background_tasks: BackgroundTasks):
                 "original_command_id": cmd_id,
                 "rollback_command_id": rollback_cmd_id,
                 "rollback_command": rollback_command_text,
-                "executable": True
+                "executable": True,
+                "validation_passed": not force,
+                "validation_message": validation_message if not force else "Forced rollback"
             }
     
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error rolling back command {cmd_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/commands/{cmd_id}/validate-rollback")
+async def validate_rollback(cmd_id: str):
+    """Validate rollback feasibility without executing."""
+    try:
+        cmd = command_queue.get_command(cmd_id)
+        if not cmd:
+            raise HTTPException(status_code=404, detail="Command not found")
+        
+        validation_passed, validation_message, validation_details = rollback_validator.validate_rollback_request(
+            cmd.command, cmd.config
+        )
+        
+        # Get rollback recommendations
+        recommendations = rollback_validator.get_rollback_recommendations(cmd.command, cmd.strategy)
+        
+        return {
+            "cmd_id": cmd_id,
+            "command": cmd.command,
+            "current_strategy": cmd.strategy,
+            "validation_passed": validation_passed,
+            "validation_message": validation_message,
+            "validation_details": validation_details,
+            "recommendations": recommendations
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error validating rollback for command {cmd_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/rollback/atomic-group")
+async def create_atomic_rollback_group(
+    command_ids: List[str], 
+    group_name: str = "Unnamed Group"
+):
+    """Create an atomic rollback group for related commands."""
+    try:
+        # Validate all command IDs exist
+        for cmd_id in command_ids:
+            cmd = command_queue.get_command(cmd_id)
+            if not cmd:
+                raise HTTPException(status_code=400, detail=f"Command {cmd_id} not found")
+            if cmd.status != CommandStatus.COMPLETED:
+                raise HTTPException(status_code=400, detail=f"Command {cmd_id} is not completed")
+        
+        group_id = rollback_validator.create_atomic_rollback_group(command_ids, group_name)
+        
+        if group_id:
+            return {
+                "message": f"Atomic rollback group created successfully",
+                "group_id": group_id,
+                "group_name": group_name,
+                "command_ids": command_ids
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create atomic group")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating atomic rollback group: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/rollback/atomic-group/{group_id}/rollback")
+async def rollback_atomic_group(group_id: str):
+    """Rollback all commands in an atomic group."""
+    try:
+        success, message, results = rollback_validator.rollback_atomic_group(group_id)
+        
+        return {
+            "group_id": group_id,
+            "success": success,
+            "message": message,
+            "rollback_results": results
+        }
+    
+    except Exception as e:
+        logger.error(f"Error rolling back atomic group {group_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/snapshots")
+async def list_snapshots():
+    """List all available snapshots."""
+    try:
+        snapshot_strategy = deployment_strategy.strategies.get("snapshot")
+        if not snapshot_strategy:
+            raise HTTPException(status_code=500, detail="Snapshot strategy not available")
+        
+        snapshots = snapshot_strategy.list_snapshots()
+        return {"snapshots": snapshots}
+    
+    except Exception as e:
+        logger.error(f"Error listing snapshots: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/snapshots/{snapshot_id}/restore")
+async def restore_snapshot(snapshot_id: str, target_path: str = None):
+    """Restore from a specific snapshot."""
+    try:
+        snapshot_strategy = deployment_strategy.strategies.get("snapshot")
+        if not snapshot_strategy:
+            raise HTTPException(status_code=500, detail="Snapshot strategy not available")
+        
+        success, message = snapshot_strategy.restore_snapshot(snapshot_id, target_path)
+        
+        return {
+            "snapshot_id": snapshot_id,
+            "success": success,
+            "message": message,
+            "target_path": target_path
+        }
+    
+    except Exception as e:
+        logger.error(f"Error restoring snapshot {snapshot_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/snapshots/{snapshot_id}")
+async def delete_snapshot(snapshot_id: str):
+    """Delete a specific snapshot."""
+    try:
+        snapshot_strategy = deployment_strategy.strategies.get("snapshot")
+        if not snapshot_strategy:
+            raise HTTPException(status_code=500, detail="Snapshot strategy not available")
+        
+        success, message = snapshot_strategy.delete_snapshot(snapshot_id)
+        
+        return {
+            "snapshot_id": snapshot_id,
+            "success": success,
+            "message": message
+        }
+    
+    except Exception as e:
+        logger.error(f"Error deleting snapshot {snapshot_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/blue-green/status")
+async def get_blue_green_status():
+    """Get blue-green deployment status."""
+    try:
+        bg_strategy = deployment_strategy.strategies.get("blue_green")
+        if not bg_strategy:
+            raise HTTPException(status_code=500, detail="Blue-green strategy not available")
+        
+        status = bg_strategy.get_deployment_status()
+        return status
+    
+    except Exception as e:
+        logger.error(f"Error getting blue-green status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/blue-green/{deployment_id}/complete")
+async def complete_gradual_blue_green(deployment_id: str):
+    """Complete a gradual blue-green deployment."""
+    try:
+        bg_strategy = deployment_strategy.strategies.get("blue_green")
+        if not bg_strategy:
+            raise HTTPException(status_code=500, detail="Blue-green strategy not available")
+        
+        # This would need to be implemented with proper deployment tracking
+        config = {"deployment_id": deployment_id}
+        result = bg_strategy.complete_gradual_deployment(config)
+        
+        return {"message": result}
+    
+    except Exception as e:
+        logger.error(f"Error completing blue-green deployment {deployment_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/canary/{canary_id}/status")
+async def get_canary_status(canary_id: str):
+    """Get status of a specific canary deployment."""
+    try:
+        canary_strategy = deployment_strategy.strategies.get("canary")
+        if not canary_strategy:
+            raise HTTPException(status_code=500, detail="Canary strategy not available")
+        
+        status = canary_strategy.get_canary_status(canary_id)
+        return status
+    
+    except Exception as e:
+        logger.error(f"Error getting canary status for {canary_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/canary/status")
+async def get_all_canary_status():
+    """Get status of all canary deployments."""
+    try:
+        canary_strategy = deployment_strategy.strategies.get("canary")
+        if not canary_strategy:
+            raise HTTPException(status_code=500, detail="Canary strategy not available")
+        
+        status = canary_strategy.get_canary_status()
+        return status
+    
+    except Exception as e:
+        logger.error(f"Error getting canary status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/canary/{canary_id}/promote")
+async def promote_canary(canary_id: str):
+    """Promote a canary deployment to next percentage."""
+    try:
+        canary_strategy = deployment_strategy.strategies.get("canary")
+        if not canary_strategy:
+            raise HTTPException(status_code=500, detail="Canary strategy not available")
+        
+        result = canary_strategy.promote_canary(canary_id)
+        return {"message": result}
+    
+    except Exception as e:
+        logger.error(f"Error promoting canary {canary_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/commands/completed")
+async def clear_completed_commands():
+    """Clear all completed and failed commands."""
+    try:
+        cleared_count = command_queue.clear_completed()
+        return {"message": f"Cleared {cleared_count} completed commands"}
+    except Exception as e:
+        logger.error(f"Error clearing completed commands: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/commands/{cmd_id}")
@@ -269,16 +682,6 @@ async def delete_command(cmd_id: str):
         raise
     except Exception as e:
         logger.error(f"Error deleting command {cmd_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.delete("/commands/completed")
-async def clear_completed_commands():
-    """Clear all completed and failed commands."""
-    try:
-        cleared_count = command_queue.clear_completed()
-        return {"message": f"Cleared {cleared_count} completed commands"}
-    except Exception as e:
-        logger.error(f"Error clearing completed commands: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/stats", response_model=QueueStatsResponse)
@@ -317,3 +720,30 @@ async def execute_command_async(cmd_id: str):
             CommandStatus.FAILED, 
             error=str(e)
         )
+
+async def execute_sequential_batch_async(batch_strategy, commands: List[str], agent_id: str, 
+                                       shell: str, stop_on_failure: bool, config: Dict[str, Any]):
+    """Execute a batch of commands sequentially with status updates."""
+    try:
+        logger.info(f"Starting sequential batch execution for agent {agent_id} with {len(commands)} commands")
+        
+        # Define callback for real-time status updates (could be extended for WebSocket notifications)
+        async def status_callback(batch_result):
+            logger.info(f"Batch {batch_result.batch_id} progress: {batch_result.get_progress_summary()}")
+            # Here you could emit WebSocket events for real-time UI updates
+            # await emit_batch_status_update(batch_result)
+        
+        # Execute the batch
+        result = await batch_strategy.execute_batch_sequential(
+            commands=commands,
+            agent_id=agent_id,
+            shell=shell,
+            stop_on_failure=stop_on_failure,
+            callback=status_callback
+        )
+        
+        logger.info(f"Sequential batch {result.batch_id} completed with status: {result.overall_status}")
+        
+    except Exception as e:
+        logger.error(f"Error in sequential batch execution: {e}")
+        # Here you could update the batch status to show the error

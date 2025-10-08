@@ -3,18 +3,92 @@ import asyncio
 import argparse
 import platform
 import logging
-from core.connection import ConnectionManager
-from core.shell_manager import ShellManager
-from handlers.socket_handlers import SocketEventHandler
-from handlers.signal_handlers import setup_signal_handlers
-from utils.logging_config import setup_logging
-from utils.shell_detector import detect_shells
-from network.service_advertiser import ServiceAdvertiser
-from network.server_discoverer import ServiceDiscoverer
-from monitoring.system_info import get_system_info
+import sys
+import os
+import signal
+import atexit
+import shutil
+from typing import Callable, Dict
 
-# Setup logging
-logger = setup_logging()
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from agent.core.connection import ConnectionManager
+from agent.core.shell_manager import ShellManager
+from agent.handlers.socket_handlers import SocketEventHandler
+from agent.network.service_advertiser import ServiceAdvertiser
+from agent.network.server_discoverer import ServiceDiscoverer
+from agent.utils.machine_id import generate_agent_id
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+logging.getLogger('engineio').setLevel(logging.WARNING)
+logging.getLogger('socketio').setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)
+
+def detect_shells() -> Dict[str, str]:
+    """Detect available shells and their paths."""
+    shells = {}
+    system = platform.system().lower()
+    possible_shells = ["cmd", "powershell", "pwsh", "bash"] if system == "windows" else \
+                      ["bash", "zsh", "sh", "ksh", "tcsh", "fish"] if system == "darwin" else \
+                      ["bash", "zsh", "sh", "fish", "ksh", "tcsh"]
+    
+    for shell in possible_shells:
+        path = shutil.which(shell)
+        if path:
+            shells[shell] = path
+    
+    if not shells:
+        default_shell = "cmd" if system == "windows" else "sh"
+        default_path = shutil.which(default_shell)
+        if default_path:
+            shells[default_shell] = default_path
+            logger.warning(f"No preferred shells found, falling back to {default_shell}")
+        else:
+            logger.error("No shells available on the system")
+    return shells
+
+def setup_signal_handlers(cleanup_callback: Callable, running_flag: asyncio.Event):
+    """Setup signal handlers to prevent unwanted termination."""
+    def signal_handler(signum, frame):
+        signal_name = signal.Signals(signum).name
+        logger.info(f"Received {signal_name} signal")
+        running_flag.clear()
+        try:
+            sync_cleanup()
+        except Exception as e:
+            logger.error(f"Error during signal cleanup: {e}")
+    
+    def sync_cleanup():
+        try:
+            loop = asyncio.get_running_loop()
+            if not loop.is_closed():
+                loop.run_until_complete(cleanup_callback())
+        except RuntimeError:
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(cleanup_callback())
+                loop.close()
+            except Exception as e:
+                logger.error(f"Failed to run cleanup in new event loop: {e}")
+        except Exception as e:
+            logger.error(f"Cleanup error: {e}")
+    
+    try:
+        if platform.system().lower() == "windows":
+            signal.signal(signal.SIGINT, signal_handler)
+        else:
+            signal.signal(signal.SIGINT, signal_handler)
+            signal.signal(signal.SIGTERM, signal_handler)
+        logger.info("Signal handlers registered successfully")
+    except Exception as e:
+        logger.warning(f"Signal handler setup failed: {e}")
+    
+    atexit.register(sync_cleanup)
 
 async def main():
     """Main entry point."""
@@ -26,7 +100,7 @@ async def main():
     )
     parser.add_argument(
         "--agent-id",
-        help="Custom agent ID"
+        help="Custom agent ID (if not provided, will be generated from machine ID)"
     )
     parser.add_argument(
         "--advertise",
@@ -36,48 +110,77 @@ async def main():
     
     args = parser.parse_args()
     
-    # Initialize components
     shell_manager = ShellManager()
     connection = ConnectionManager(args.server, args.agent_id)
     socket_handler = SocketEventHandler(shell_manager, connection)
     
-    # Create a running flag for controlling the main loop
     running = asyncio.Event()
-    running.set()  # Set it initially to True
+    running.set()
     
-    # Register socket event handlers
     for event, handler in socket_handler.get_handlers().items():
         connection.register_handler(event, handler)
     
-    # Setup signal handlers for graceful shutdown
     setup_signal_handlers(connection.disconnect, running)
     
-    # Start network services if requested
     advertiser = None
     if args.advertise:
         advertiser = ServiceAdvertiser()
         advertiser.start_advertising()
     
     try:
-        # Connect to backend
-        if await connection.connect():
-            # Get system information
-            sys_info = get_system_info()
-            logger.info(f"System information: {sys_info}")
+        retry_delay = 2
+        retry_count = 0
+        
+        while running.is_set():
+            logger.info(f"Attempting to connect to backend (attempt {retry_count + 1})...")
             
-            # Detect available shells
-            shells = detect_shells()
-            logger.info(f"Detected shells: {shells}")
-            
-            # Register agent with backend
-            await connection.register_agent(shells)
-            
-            # Keep the agent running until running flag is cleared
-            while running.is_set():
-                try:
-                    await asyncio.sleep(1)
-                except asyncio.CancelledError:
+            if await connection.connect():
+                logger.info("Successfully connected to backend")
+                
+                shells = detect_shells()
+                logger.info(f"Detected shells: {shells}")
+                
+                if not shells:
+                    logger.error("No shells detected")
+
+                logger.info("Registering agent with backend")
+                logger.info("Registering agent with backend...")
+                registration_success = await connection.register_agent(shells)
+                if registration_success:
+                    logger.info("Agent registration successful")
+                else:
+                    logger.error("Agent registration failed")
+                
+                heartbeat_interval = 30  
+                last_heartbeat = 0
+
+                while running.is_set():
+                    try:
+                        await asyncio.sleep(1)
+
+                        last_heartbeat += 1
+                        if last_heartbeat >= heartbeat_interval:
+                            await connection.send_heartbeat()
+                            last_heartbeat = 0
+
+                        if not connection.connected:
+                            logger.warning("Connection lost, attempting to reconnect...")
+                            break
+                    except asyncio.CancelledError:
+                        break
+                
+                if running.is_set() and not connection.connected:
+                    logger.info("Connection lost, will retry...")
+                    retry_count = 0
+                    await asyncio.sleep(retry_delay)
+                    continue
+                else:
                     break
+            else:
+                retry_count += 1
+                logger.warning(f"Failed to connect, retrying in {retry_delay} seconds... (attempt {retry_count})")
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 1.2, 10)
                 
     except KeyboardInterrupt:
         logger.info("Received interrupt signal, shutting down...")

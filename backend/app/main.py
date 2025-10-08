@@ -8,57 +8,240 @@ import uuid
 from datetime import datetime
 import uvicorn
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Configuration from environment variables
+def get_cors_origins():
+    """Get CORS allowed origins from environment variables"""
+    environment = os.getenv('ENVIRONMENT', 'development')
+    
+    if environment == 'development':
+        return [
+            os.getenv('DEV_FRONTEND_URL', 'http://localhost:5173'),
+            os.getenv('FRONTEND_LOCAL_URL', 'http://localhost:5173'),
+            "http://127.0.0.1:5173",
+            os.getenv('FRONTEND_ALT_URL', 'http://localhost:3000'),
+            "http://127.0.0.1:3000",
+            os.getenv('DEV_BACKEND_URL', 'http://localhost:8000'),
+            "http://127.0.0.1:8000",
+        ]
+    else:
+        return [
+            os.getenv('FRONTEND_URL', 'https://deployxsystem.vercel.app'),
+            os.getenv('FRONTEND_LOCAL_URL', 'http://localhost:5173'),
+            "http://127.0.0.1:5173",
+            os.getenv('FRONTEND_ALT_URL', 'http://localhost:3000'),
+            "http://127.0.0.1:3000",
+            os.getenv('DEV_BACKEND_URL', 'http://localhost:8000'),
+            "http://127.0.0.1:8000",
+            "https://accounts.google.com",
+            "https://accounts.google.com/gsi",
+        ]
+
 from app.grouping.route import router as groups_router
 from app.Devices.routes import router as devices_router
-from app.auth import routes, models
-from app.auth.database import engine
-from app.command_deployment.routes import router as deployment_router
-from app.command_deployment.executor import command_executor
+from app.Deployments.routes import router as deployments_router
+from app.software.routes import router as software_router
 from app.files.routes import router as files_router
+from app.agents.routes import router as agents_router
+from app.auth import routes
+from app.auth.database import engine, get_db, Base
+from app.command_deployment.routes import router as deployment_router
+from app.dashboard.routes import router as dashboard_router
+from app.command_deployment.executor import command_executor
+from app.grouping import models as grouping_models  # Import grouping models
+from app.Deployments import models as deployment_models  # Import deployment models
+from app.software import models as software_models  # Import software models
+from app.files import models as file_models  # Import file models
+from app.auth.database import get_db
+from app.agents import crud as agent_crud, schemas as agent_schemas
+from app.grouping import models as grouping_models
+from app.Deployments import models as deployment_models
+from app.files import models as file_models
+from app.agents import schemas as agent_schemas, crud as agent_crud
+from app.Devices import crud as device_crud
+from app.grouping.models import Device
 
-# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Create Socket.IO server with better configuration
 sio = socketio.AsyncServer(
-    cors_allowed_origins="*",
-    logger=False,  # Disable verbose socket.io logging
-    engineio_logger=False,  # Disable verbose engine.io logging
+    cors_allowed_origins=get_cors_origins(),
+    logger=False,
+    engineio_logger=False,
     async_mode='asgi',
-    ping_timeout=60,
-    ping_interval=25
+    ping_timeout=60,  # 60 second timeout for better stability
+    ping_interval=25  # 25 second ping interval
 )
 
-models.Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=engine)
 
 # Create FastAPI app
 app = FastAPI(title="Remote Command Execution Backend")
+
+# Add CORS middleware BEFORE including routers
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_cors_origins(),
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
+    allow_headers=[
+        "*",
+        "Authorization",
+        "Content-Type",
+        "X-Requested-With",
+        "Accept",
+        "Origin",
+        "Access-Control-Request-Method",
+        "Access-Control-Request-Headers",
+    ],
+    expose_headers=["*"],
+)
+
+# Log CORS origins for debugging
+logger.info(f"CORS allowed origins: {get_cors_origins()}")
+
 app.include_router(routes.router)
 app.include_router(groups_router)
 app.include_router(devices_router)
+app.include_router(agents_router)
 app.include_router(deployment_router)
+app.include_router(deployments_router)
+app.include_router(software_router)
 app.include_router(files_router)
+app.include_router(dashboard_router)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["*"],  # You can also restrict headers if needed
-)
+# Health check endpoint
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "message": "Backend is running"}
 
+@app.get("/test/deployments")
+def test_deployments():
+    """Test endpoint for deployments without authentication"""
+    return [
+        {
+            "id": 1,
+            "deployment_name": "Test Deployment",
+            "status": "completed",
+            "started_at": "2024-01-01T00:00:00",
+            "ended_at": "2024-01-01T01:00:00",
+            "device_count": 3,
+            "rollback_performed": False
+        }
+    ]
 
-# Routes are already included above
+@app.get("/test/devices")
+def test_devices():
+    """Test endpoint for devices without authentication"""
+    return [
+        {
+            "id": 1,
+            "name": "Web Server 01",
+            "ip_address": "192.168.1.10",
+            "status": "online",
+            "os_type": "Ubuntu 20.04",
+            "last_seen": "2024-01-15T10:30:00Z",
+            "groups": ["Web Servers", "Production"],
+            "cpu_usage": 45,
+            "memory_usage": 60,
+            "disk_usage": 25
+        },
+        {
+            "id": 2,
+            "name": "Database Server",
+            "ip_address": "192.168.1.20",
+            "status": "online",
+            "os_type": "CentOS 8",
+            "last_seen": "2024-01-15T10:29:00Z",
+            "groups": ["Database Servers"],
+            "cpu_usage": 30,
+            "memory_usage": 80,
+            "disk_usage": 55
+        },
+        {
+            "id": 3,
+            "name": "App Server 02",
+            "ip_address": "192.168.1.30",
+            "status": "offline",
+            "os_type": "Windows Server 2019",
+            "last_seen": "2024-01-15T09:15:00Z",
+            "groups": ["Application Servers"],
+            "cpu_usage": 0,
+            "memory_usage": 0,
+            "disk_usage": 40
+        },
+        {
+            "id": 4,
+            "name": "Load Balancer",
+            "ip_address": "192.168.1.5",
+            "status": "online",
+            "os_type": "nginx",
+            "last_seen": "2024-01-15T10:31:00Z",
+            "groups": ["Load Balancers", "Production"],
+            "cpu_usage": 15,
+            "memory_usage": 25,
+            "disk_usage": 10
+        },
+        {
+            "id": 5,
+            "name": "Backup Server",
+            "ip_address": "192.168.1.40",
+            "status": "maintenance",
+            "os_type": "Ubuntu 22.04",
+            "last_seen": "2024-01-15T08:45:00Z",
+            "groups": ["Backup Servers"],
+            "cpu_usage": 5,
+            "memory_usage": 35,
+            "disk_usage": 85
+        }
+    ]
 
-# Store connected agents and frontends
+@app.get("/test/groups")
+def test_groups():
+    """Test endpoint for groups without authentication"""
+    return [
+        {
+            "id": 1,
+            "name": "Web Servers",
+            "description": "Production web servers",
+            "device_ids": [1, 2],
+            "created_at": "2024-01-01T00:00:00",
+            "updated_at": "2024-01-01T00:00:00"
+        },
+        {
+            "id": 2,
+            "name": "Database Servers",
+            "description": "Database cluster nodes",
+            "device_ids": [3],
+            "created_at": "2024-01-01T00:00:00",
+            "updated_at": "2024-01-01T00:00:00"
+        }
+    ]
+
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    from fastapi import Response
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
+
 class ConnectionManager:
     def __init__(self):
-        self.agents: Dict[str, dict] = {}  # agent_id -> {sid, shells, connected_at}
-        self.frontends: Set[str] = set()  # Set of frontend session IDs
-        self.agent_frontend_mapping: Dict[str, str] = {}  # agent_id -> frontend_sid
-        self.sid_to_agent: Dict[str, str] = {}  # sid -> agent_id for reverse lookup
-        self.sid_to_type: Dict[str, str] = {}  # sid -> 'agent' or 'frontend'
+        self.agents: Dict[str, dict] = {}
+        self.frontends: Set[str] = set()
+        self.agent_frontend_mapping: Dict[str, str] = {}
+        self.sid_to_agent: Dict[str, str] = {}
+        self.sid_to_type: Dict[str, str] = {}
     
     def add_agent(self, agent_id: str, sid: str, shells: List[str]):
         """Add a new agent connection"""
@@ -79,34 +262,23 @@ class ConnectionManager:
     
     def remove_connection(self, sid: str):
         """Remove a connection by session ID"""
-        connection_type = self.sid_to_type.get(sid)
+        connection_type = self.sid_to_type.pop(sid, None)
         
         if connection_type == 'agent':
-            agent_id = self.sid_to_agent.get(sid)
+            agent_id = self.sid_to_agent.pop(sid, None)
             if agent_id:
-                # Clean up agent
-                if sid in self.sid_to_agent:
-                    del self.sid_to_agent[sid]
-                if agent_id in self.agents:
-                    del self.agents[agent_id]
-                if agent_id in self.agent_frontend_mapping:
-                    del self.agent_frontend_mapping[agent_id]
+                self.agents.pop(agent_id, None)
+                self.agent_frontend_mapping.pop(agent_id, None)
                 logger.info(f"Agent {agent_id} disconnected (sid: {sid})")
                 return 'agent', agent_id
                 
         elif connection_type == 'frontend':
-            # Clean up frontend
             self.frontends.discard(sid)
-            # Remove any agent mappings for this frontend
             to_remove = [agent_id for agent_id, frontend_sid in self.agent_frontend_mapping.items() if frontend_sid == sid]
             for agent_id in to_remove:
                 del self.agent_frontend_mapping[agent_id]
             logger.info(f"Frontend disconnected (sid: {sid})")
             return 'frontend', None
-        
-        # Clean up tracking
-        if sid in self.sid_to_type:
-            del self.sid_to_type[sid]
             
         return None, None
     
@@ -116,11 +288,27 @@ class ConnectionManager:
     
     def get_agent_shells(self, agent_id: str) -> List[str]:
         """Get available shells for an agent"""
-        return self.agents.get(agent_id, {}).get('shells', [])
+        agent_data = self.agents.get(agent_id, {})
+        return agent_data.get('shells', [])
     
     def get_agent_sid(self, agent_id: str) -> str:
         """Get socket ID for an agent"""
         return self.agents.get(agent_id, {}).get('sid')
+    
+    def is_agent_connected(self, agent_id: str) -> bool:
+        """Check if agent is truly connected and responsive"""
+        agent_data = self.agents.get(agent_id)
+        if not agent_data:
+            return False
+        
+        # Check if connection is recent (within last 30 seconds)
+        from datetime import datetime, timedelta
+        last_seen = agent_data.get('last_heartbeat', agent_data.get('connected_at'))
+        if last_seen and isinstance(last_seen, datetime):
+            time_diff = datetime.now() - last_seen
+            return time_diff.total_seconds() < 30
+        
+        return True  # Default to true if no timestamp available
     
     def get_agent_by_sid(self, sid: str) -> str:
         """Get agent ID by session ID"""
@@ -135,10 +323,59 @@ class ConnectionManager:
         """Get the frontend SID mapped to an agent"""
         return self.agent_frontend_mapping.get(agent_id)
 
-# Initialize connection manager
 conn_manager = ConnectionManager()
 
-# Set up command executor with socket.io and connection manager
+# Helper function to get Socket.IO components
+def get_socketio_components():
+    """Get Socket.IO server and connection manager instances"""
+    return sio, conn_manager
+
+# Helper function to get and send agent list
+async def _update_and_send_agent_list(sid=None):
+    """Helper to fetch agents from devices table, update status, and emit to frontends."""
+    db = next(get_db())
+    try:
+        db_devices = db.query(Device).filter(Device.agent_id.isnot(None)).all()
+        online_agent_ids = set(conn_manager.get_agent_list())
+        
+        agents_with_status = []
+        for device in db_devices:
+            agent_info = {
+                'id': device.id,
+                'agent_id': device.agent_id,
+                'machine_id': device.machine_id,
+                'hostname': device.device_name,
+                'os': device.os,
+                'os_version': device.os_version,
+                'os_release': device.os_release,
+                'processor': device.processor,
+                'python_version': device.python_version,
+                'cpu_count': device.cpu_count,
+                'memory_total': device.memory_total,
+                'memory_available': device.memory_available,
+                'disk_total': device.disk_total,
+                'disk_free': device.disk_free,
+                'shells': device.shells,
+                'status': 'online' if device.agent_id in online_agent_ids else 'offline',
+                'last_seen': device.last_seen.isoformat() if device.last_seen else None,
+                'updated_at': device.updated_at.isoformat() if device.updated_at else None,
+                'system_info': device.system_info
+            }
+            agents_with_status.append(agent_info)
+
+        target = sid if sid else None
+        if target:
+            await sio.emit('agents_list', agents_with_status, room=target)
+            logger.info(f"Sent full agent list to frontend {sid}")
+        else:
+            await sio.emit('agents_list', agents_with_status)
+            logger.info("Sent full agent list to all frontends")
+            
+    except Exception as e:
+        logger.error(f"Error in _update_and_send_agent_list: {e}")
+    finally:
+        db.close()
+
 command_executor.set_socketio(sio, conn_manager)
 
 @sio.event
@@ -148,38 +385,84 @@ async def connect(sid, environ, auth):
     logger.info(f"Client {sid} connected from {client_origin}")
 
 @sio.event
+async def join_room(sid, data):
+    """Handle agent joining its room for targeted messages"""
+    try:
+        room = data.get('room')
+        if room:
+            sio.enter_room(sid, room)
+            logger.info(f"[OK] Session {sid} joined room: {room}")
+            return {'status': 'success', 'room': room}
+        else:
+            logger.error(f"No room specified in join_room request from {sid}")
+            return {'status': 'error', 'message': 'No room specified'}
+    except Exception as e:
+        logger.error(f"Error joining room for sid {sid}: {e}")
+        return {'status': 'error', 'message': str(e)}
+
+@sio.event
 async def disconnect(sid):
     """Handle socket disconnections"""
     try:
         connection_type, agent_id = conn_manager.remove_connection(sid)
         
-        if connection_type == 'agent':
-            # Notify all frontends about agent disconnection with a small delay
-            await asyncio.sleep(0.1)  # Small delay to prevent race conditions
-            await sio.emit('agents_list', conn_manager.get_agent_list())
+        if connection_type == 'agent' and agent_id:
+            db = next(get_db())
+            try:
+                device = device_crud.update_device_status(db, agent_id, "offline")
+                logger.info(f"Agent {agent_id} status updated to offline in devices table.")
+                
+                if device:
+                    await sio.emit('device_status_changed', {
+                        'agent_id': device.agent_id,
+                        'device_name': device.device_name,
+                        'status': 'offline',
+                        'last_seen': device.last_seen.isoformat() if device.last_seen else None,
+                        'ip_address': device.ip_address
+                    })
+                    logger.info(f"Broadcasted offline status for agent {device.agent_id}")
+            finally:
+                db.close()
+
+            await _update_and_send_agent_list()
+            
         elif connection_type == 'frontend':
             logger.info(f"Frontend {sid} disconnected")
+            
     except Exception as e:
-        logger.error(f"Error handling disconnect: {e}")
+        logger.error(f"Error handling disconnect for sid {sid}: {e}")
 
 @sio.event
 async def get_shells(sid, agent_id):
     """Get available shells for a specific agent"""
     try:
-        # Check if the requesting client is still connected
         if sid not in conn_manager.frontends:
             logger.warning(f"Ignoring shells request from disconnected frontend {sid}")
             return
             
         logger.info(f"Shell list request for agent {agent_id} from {sid}")
-        shells = conn_manager.get_agent_shells(agent_id)
         
-        if not shells:
-            logger.warning(f"No shells found for agent {agent_id}")
+        if agent_id not in conn_manager.agents:
+            logger.error(f"Agent {agent_id} not found in connected agents")
+            logger.info(f"Available agents: {list(conn_manager.agents.keys())}")
             await sio.emit('shells_list', [], room=sid)
             return
             
-        await sio.emit('shells_list', shells, room=sid)
+        shells = conn_manager.get_agent_shells(agent_id)
+        logger.info(f"Found shells for {agent_id}: {shells}")
+        
+        if not shells:
+            logger.warning(f"No shells found for agent {agent_id}")
+            db = next(get_db())
+            try:
+                device = device_crud.get_device_by_agent_id(db, agent_id)
+                if device and device.shells:
+                    shells = device.shells
+                    logger.info(f"Retrieved shells from database: {shells}")
+            finally:
+                db.close()
+        
+        await sio.emit('shells_list', shells or [], room=sid)
         logger.info(f"Sent shell list to {sid}: {shells}")
     except Exception as e:
         logger.error(f"Error getting shells for agent {agent_id}: {e}")
@@ -189,23 +472,36 @@ async def get_shells(sid, agent_id):
 async def agent_register(sid, data):
     """Handle agent registration"""
     try:
-        agent_id = data.get('agent_id', f'agent_{sid[:8]}')
-        shells = data.get('shells', ['cmd'])
+        logger.info(f"Agent registration request from {sid} with data: {data}")
         
-        logger.info(f"Agent registration request: {agent_id} with shells {shells}")
+        reg_data = agent_schemas.DeviceRegistrationRequest(**data)
         
-        conn_manager.add_agent(agent_id, sid, shells)
+        db = next(get_db())
+        try:
+            device = device_crud.register_or_update_device(db, reg_data)
+            logger.info(f"Agent {device.agent_id} registered/updated in devices table.")
+        finally:
+            db.close()
+            
+        conn_manager.add_agent(reg_data.agent_id, sid, reg_data.shells)
         
-        # Notify all frontends about new agent
-        await sio.emit('agents_list', conn_manager.get_agent_list())
+        await sio.emit('device_status_changed', {
+            'agent_id': device.agent_id,
+            'device_name': device.device_name,
+            'status': 'online',
+            'last_seen': device.last_seen.isoformat() if device.last_seen else None,
+            'ip_address': device.ip_address
+        })
+        logger.info(f"Broadcasted online status for agent {device.agent_id}")
         
-        # Confirm registration to the agent
-        await sio.emit('registration_success', {'agent_id': agent_id}, room=sid)
-        logger.info(f"Agent {agent_id} registered successfully")
+        await _update_and_send_agent_list()
+        
+        await sio.emit('registration_success', {'agent_id': reg_data.agent_id}, room=sid)
+        logger.info(f"Agent {reg_data.agent_id} registered successfully via socket.")
         
     except Exception as e:
         logger.error(f"Error registering agent: {e}")
-        await sio.emit('registration_error', {'error': str(e)}, room=sid)
+        await sio.emit('registration_error', {'message': str(e)}, room=sid)
 
 @sio.event
 async def frontend_register(sid, data):
@@ -214,10 +510,7 @@ async def frontend_register(sid, data):
         logger.info(f"Frontend registration request from {sid}")
         conn_manager.add_frontend(sid)
         
-        # Send current agent list to the new frontend
-        agent_list = conn_manager.get_agent_list()
-        await sio.emit('agents_list', agent_list, room=sid)
-        logger.info(f"Sent agent list to frontend {sid}: {agent_list}")
+        await _update_and_send_agent_list(sid=sid)
         
     except Exception as e:
         logger.error(f"Error registering frontend: {e}")
@@ -226,18 +519,37 @@ async def frontend_register(sid, data):
 async def get_agents(sid):
     """Get list of connected agents"""
     try:
-        agent_list = conn_manager.get_agent_list()
-        await sio.emit('agents_list', agent_list, room=sid)
-        logger.info(f"Sent agent list to {sid}: {agent_list}")
+        await _update_and_send_agent_list(sid=sid)
     except Exception as e:
         logger.error(f"Error getting agents: {e}")
 
+@sio.event
+async def agent_heartbeat(sid, data):
+    """Handle agent heartbeat to update last_seen and keep status online"""
+    try:
+        agent_id = data.get('agent_id') if isinstance(data, dict) else None
+        
+        if not agent_id:
+            agent_id = conn_manager.get_agent_by_sid(sid)
+        
+        if agent_id:
+            # Update last heartbeat timestamp in connection manager
+            if agent_id in conn_manager.agents:
+                conn_manager.agents[agent_id]['last_heartbeat'] = datetime.now()
+            
+            db = next(get_db())
+            try:
+                device_crud.update_device_last_seen(db, agent_id)
+                logger.debug(f"Heartbeat received from agent {agent_id}")
+            finally:
+                db.close()
+    except Exception as e:
+        logger.error(f"Error handling heartbeat: {e}")
 
 @sio.event
 async def start_shell(sid, data):
     """Request agent to start a specific shell"""
     try:
-        # Validate input data
         if not isinstance(data, dict):
             raise ValueError("Invalid data format - expected dictionary")
         
@@ -256,10 +568,8 @@ async def start_shell(sid, data):
         if not agent_sid:
             raise ValueError(f'Agent {agent_id} not found or not connected')
         
-        # Map this agent to this frontend for future communications
         conn_manager.map_agent_to_frontend(agent_id, sid)
         
-        # Forward request to agent
         await sio.emit('start_shell_request', {'shell': shell}, room=agent_sid)
         logger.info(f"Forwarded start_shell request to agent {agent_id} (sid: {agent_sid})")
         
@@ -293,7 +603,6 @@ async def stop_shell(sid, data):
 async def command_input(sid, data):
     """Forward command input from frontend to agent"""
     try:
-        # Validate input data
         if not isinstance(data, dict):
             raise ValueError("Invalid data format - expected dictionary")
         
@@ -329,7 +638,6 @@ async def command_input(sid, data):
 async def command_output(sid, data):
     """Forward command output from agent to frontend"""
     try:
-        # Find which agent this is from
         agent_id = conn_manager.get_agent_by_sid(sid)
         
         if agent_id:
@@ -337,8 +645,6 @@ async def command_output(sid, data):
             if frontend_sid:
                 output = data.get('output', '')
                 await sio.emit('command_output', output, room=frontend_sid)
-                # Don't log every character, too verbose
-                # logger.debug(f"Forwarded output from agent {agent_id} to frontend {frontend_sid}")
             else:
                 logger.warning(f"No frontend mapped for agent {agent_id}")
         else:
@@ -350,7 +656,6 @@ async def command_output(sid, data):
 async def shell_started(sid, data):
     """Handle shell started confirmation from agent"""
     try:
-        # Find which agent this is from
         agent_id = conn_manager.get_agent_by_sid(sid)
         
         if agent_id:
@@ -393,7 +698,6 @@ async def deployment_command_output(sid, data):
         if cmd_id:
             await command_executor.handle_command_output(cmd_id, output)
             
-            # Forward to all frontends for real-time updates
             await sio.emit('deployment_command_output', {
                 'command_id': cmd_id,
                 'output': output
@@ -415,7 +719,6 @@ async def deployment_command_completed(sid, data):
                 cmd_id, success, final_output, error
             )
             
-            # Notify all frontends
             await sio.emit('deployment_command_completed', {
                 'command_id': cmd_id,
                 'success': success,
@@ -424,6 +727,75 @@ async def deployment_command_completed(sid, data):
             })
     except Exception as e:
         logger.error(f"Error handling deployment command completion: {e}")
+
+@sio.event
+async def file_transfer_result(sid, data):
+    """Handle file transfer result from agent"""
+    try:
+        deployment_id = data.get('deployment_id')
+        file_id = data.get('file_id')
+        success = data.get('success', False)
+        message = data.get('message', '')
+        error = data.get('error', '')
+        path_created = data.get('path_created', False)
+        file_path = data.get('file_path', '')
+        
+        logger.info(f"File transfer result - deployment: {deployment_id}, file: {file_id}, success: {success}")
+        
+        agent_id = conn_manager.get_agent_by_sid(sid)
+        
+        if not agent_id:
+            logger.error(f"Could not find agent for sid {sid}")
+            return
+        
+        from app.auth.database import get_db
+        from app.files import crud
+        from app.grouping.models import Device
+        
+        db = next(get_db())
+        try:
+            device = db.query(Device).filter(Device.agent_id == agent_id).first()
+            
+            if not device:
+                logger.error(f"Could not find device for agent {agent_id}")
+                return
+            
+            status = "success" if success else "error"
+            result_message = message if success else error
+            
+            crud.create_deployment_result(
+                db, 
+                deployment_id, 
+                device.id, 
+                file_id, 
+                status,
+                result_message,
+                path_created=path_created,
+                error_details=error if not success else None
+            )
+            
+            logger.info(f"Updated deployment result for device {device.id}")
+            
+            # Notify all frontends about the file transfer result
+            try:
+                await sio.emit('file_transfer_update', {
+                    'deployment_id': deployment_id,
+                    'device_id': device.id,
+                    'device_name': device.device_name,
+                    'file_id': file_id,
+                    'success': success,
+                    'message': result_message,
+                    'path_created': path_created
+                })
+            except Exception as emit_error:
+                logger.error(f"Failed to emit file transfer update: {emit_error}")
+            
+        finally:
+            db.close()
+            
+    except Exception as e:
+        logger.error(f"Error handling file transfer result: {e}")
+        logger.exception(e)
 
 @sio.event
 async def execute_deployment_command(sid, data):
@@ -435,37 +807,101 @@ async def execute_deployment_command(sid, data):
     except Exception as e:
         logger.error(f"Error handling execute deployment command: {e}")
 
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    return {
-        "status": "healthy",
-        "agents_connected": len(conn_manager.agents),
-        "frontends_connected": len(conn_manager.frontends),
-        "timestamp": datetime.now().isoformat()
-    }
+@sio.event
+async def software_installation_status(sid, data):
+    """Handle software installation status updates from agent"""
+    try:
+        deployment_id = data.get('deployment_id')
+        device_id = data.get('device_id')
+        status = data.get('status')
+        progress = data.get('progress', 0)
+        message = data.get('message', '')
+        error = data.get('error')
+        
+        logger.info(f"Software installation status - Deployment: {deployment_id}, Device: {device_id}, Status: {status}, Progress: {progress}%")
+        
+        # Update database
+        db = next(get_db())
+        try:
+            from app.Deployments.models import DeploymentTarget
+            
+            target = db.query(DeploymentTarget).filter(
+                DeploymentTarget.deployment_id == deployment_id,
+                DeploymentTarget.device_id == device_id
+            ).first()
+            
+            if target:
+                target.progress_percent = progress
+                
+                if status == 'completed':
+                    target.status = 'success'
+                    target.completed_at = datetime.utcnow()
+                elif status == 'failed':
+                    target.status = 'failed'
+                    target.error_message = error or message
+                    target.completed_at = datetime.utcnow()
+                elif status in ['in_progress', 'downloading', 'installing']:
+                    target.status = 'in_progress'
+                    if not target.started_at:
+                        target.started_at = datetime.utcnow()
+                
+                db.commit()
+                logger.info(f"Updated deployment target {target.id} status to {target.status}")
+        finally:
+            db.close()
+        
+        # Forward status to all connected frontends
+        await sio.emit('software_deployment_update', data, room='frontends')
+        
+    except Exception as e:
+        logger.error(f"Error handling software installation status: {e}", exc_info=True)
+
+@sio.event
+async def software_download_progress(sid, data):
+    """Handle software download progress updates from agent"""
+    try:
+        logger.debug(f"Software download progress: {data}")
+        # Forward to frontends for real-time updates
+        await sio.emit('software_download_progress', data, room='frontends')
+    except Exception as e:
+        logger.error(f"Error handling software download progress: {e}")
 
 # Get agents endpoint (REST API alternative)
 @app.get("/api/agents")
 async def get_agents_rest():
-    agents_info = {}
-    for agent_id, info in conn_manager.agents.items():
-        agents_info[agent_id] = {
-            "shells": info["shells"],
-            "connected_at": info["connected_at"].isoformat()
-        }
-    return {"agents": agents_info}
+    db = next(get_db())
+    try:
+        db_devices = db.query(Device).filter(Device.agent_id.isnot(None)).all()
+        online_agent_ids = set(conn_manager.get_agent_list())
+        
+        agents_info = {}
+        for device in db_devices:
+            if device.agent_id:
+                connection_info = conn_manager.agents.get(device.agent_id, {})
+                agents_info[device.agent_id] = {
+                    "device_name": device.device_name,
+                    "ip_address": device.ip_address,
+                    "mac_address": device.mac_address,
+                    "os": device.os,
+                    "status": "online" if device.agent_id in online_agent_ids else "offline",
+                    "shells": device.shells or connection_info.get("shells", []),
+                    "connected_at": connection_info.get("connected_at", "").isoformat() if connection_info.get("connected_at") else None,
+                    "last_seen": device.last_seen.isoformat() if device.last_seen else None,
+                    "system_info": device.system_info
+                }
+        return {"agents": agents_info}
+    finally:
+        db.close()
 
 
 @app.get("/")
 async def root():
     return {"message": "Remote Terminal Server with Real CMD Running (Socket.IO)"}
 
-# Create Socket.IO ASGI app (don't mount to avoid circular reference)
 socket_app = socketio.ASGIApp(sio, app)
 
 def start():
     """Start the backend server."""
     logger.info("Starting Remote Command Execution Backend...")
-    logger.info("Backend will be available at: http://localhost:8000")
-    logger.info("Socket.IO endpoint: ws://localhost:8000/socket.io/")
+    logger.info("Backend will be available at: https://deployx-server.onrender.com")
+    logger.info("Socket.IO endpoint: wss://deployx-server.onrender.com/socket.io/")

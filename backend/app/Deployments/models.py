@@ -1,12 +1,14 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean, Text
 from sqlalchemy.orm import relationship
-from auth.database import Base
+from app.auth.database import Base
+from pydantic import BaseModel
+from typing import List, Optional
 
 class Deployment(Base):
     __tablename__ = "deployments"
     id = Column(Integer, primary_key=True)
     deployment_name = Column(String(100), nullable=False)
-    initiated_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # Made nullable for now
+    initiated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     status = Column(String(20), nullable=False, default="pending")
     started_at = Column(DateTime, nullable=True)
     ended_at = Column(DateTime, nullable=True)
@@ -14,7 +16,6 @@ class Deployment(Base):
     rollback_time = Column(DateTime, nullable=True)
     rollback_reason = Column(Text, nullable=True)
     
-    # Add relationships
     targets = relationship("DeploymentTarget", back_populates="deployment", cascade="all, delete-orphan")
     checkpoints = relationship("Checkpoint", back_populates="deployment", cascade="all, delete-orphan")
 
@@ -29,7 +30,6 @@ class DeploymentTarget(Base):
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     
-    # Add relationships
     deployment = relationship("Deployment", back_populates="targets")
 
 class Checkpoint(Base):
@@ -41,5 +41,48 @@ class Checkpoint(Base):
     timestamp = Column(DateTime, nullable=False)
     details = Column(Text, nullable=True)
     
-    # Add relationships
     deployment = relationship("Deployment", back_populates="checkpoints")
+
+class DeploymentCreate(BaseModel):
+    group_ids: List[int] = []
+    device_ids: List[int] = []
+    software_ids: List[int] = []
+    deployment_name: Optional[str] = None
+    custom_software: Optional[str] = None
+
+class DeploymentResponse(BaseModel):
+    deployment_id: int
+
+class DeploymentListResponse(BaseModel):
+    id: int
+    deployment_name: Optional[str]
+    status: str
+    started_at: Optional[str]
+    ended_at: Optional[str]
+    device_count: int
+    rollback_performed: bool
+    
+    model_config = {"from_attributes": True}
+
+class DeploymentProgress(BaseModel):
+    device_id: int
+    device_name: str
+    percent: int
+    status: str
+    error: Optional[str] = None
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+
+class DeploymentProgressResponse(BaseModel):
+    deployment_id: int
+    deployment_status: str
+    devices: List[DeploymentProgress]
+    completed: bool
+    started_at: Optional[str] = None
+    ended_at: Optional[str] = None
+    
+    model_config = {"from_attributes": True}
+
+class RetryRequest(BaseModel):
+    device_ids: List[int]
+    deployment_id: Optional[int] = None

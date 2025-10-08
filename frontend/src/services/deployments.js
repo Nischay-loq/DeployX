@@ -1,0 +1,116 @@
+import api from './api';
+
+class DeploymentsService {
+  // Get all deployments for current user
+  async fetchDeployments() {
+    try {
+      // Temporarily use test endpoint to debug CORS and connection issues
+      const response = await api.get('/test/deployments');
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch deployments:', error);
+      throw error;
+    }
+  }
+
+  // Install software on devices/groups
+  async installSoftware(deploymentData) {
+    try {
+      const response = await api.post('/deployments/install', deploymentData);
+      return response;
+    } catch (error) {
+      console.error('Failed to start software installation:', error);
+      throw error;
+    }
+  }
+
+  // Get deployment progress
+  async getDeploymentProgress(deploymentId) {
+    try {
+      const response = await api.get(`/deployments/${deploymentId}/progress`);
+      return response;
+    } catch (error) {
+      console.error('Failed to get deployment progress:', error);
+      throw error;
+    }
+  }
+
+  // Retry failed deployments
+  async retryFailedDeployments(deviceIds, deploymentId = null) {
+    try {
+      const response = await api.post('/deployments/retry', {
+        device_ids: deviceIds,
+        deployment_id: deploymentId
+      });
+      return response;
+    } catch (error) {
+      console.error('Failed to retry deployments:', error);
+      throw error;
+    }
+  }
+
+  // Get deployment details
+  async getDeploymentDetails(deploymentId) {
+    try {
+      const response = await api.get(`/deployments/${deploymentId}/details`);
+      return response;
+    } catch (error) {
+      console.error('Failed to get deployment details:', error);
+      // Return fallback data if API fails
+      return {
+        software: [],
+        custom_software: null
+      };
+    }
+  }
+
+  // Get deployment target devices
+  async getDeploymentDevices(deploymentId) {
+    try {
+      const response = await api.get(`/deployments/${deploymentId}/devices`);
+      return response;
+    } catch (error) {
+      console.error('Failed to get deployment devices:', error);
+      return [];
+    }
+  }
+
+  // Get deployment target groups
+  async getDeploymentGroups(deploymentId) {
+    try {
+      const response = await api.get(`/deployments/${deploymentId}/groups`);
+      return response;
+    } catch (error) {
+      console.error('Failed to get deployment groups:', error);
+      return [];
+    }
+  }
+
+  // Get available software (hardcoded for now, matching the old frontend)
+  getAvailableSoftware() {
+    return [
+      { id: 1, name: "7-Zip" },
+      { id: 2, name: "Google Chrome" },
+      { id: 3, name: "Node.js" },
+      { id: 4, name: "Git" },
+      { id: 5, name: "Python 3.11" },
+      { id: 6, name: "Visual Studio Code" },
+      { id: 7, name: "Docker Desktop" },
+      { id: 8, name: "Notepad++" }
+    ];
+  }
+
+  // Fetch software from backend API
+  async fetchSoftware() {
+    try {
+      const response = await api.get('/software/');
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch software from API:', error);
+      // Fallback to hardcoded software
+      return this.getAvailableSoftware();
+    }
+  }
+}
+
+export default new DeploymentsService();

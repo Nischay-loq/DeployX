@@ -1,5 +1,49 @@
 {
-  "queue": [],
-  "processed": [],
-  "failed": []
+  "commands": [
+    {
+      "id": "78cc0fe5-add7-4f82-9a5c-0ad4517a6ca5",
+      "command": "mkdir hasdasdadsasdasd",
+      "status": "completed",
+      "output": "\r\nE:\\CKC\\Projects\\DeployX>\r\nE:\\CKC\\Projects\\DeployX>",
+      "strategy": "transactional",
+      "timestamp": "2025-10-07T22:20:16.429305",
+      "agent_id": "agent_f0ebce17",
+      "shell": "cmd",
+      "error": null,
+      "started_at": "2025-10-07T22:20:16.447609",
+      "completed_at": "2025-10-07T22:20:16.971658",
+      "config": {
+        "original_command": "mkdir hasdasdadsasdasd"
+      },
+      "rollback_status": null,
+      "rollback_command_id": null,
+      "rollback_timestamp": null,
+      "rollback_feasible": null,
+      "rollback_risk_level": null,
+      "rollback_validation_results": null
+    },
+    {
+      "id": "4aa0b22b-c286-4cf7-b2e0-e868c22615e4",
+      "command": "rmdir hasdasdadsasdasd",
+      "status": "completed",
+      "output": "\r\nE:\\CKC\\Projects\\DeployX>\r\nE:\\CKC\\Projects\\DeployX>",
+      "strategy": "transactional",
+      "timestamp": "2025-10-07T22:20:42.501785",
+      "agent_id": "agent_f0ebce17",
+      "shell": "cmd",
+      "error": null,
+      "started_at": "2025-10-07T22:20:42.506005",
+      "completed_at": "2025-10-07T22:20:43.043750",
+      "config": {
+        "original_command": "rmdir hasdasdadsasdasd"
+      },
+      "rollback_status": null,
+      "rollback_command_id": null,
+      "rollback_timestamp": null,
+      "rollback_feasible": null,
+      "rollback_risk_level": null,
+      "rollback_validation_results": null
+    }
+  ],
+  "last_updated": "2025-10-07T22:20:43.043853"
 }
