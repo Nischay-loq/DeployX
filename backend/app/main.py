@@ -47,9 +47,8 @@ from app.Deployments.routes import router as deployments_router
 from app.software.routes import router as software_router
 from app.files.routes import router as files_router
 from app.agents.routes import router as agents_router
-from app.auth import routes, models
-from app.agents import models as agent_models, crud as agent_crud, schemas as agent_schemas
-from app.auth.database import engine, get_db
+from app.auth import routes
+from app.auth.database import engine, get_db, Base
 from app.command_deployment.routes import router as deployment_router
 from app.dashboard.routes import router as dashboard_router
 from app.command_deployment.executor import command_executor
@@ -59,25 +58,26 @@ from app.software import models as software_models  # Import software models
 from app.files import models as file_models  # Import file models
 from app.auth.database import get_db
 from app.agents import crud as agent_crud, schemas as agent_schemas
+from app.grouping import models as grouping_models
+from app.Deployments import models as deployment_models
+from app.files import models as file_models
+from app.agents import schemas as agent_schemas, crud as agent_crud
 from app.Devices import crud as device_crud
 from app.grouping.models import Device
 
-# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Create Socket.IO server with configuration from environment
 sio = socketio.AsyncServer(
     cors_allowed_origins=get_cors_origins(),
-    logger=False,  # Disable verbose socket.io logging
-    engineio_logger=False,  # Disable verbose engine.io logging
+    logger=False,
+    engineio_logger=False,
     async_mode='asgi',
     ping_timeout=60,  # 60 second timeout for better stability
     ping_interval=25  # 25 second ping interval
 )
 
-models.Base.metadata.create_all(bind=engine)
-# Device model is now in grouping.models, no need for separate agent_models Base
+Base.metadata.create_all(bind=engine)
 
 # Create FastAPI app
 app = FastAPI(title="Remote Command Execution Backend")
@@ -101,6 +101,9 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
+# Log CORS origins for debugging
+logger.info(f"CORS allowed origins: {get_cors_origins()}")
+
 app.include_router(routes.router)
 app.include_router(groups_router)
 app.include_router(devices_router)
@@ -116,7 +119,6 @@ app.include_router(dashboard_router)
 def health_check():
     return {"status": "healthy", "message": "Backend is running"}
 
-# Test endpoints (no auth required) - for debugging
 @app.get("/test/deployments")
 def test_deployments():
     """Test endpoint for deployments without authentication"""
@@ -220,40 +222,6 @@ def test_groups():
         }
     ]
 
-@app.get("/test/devices")
-def test_devices():
-    """Test endpoint for devices without authentication"""
-    return [
-        {
-            "id": 1,
-            "agent_id": "web-01",
-            "hostname": "web-server-01",
-            "ip_address": "192.168.1.10",
-            "status": "online",
-            "os_info": "Ubuntu 20.04",
-            "last_seen": "2024-01-01T00:00:00"
-        },
-        {
-            "id": 2,
-            "agent_id": "web-02",
-            "hostname": "web-server-02",
-            "ip_address": "192.168.1.11",
-            "status": "online",
-            "os_info": "Ubuntu 20.04",
-            "last_seen": "2024-01-01T00:00:00"
-        },
-        {
-            "id": 3,
-            "agent_id": "db-01",
-            "hostname": "database-01",
-            "ip_address": "192.168.1.20",
-            "status": "offline",
-            "os_info": "CentOS 8",
-            "last_seen": "2024-01-01T00:00:00"
-        }
-    ]
-
-# Add explicit OPTIONS handler for CORS preflight
 @app.options("/{path:path}")
 async def options_handler(path: str):
     from fastapi import Response
@@ -267,20 +235,16 @@ async def options_handler(path: str):
         }
     )
 
-# Store connected agents and frontends
 class ConnectionManager:
     def __init__(self):
-        self.agents: Dict[str, dict] = {}  # agent_id -> {sid, shells, connected_at}
-        self.frontends: Set[str] = set()  # Set of frontend session IDs
-        self.agent_frontend_mapping: Dict[str, str] = {}  # agent_id -> frontend_sid
-        self.sid_to_agent: Dict[str, str] = {}  # sid -> agent_id for reverse lookup
-        self.sid_to_type: Dict[str, str] = {}  # sid -> 'agent' or 'frontend'
+        self.agents: Dict[str, dict] = {}
+        self.frontends: Set[str] = set()
+        self.agent_frontend_mapping: Dict[str, str] = {}
+        self.sid_to_agent: Dict[str, str] = {}
+        self.sid_to_type: Dict[str, str] = {}
     
     def add_agent(self, agent_id: str, sid: str, shells: List[str]):
         """Add a new agent connection"""
-        logger.info(f"ConnectionManager: Adding agent {agent_id} with shells: {shells}")
-        logger.info(f"ConnectionManager: Shells type: {type(shells)}")
-        
         self.agents[agent_id] = {
             'sid': sid,
             'shells': shells,
@@ -288,10 +252,6 @@ class ConnectionManager:
         }
         self.sid_to_agent[sid] = agent_id
         self.sid_to_type[sid] = 'agent'
-        
-        # Verify storage
-        stored_data = self.agents.get(agent_id)
-        logger.info(f"ConnectionManager: Verified stored data for {agent_id}: {stored_data}")
         logger.info(f"Agent {agent_id} connected (sid: {sid}) with shells: {shells}")
     
     def add_frontend(self, sid: str):
@@ -329,11 +289,7 @@ class ConnectionManager:
     def get_agent_shells(self, agent_id: str) -> List[str]:
         """Get available shells for an agent"""
         agent_data = self.agents.get(agent_id, {})
-        shells = agent_data.get('shells', [])
-        logger.info(f"ConnectionManager: Getting shells for {agent_id}")
-        logger.info(f"ConnectionManager: Agent data: {agent_data}")
-        logger.info(f"ConnectionManager: Returning shells: {shells}")
-        return shells
+        return agent_data.get('shells', [])
     
     def get_agent_sid(self, agent_id: str) -> str:
         """Get socket ID for an agent"""
@@ -367,7 +323,6 @@ class ConnectionManager:
         """Get the frontend SID mapped to an agent"""
         return self.agent_frontend_mapping.get(agent_id)
 
-# Initialize connection manager
 conn_manager = ConnectionManager()
 
 # Helper function to get Socket.IO components
@@ -380,13 +335,11 @@ async def _update_and_send_agent_list(sid=None):
     """Helper to fetch agents from devices table, update status, and emit to frontends."""
     db = next(get_db())
     try:
-        # Get all devices that have agent_id (indicating they are agents)
         db_devices = db.query(Device).filter(Device.agent_id.isnot(None)).all()
         online_agent_ids = set(conn_manager.get_agent_list())
         
         agents_with_status = []
         for device in db_devices:
-            # Convert device data to agent format for compatibility
             agent_info = {
                 'id': device.id,
                 'agent_id': device.agent_id,
@@ -423,7 +376,6 @@ async def _update_and_send_agent_list(sid=None):
     finally:
         db.close()
 
-# Set up command executor with socket.io and connection manager
 command_executor.set_socketio(sio, conn_manager)
 
 @sio.event
@@ -455,13 +407,11 @@ async def disconnect(sid):
         connection_type, agent_id = conn_manager.remove_connection(sid)
         
         if connection_type == 'agent' and agent_id:
-            # Update device status in the database to 'offline'
             db = next(get_db())
             try:
                 device = device_crud.update_device_status(db, agent_id, "offline")
                 logger.info(f"Agent {agent_id} status updated to offline in devices table.")
                 
-                # Broadcast device status change to all frontends immediately
                 if device:
                     await sio.emit('device_status_changed', {
                         'agent_id': device.agent_id,
@@ -474,7 +424,6 @@ async def disconnect(sid):
             finally:
                 db.close()
 
-            # Notify all frontends about agent list change
             await _update_and_send_agent_list()
             
         elif connection_type == 'frontend':
@@ -487,14 +436,12 @@ async def disconnect(sid):
 async def get_shells(sid, agent_id):
     """Get available shells for a specific agent"""
     try:
-        # Check if the requesting client is still connected
         if sid not in conn_manager.frontends:
             logger.warning(f"Ignoring shells request from disconnected frontend {sid}")
             return
             
         logger.info(f"Shell list request for agent {agent_id} from {sid}")
         
-        # Debug: Check if agent exists
         if agent_id not in conn_manager.agents:
             logger.error(f"Agent {agent_id} not found in connected agents")
             logger.info(f"Available agents: {list(conn_manager.agents.keys())}")
@@ -506,12 +453,11 @@ async def get_shells(sid, agent_id):
         
         if not shells:
             logger.warning(f"No shells found for agent {agent_id}")
-            # Try to get from database as fallback
             db = next(get_db())
             try:
-                agent = agent_crud.get_agent(db, agent_id)
-                if agent and agent.shells:
-                    shells = agent.shells
+                device = device_crud.get_device_by_agent_id(db, agent_id)
+                if device and device.shells:
+                    shells = device.shells
                     logger.info(f"Retrieved shells from database: {shells}")
             finally:
                 db.close()
@@ -528,13 +474,8 @@ async def agent_register(sid, data):
     try:
         logger.info(f"Agent registration request from {sid} with data: {data}")
         
-        # Validate data
         reg_data = agent_schemas.DeviceRegistrationRequest(**data)
         
-        # Debug shells
-        logger.info(f"Agent {reg_data.agent_id} registering with shells: {reg_data.shells}")
-        
-        # Use a database session
         db = next(get_db())
         try:
             device = device_crud.register_or_update_device(db, reg_data)
@@ -544,10 +485,6 @@ async def agent_register(sid, data):
             
         conn_manager.add_agent(reg_data.agent_id, sid, reg_data.shells)
         
-        # Verify shells were stored
-        stored_shells = conn_manager.get_agent_shells(reg_data.agent_id)
-        logger.info(f"Verified stored shells for {reg_data.agent_id}: {stored_shells}")
-        # Broadcast device status change to all frontends immediately
         await sio.emit('device_status_changed', {
             'agent_id': device.agent_id,
             'device_name': device.device_name,
@@ -557,10 +494,8 @@ async def agent_register(sid, data):
         })
         logger.info(f"Broadcasted online status for agent {device.agent_id}")
         
-        # Notify all frontends about the updated agent list
         await _update_and_send_agent_list()
         
-        # Confirm registration to the agent
         await sio.emit('registration_success', {'agent_id': reg_data.agent_id}, room=sid)
         logger.info(f"Agent {reg_data.agent_id} registered successfully via socket.")
         
@@ -575,7 +510,6 @@ async def frontend_register(sid, data):
         logger.info(f"Frontend registration request from {sid}")
         conn_manager.add_frontend(sid)
         
-        # Send current agent list to the new frontend
         await _update_and_send_agent_list(sid=sid)
         
     except Exception as e:
@@ -585,7 +519,6 @@ async def frontend_register(sid, data):
 async def get_agents(sid):
     """Get list of connected agents"""
     try:
-        # Use the same helper function to ensure consistent data format
         await _update_and_send_agent_list(sid=sid)
     except Exception as e:
         logger.error(f"Error getting agents: {e}")
@@ -596,7 +529,6 @@ async def agent_heartbeat(sid, data):
     try:
         agent_id = data.get('agent_id') if isinstance(data, dict) else None
         
-        # Get agent_id from connection manager if not provided
         if not agent_id:
             agent_id = conn_manager.get_agent_by_sid(sid)
         
@@ -618,7 +550,6 @@ async def agent_heartbeat(sid, data):
 async def start_shell(sid, data):
     """Request agent to start a specific shell"""
     try:
-        # Validate input data
         if not isinstance(data, dict):
             raise ValueError("Invalid data format - expected dictionary")
         
@@ -637,10 +568,8 @@ async def start_shell(sid, data):
         if not agent_sid:
             raise ValueError(f'Agent {agent_id} not found or not connected')
         
-        # Map this agent to this frontend for future communications
         conn_manager.map_agent_to_frontend(agent_id, sid)
         
-        # Forward request to agent
         await sio.emit('start_shell_request', {'shell': shell}, room=agent_sid)
         logger.info(f"Forwarded start_shell request to agent {agent_id} (sid: {agent_sid})")
         
@@ -674,7 +603,6 @@ async def stop_shell(sid, data):
 async def command_input(sid, data):
     """Forward command input from frontend to agent"""
     try:
-        # Validate input data
         if not isinstance(data, dict):
             raise ValueError("Invalid data format - expected dictionary")
         
@@ -710,7 +638,6 @@ async def command_input(sid, data):
 async def command_output(sid, data):
     """Forward command output from agent to frontend"""
     try:
-        # Find which agent this is from
         agent_id = conn_manager.get_agent_by_sid(sid)
         
         if agent_id:
@@ -718,8 +645,6 @@ async def command_output(sid, data):
             if frontend_sid:
                 output = data.get('output', '')
                 await sio.emit('command_output', output, room=frontend_sid)
-                # Don't log every character, too verbose
-                # logger.debug(f"Forwarded output from agent {agent_id} to frontend {frontend_sid}")
             else:
                 logger.warning(f"No frontend mapped for agent {agent_id}")
         else:
@@ -731,7 +656,6 @@ async def command_output(sid, data):
 async def shell_started(sid, data):
     """Handle shell started confirmation from agent"""
     try:
-        # Find which agent this is from
         agent_id = conn_manager.get_agent_by_sid(sid)
         
         if agent_id:
@@ -774,7 +698,6 @@ async def deployment_command_output(sid, data):
         if cmd_id:
             await command_executor.handle_command_output(cmd_id, output)
             
-            # Forward to all frontends for real-time updates
             await sio.emit('deployment_command_output', {
                 'command_id': cmd_id,
                 'output': output
@@ -796,7 +719,6 @@ async def deployment_command_completed(sid, data):
                 cmd_id, success, final_output, error
             )
             
-            # Notify all frontends
             await sio.emit('deployment_command_completed', {
                 'command_id': cmd_id,
                 'success': success,
@@ -820,28 +742,24 @@ async def file_transfer_result(sid, data):
         
         logger.info(f"File transfer result - deployment: {deployment_id}, file: {file_id}, success: {success}")
         
-        # Get agent_id from sid
         agent_id = conn_manager.get_agent_by_sid(sid)
         
         if not agent_id:
             logger.error(f"Could not find agent for sid {sid}")
             return
         
-        # Update database with result
         from app.auth.database import get_db
         from app.files import crud
         from app.grouping.models import Device
         
         db = next(get_db())
         try:
-            # Find device by agent_id
             device = db.query(Device).filter(Device.agent_id == agent_id).first()
             
             if not device:
                 logger.error(f"Could not find device for agent {agent_id}")
                 return
             
-            # Create deployment result
             status = "success" if success else "error"
             result_message = message if success else error
             
@@ -948,22 +866,11 @@ async def software_download_progress(sid, data):
     except Exception as e:
         logger.error(f"Error handling software download progress: {e}")
 
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    return {
-        "status": "healthy",
-        "agents_connected": len(conn_manager.agents),
-        "frontends_connected": len(conn_manager.frontends),
-        "timestamp": datetime.now().isoformat()
-    }
-
 # Get agents endpoint (REST API alternative)
 @app.get("/api/agents")
 async def get_agents_rest():
     db = next(get_db())
     try:
-        # Get device data for all agents
         db_devices = db.query(Device).filter(Device.agent_id.isnot(None)).all()
         online_agent_ids = set(conn_manager.get_agent_list())
         
@@ -991,7 +898,6 @@ async def get_agents_rest():
 async def root():
     return {"message": "Remote Terminal Server with Real CMD Running (Socket.IO)"}
 
-# Create Socket.IO app
 socket_app = socketio.ASGIApp(sio, app)
 
 def start():

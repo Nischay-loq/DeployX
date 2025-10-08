@@ -20,29 +20,12 @@ from app.files.models import UploadedFile, FileDeployment
 from app.Devices.crud import get_device, get_devices_by_ids
 from app.grouping.crud import get_group, get_devices_in_groups
 
-# Import Socket.IO components at module level to avoid circular imports
-sio = None
-conn_manager = None
-
-def get_socketio_components():
-    """Get Socket.IO components with lazy loading to avoid circular imports"""
-    global sio, conn_manager
-    if sio is None or conn_manager is None:
-        try:
-            from app.main import sio as main_sio, conn_manager as main_conn_manager
-            sio = main_sio
-            conn_manager = main_conn_manager
-        except ImportError as e:
-            logger.error(f"Failed to import Socket.IO components: {e}")
-            return None, None
-    return sio, conn_manager
-
 router = APIRouter(prefix="/files", tags=["files"])
 
 logger = logging.getLogger(__name__)
 
 UPLOAD_DIR = "uploads"
-MAX_FILE_SIZE = 100 * 1024 * 1024
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 ALLOWED_EXTENSIONS = {
     ".txt", ".pdf", ".doc", ".docx", ".xlsx", ".pptx", ".zip", ".tar", ".gz",
     ".jpg", ".jpeg", ".png", ".gif", ".mp4", ".avi", ".mp3", ".wav",
@@ -89,21 +72,26 @@ async def upload_files(
     
     try:
         for file in files:
+
             is_valid, message = validate_file(file)
             if not is_valid:
                 raise HTTPException(status_code=400, detail=f"{file.filename}: {message}")
             
+
             timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
             file_ext = Path(file.filename).suffix
             unique_filename = f"{timestamp}_{file.filename}"
             file_path = os.path.join(UPLOAD_DIR, unique_filename)
             
+
             with open(file_path, 'wb') as f:
                 content = await file.read()
                 f.write(content)
             
+
             file_hash = calculate_file_hash(file_path)
             
+
             db_file = crud.create_uploaded_file(
                 db=db,
                 filename=unique_filename,
@@ -132,6 +120,7 @@ async def upload_files(
         )
         
     except Exception as e:
+
         for file_info in uploaded_files:
             try:
                 file_obj = crud.get_uploaded_file(db, file_info["id"], current_user.id)
@@ -151,6 +140,7 @@ async def deploy_files(
 ):
     """Deploy files to devices"""
     
+
     files = []
     for file_id in deployment_request.file_ids:
         file_obj = crud.get_uploaded_file(db, file_id, current_user.id)
@@ -158,8 +148,10 @@ async def deploy_files(
             raise HTTPException(status_code=404, detail=f"File with ID {file_id} not found")
         files.append(file_obj)
     
+
     target_device_ids = set(deployment_request.device_ids)
     
+
     if deployment_request.group_ids:
         group_devices = get_devices_in_groups(db, deployment_request.group_ids)
         target_device_ids.update([device.id for device in group_devices])
@@ -167,14 +159,16 @@ async def deploy_files(
     if not target_device_ids:
         raise HTTPException(status_code=400, detail="No target devices specified")
     
+
     devices = get_devices_by_ids(db, list(target_device_ids))
     if len(devices) != len(target_device_ids):
         raise HTTPException(status_code=404, detail="Some target devices not found")
     
+
     deployment = crud.create_file_deployment(db, deployment_request, current_user.id)
     
-    # Start deployment process asynchronously
-    asyncio.create_task(process_file_deployment_async(deployment.id, files, devices, deployment_request))
+
+    asyncio.create_task(process_file_deployment(deployment.id, files, devices, deployment_request, db))
     
     return schemas.FileDeploymentResponse(
         success=True,
@@ -182,32 +176,13 @@ async def deploy_files(
         deployment_id=deployment.id
     )
 
-async def process_file_deployment_async(deployment_id: int, files: List[UploadedFile], 
-                                      devices: List, deployment_request: schemas.FileDeploymentRequest):
-    """Async wrapper that creates its own database session"""
-    try:
-        # Create a new database session for this async task
-        db = next(get_db())
-        try:
-            await process_file_deployment(deployment_id, files, devices, deployment_request, db)
-        finally:
-            db.close()
-    except Exception as e:
-        logger.exception(f"Error in async file deployment wrapper: {e}")
-
 async def process_file_deployment(deployment_id: int, files: List[UploadedFile], 
                                 devices: List, deployment_request: schemas.FileDeploymentRequest, db: Session):
     """Process file deployment asynchronously - Real implementation using Socket.IO"""
+    from app.main import sio, conn_manager
     import base64
     
-    # Get Socket.IO components safely
-    sio, conn_manager = get_socketio_components()
-    if sio is None or conn_manager is None:
-        logger.error("Socket.IO components not available, deployment failed")
-        crud.update_deployment_status(db, deployment_id, "failed", completed_at=datetime.utcnow())
-        return
-    
-    # Update deployment status to in_progress
+
     crud.update_deployment_status(db, deployment_id, "in_progress", started_at=datetime.utcnow())
     
     successful_deployments = 0
@@ -216,10 +191,10 @@ async def process_file_deployment(deployment_id: int, files: List[UploadedFile],
     
     try:
         for device in devices:
-            # Check if agent is connected
+
             if not device.agent_id:
                 logger.warning(f"Device {device.id} ({device.device_name}) has no agent_id")
-                # Create failure result for all files
+
                 for file_obj in files:
                     crud.create_deployment_result(
                         db, deployment_id, device.id, file_obj.id, "error",
@@ -232,6 +207,7 @@ async def process_file_deployment(deployment_id: int, files: List[UploadedFile],
             agent_sid = conn_manager.get_agent_sid(device.agent_id)
             if not agent_sid:
                 logger.warning(f"Agent {device.agent_id} for device {device.id} is not connected")
+
                 for file_obj in files:
                     crud.create_deployment_result(
                         db, deployment_id, device.id, file_obj.id, "error",
@@ -241,8 +217,10 @@ async def process_file_deployment(deployment_id: int, files: List[UploadedFile],
                     failed_deployments += 1
                 continue
             
+
             for file_obj in files:
                 try:
+
                     if not os.path.exists(file_obj.file_path):
                         crud.create_deployment_result(
                             db, deployment_id, device.id, file_obj.id, "error",
@@ -257,27 +235,20 @@ async def process_file_deployment(deployment_id: int, files: List[UploadedFile],
                     
                     file_data_b64 = base64.b64encode(file_data).decode('utf-8')
                     
+
                     logger.info(f"Sending file {file_obj.original_filename} to device {device.device_name} (agent: {device.agent_id})")
                     
-                    try:
-                        await sio.emit('receive_file', {
-                            'deployment_id': deployment_id,
-                            'file_id': file_obj.id,
-                            'filename': file_obj.original_filename,
-                            'file_data': file_data_b64,
-                            'target_path': deployment_request.target_path,
-                            'create_path_if_not_exists': deployment_request.create_path_if_not_exists
-                        }, room=agent_sid)
-                    except Exception as emit_error:
-                        logger.error(f"Failed to emit file transfer to agent {device.agent_id}: {emit_error}")
-                        crud.create_deployment_result(
-                            db, deployment_id, device.id, file_obj.id, "error",
-                            f"Failed to send file to agent: {str(emit_error)}",
-                            error_details=str(emit_error)
-                        )
-                        failed_deployments += 1
-                        continue
+                    await sio.emit('receive_file', {
+                        'deployment_id': deployment_id,
+                        'file_id': file_obj.id,
+                        'filename': file_obj.original_filename,
+                        'file_data': file_data_b64,
+                        'target_path': deployment_request.target_path,
+                        'create_path_if_not_exists': deployment_request.create_path_if_not_exists
+                    }, room=agent_sid)
                     
+
+
                     crud.create_deployment_result(
                         db, deployment_id, device.id, file_obj.id, "pending",
                         f"File transfer initiated to {deployment_request.target_path}"
@@ -295,15 +266,14 @@ async def process_file_deployment(deployment_id: int, files: List[UploadedFile],
                     )
                     failed_deployments += 1
         
+
         if pending_deployments > 0:
+
             logger.info(f"Deployment {deployment_id} has {pending_deployments} pending transfers")
-            # Schedule status check after 30 seconds
-            try:
-                asyncio.create_task(update_deployment_final_status_async(deployment_id))
-            except Exception as task_error:
-                logger.error(f"Failed to schedule final status update task: {task_error}")
-                crud.update_deployment_status(db, deployment_id, "failed", completed_at=datetime.utcnow())
+
+            asyncio.create_task(update_deployment_final_status(deployment_id, db))
         else:
+
             final_status = "failed"
             crud.update_deployment_status(db, deployment_id, final_status, completed_at=datetime.utcnow())
         
@@ -311,22 +281,13 @@ async def process_file_deployment(deployment_id: int, files: List[UploadedFile],
         logger.exception(f"Error in process_file_deployment: {e}")
         crud.update_deployment_status(db, deployment_id, "failed", completed_at=datetime.utcnow())
 
-async def update_deployment_final_status_async(deployment_id: int, check_delay: int = 30):
-    """Async wrapper for final status update that creates its own DB session"""
-    try:
-        db = next(get_db())
-        try:
-            await update_deployment_final_status(deployment_id, db, check_delay)
-        finally:
-            db.close()
-    except Exception as e:
-        logger.exception(f"Error in async final status update wrapper: {e}")
-
 async def update_deployment_final_status(deployment_id: int, db: Session, check_delay: int = 30):
     """Check deployment results and update final status after delay"""
     try:
+
         await asyncio.sleep(check_delay)
         
+
         results = crud.get_deployment_results(db, deployment_id)
         
         if not results:
@@ -337,12 +298,15 @@ async def update_deployment_final_status(deployment_id: int, db: Session, check_
         success_count = len([r for r in results if r.status == "success"])
         error_count = len([r for r in results if r.status == "error"])
         
+
         if pending_count > 0:
+
             if check_delay > 0:  # Only retry if not already in retry mode
                 logger.info(f"Deployment {deployment_id} still has {pending_count} pending transfers, checking again in 30s")
                 await asyncio.sleep(30)
                 await update_deployment_final_status(deployment_id, db, check_delay=0)
             else:
+
                 logger.warning(f"Deployment {deployment_id} timed out with {pending_count} pending transfers")
                 final_status = "partial_failure" if success_count > 0 else "failed"
                 crud.update_deployment_status(db, deployment_id, final_status, completed_at=datetime.utcnow())
@@ -375,10 +339,12 @@ async def get_deployment_progress(
     
     results = crud.get_deployment_results(db, deployment_id)
     
+
     device_ids = [r.device_id for r in results]
     devices = get_devices_by_ids(db, device_ids)
     device_map = {d.id: d for d in devices}
     
+
     file_ids = json.loads(deployment.file_ids or "[]")
     files = []
     for file_id in file_ids:
@@ -451,10 +417,11 @@ async def delete_file(
     if not file_obj:
         raise HTTPException(status_code=404, detail="File not found")
     
+
     if os.path.exists(file_obj.file_path):
         os.remove(file_obj.file_path)
     
-    # Remove database record
+
     success = crud.delete_uploaded_file(db, file_id, current_user.id)
     
     if success:

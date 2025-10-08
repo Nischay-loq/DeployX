@@ -19,7 +19,6 @@ class ServiceAdvertiser:
         """
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
-            # Doesn't need to actually connect
             s.connect(("8.8.8.8", 80))
             ip = s.getsockname()[0]
         except Exception:

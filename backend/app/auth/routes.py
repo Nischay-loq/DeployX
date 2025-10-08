@@ -7,8 +7,8 @@ from typing import Optional
 import os
 import jwt
 import requests
-from . import models, schemas, utils
-from .database import get_db
+from . import schemas, utils
+from .database import get_db, User
 
 # Global storage for email change requests (in production, use database)
 email_change_requests = {}
@@ -70,12 +70,12 @@ def signup_request(user: schemas.UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Password must not exceed 128 characters")
     
     # Check if email is already registered
-    existing_email = db.query(models.User).filter(models.User.email == user.email).first()
+    existing_email = db.query(User).filter(User.email == user.email).first()
     if existing_email:
         raise HTTPException(status_code=400, detail="This email address is already registered. Please use a different email or try signing in.")
     
     # Check if username is already taken
-    existing_username = db.query(models.User).filter(models.User.username == user.username).first()
+    existing_username = db.query(User).filter(User.username == user.username).first()
     if existing_username:
         raise HTTPException(status_code=400, detail="This username is already taken. Please choose a different username.")
 
@@ -127,16 +127,16 @@ def signup_complete(request: schemas.OTPVerifyRequest, db: Session = Depends(get
         raise HTTPException(status_code=400, detail="OTP expired. Please start signup process again.")
     
     # Double-check user doesn't exist (race condition protection)
-    if db.query(models.User).filter(models.User.email == request.email).first():
+    if db.query(User).filter(User.email == request.email).first():
         signup_pending_store.pop(request.email, None)
         raise HTTPException(status_code=400, detail="Email already registered")
-    if db.query(models.User).filter(models.User.username == pending_data["username"]).first():
+    if db.query(User).filter(User.username == pending_data["username"]).first():
         signup_pending_store.pop(request.email, None)
         raise HTTPException(status_code=400, detail="Username already taken")
 
     # Create user account
     hashed_pw = utils.hash_password(pending_data["password"])
-    new_user = models.User(
+    new_user = User(
         username=pending_data["username"], 
         email=pending_data["email"], 
         password=hashed_pw
@@ -174,18 +174,18 @@ def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Password must not exceed 128 characters")
     
     # Check if email is already registered
-    existing_email = db.query(models.User).filter(models.User.email == user.email).first()
+    existing_email = db.query(User).filter(User.email == user.email).first()
     if existing_email:
         raise HTTPException(status_code=400, detail="This email address is already registered. Please use a different email or try signing in.")
     
     # Check if username is already taken
-    existing_username = db.query(models.User).filter(models.User.username == user.username).first()
+    existing_username = db.query(User).filter(User.username == user.username).first()
     if existing_username:
         raise HTTPException(status_code=400, detail="This username is already taken. Please choose a different username.")
 
     # Create user directly (no OTP verification)
     hashed_pw = utils.hash_password(user.password)
-    new_user = models.User(username=user.username, email=user.email, password=hashed_pw)
+    new_user = User(username=user.username, email=user.email, password=hashed_pw)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -225,18 +225,18 @@ def signup_with_otp(user: schemas.UserCreateWithOTP, db: Session = Depends(get_d
         raise HTTPException(status_code=400, detail="Invalid verification code. Please check the code sent to your email and try again.")
     
     # Check if email is already registered
-    existing_email = db.query(models.User).filter(models.User.email == user.email).first()
+    existing_email = db.query(User).filter(User.email == user.email).first()
     if existing_email:
         raise HTTPException(status_code=400, detail="This email address is already registered. Please use a different email or try signing in.")
     
     # Check if username is already taken
-    existing_username = db.query(models.User).filter(models.User.username == user.username).first()
+    existing_username = db.query(User).filter(User.username == user.username).first()
     if existing_username:
         raise HTTPException(status_code=400, detail="This username is already taken. Please choose a different username.")
 
     # Create user after OTP verification
     hashed_pw = utils.hash_password(user.password)
-    new_user = models.User(username=user.username, email=user.email, password=hashed_pw)
+    new_user = User(username=user.username, email=user.email, password=hashed_pw)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -255,8 +255,8 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Password is required")
     
     # Try to find user by username or email
-    db_user = db.query(models.User).filter(
-        (models.User.username == user.username.strip()) | (models.User.email == user.username.strip())
+    db_user = db.query(User).filter(
+        (User.username == user.username.strip()) | (User.email == user.username.strip())
     ).first()
 
     # Check if user exists and password is correct - only show generic error
@@ -293,7 +293,7 @@ def send_otp(request: EmailRequest, db: Session = Depends(get_db)):
     
     # For password reset, check if email exists
     if request.purpose == "reset":
-        user = db.query(models.User).filter(models.User.email == request.email).first()
+        user = db.query(User).filter(User.email == request.email).first()
         if not user:
             raise HTTPException(status_code=404, detail="No account found with this email address. Please check your email or create a new account.")
     
@@ -360,7 +360,7 @@ def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail="Invalid Google token")
         
         # Check if user exists
-        db_user = db.query(models.User).filter(models.User.email == google_user["email"]).first()
+        db_user = db.query(User).filter(User.email == google_user["email"]).first()
         
         if not db_user:
             # Create new user with real Google info
@@ -368,11 +368,11 @@ def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db)):
             # Ensure username is unique
             counter = 1
             original_username = username
-            while db.query(models.User).filter(models.User.username == username).first():
+            while db.query(User).filter(User.username == username).first():
                 username = f"{original_username}_{counter}"
                 counter += 1
             
-            db_user = models.User(
+            db_user = User(
                 username=username,
                 email=google_user["email"],
                 password=utils.hash_password("google_oauth_user")  # Placeholder password
@@ -417,7 +417,7 @@ def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         
         # Verify user still exists
-        db_user = db.query(models.User).filter(models.User.username == username).first()
+        db_user = db.query(User).filter(User.username == username).first()
         if not db_user:
             raise HTTPException(status_code=401, detail="User not found")
         
@@ -457,7 +457,7 @@ def reset_password(request: PasswordResetRequest, db: Session = Depends(get_db))
         raise HTTPException(status_code=400, detail="Invalid verification code. Please check the code sent to your email and try again.")
     
     # Find user by email
-    db_user = db.query(models.User).filter(models.User.email == request.email).first()
+    db_user = db.query(User).filter(User.email == request.email).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="No account found with this email address. Please check your email or create a new account.")
     
@@ -481,7 +481,7 @@ def password_reset_request(request: PasswordResetLinkRequest, db: Session = Depe
         raise HTTPException(status_code=400, detail="Email address is required")
     
     # Check if email exists in our system
-    user = db.query(models.User).filter(models.User.email == request.email).first()
+    user = db.query(User).filter(User.email == request.email).first()
     if not user:
         raise HTTPException(status_code=404, detail="No account found with this email address. Please check your email or create a new account.")
 
@@ -516,7 +516,7 @@ def password_reset_confirm(request: PasswordResetConfirmRequest, db: Session = D
             raise HTTPException(status_code=400, detail="Invalid or malformed reset link. Please request a new password reset.")
     
     # Find user
-    db_user = db.query(models.User).filter(models.User.email == email).first()
+    db_user = db.query(User).filter(User.email == email).first()
     if not db_user:
         raise HTTPException(status_code=404, detail="Account not found. The user may have been deleted.")
 
@@ -562,7 +562,7 @@ def verify_google_token(token: str):
         return None
 
 @router.get("/me")
-def get_current_user_info(current_user: models.User = Depends(utils.get_current_user)):
+def get_current_user_info(current_user: User = Depends(utils.get_current_user)):
     return {
         "id": current_user.id,
         "username": current_user.username,
@@ -597,7 +597,7 @@ class DeleteAccountRequest(BaseModel):
 def update_username(
     request: UpdateUsernameRequest,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(utils.get_current_user)
+    current_user: User = Depends(utils.get_current_user)
 ):
     """Update user's username"""
     try:
@@ -609,9 +609,9 @@ def update_username(
             )
         
         # Check if username already exists
-        existing_user = db.query(models.User).filter(
-            models.User.username == request.new_username.strip(),
-            models.User.id != current_user.id
+        existing_user = db.query(User).filter(
+            User.username == request.new_username.strip(),
+            User.id != current_user.id
         ).first()
         
         if existing_user:
@@ -643,7 +643,7 @@ def update_username(
 @router.post("/request-password-change")
 def request_password_change(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(utils.get_current_user)
+    current_user: User = Depends(utils.get_current_user)
 ):
     """Request password change - sends reset link to current email"""
     print(f"Password change requested for user: {current_user.username} ({current_user.email})")
@@ -664,7 +664,7 @@ def request_password_change(
         
         # Send reset email
         # Generate password reset link
-        frontend_url = os.environ.get("FRONTEND_URL", "https://deployxsystem.vercel.app")
+        frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
         reset_link = f"{frontend_url}/reset-password?token={token}"
         
         try:
@@ -718,7 +718,7 @@ def request_password_change(
 def change_password_direct(
     request: UpdatePasswordRequest,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(utils.get_current_user)
+    current_user: User = Depends(utils.get_current_user)
 ):
     """Direct password change with current password verification (for advanced users)"""
     try:
@@ -758,7 +758,7 @@ def change_password_direct(
 def request_email_change(
     request: UpdateEmailRequest,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(utils.get_current_user)
+    current_user: User = Depends(utils.get_current_user)
 ):
     """Request email change - sends verification to new email"""
     print(f"Email change requested for user: {current_user.username}, new email: {request.new_email}")
@@ -771,9 +771,9 @@ def request_email_change(
             )
         
         # Check if new email already exists
-        existing_user = db.query(models.User).filter(
-            models.User.email == request.new_email,
-            models.User.id != current_user.id
+        existing_user = db.query(User).filter(
+            User.email == request.new_email,
+            User.id != current_user.id
         ).first()
         
         if existing_user:
@@ -798,7 +798,8 @@ def request_email_change(
         print(f"Current stored requests: {list(email_change_requests.keys())}")
         
         # Send verification email
-        verification_link = f"http://localhost:5173/verify-email-change?token={token}"
+        frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+        verification_link = f"{frontend_url}/verify-email-change?token={token}"
         
         try:
             utils.send_email(
@@ -887,7 +888,7 @@ def verify_email_change(
             )
         
         # Get user and update email
-        user = db.query(models.User).filter(models.User.id == change_request["user_id"]).first()
+        user = db.query(User).filter(User.id == change_request["user_id"]).first()
         if not user:
             raise HTTPException(
                 status_code=404,
@@ -921,7 +922,7 @@ def verify_email_change(
 
 @router.post("/check-account-type")
 def check_account_type(
-    current_user: models.User = Depends(utils.get_current_user)
+    current_user: User = Depends(utils.get_current_user)
 ):
     """Check if current user is a Google OAuth user or regular user"""
     # Check if password matches the Google OAuth placeholder
@@ -935,7 +936,7 @@ def check_account_type(
     }
 
 @router.get("/test-auth")
-def test_auth(current_user: models.User = Depends(utils.get_current_user)):
+def test_auth(current_user: User = Depends(utils.get_current_user)):
     """Test endpoint to verify authentication is working"""
     return {
         "status": "success",
@@ -950,7 +951,7 @@ def test_auth(current_user: models.User = Depends(utils.get_current_user)):
 def delete_account(
     request: DeleteAccountRequest,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(utils.get_current_user)
+    current_user: User = Depends(utils.get_current_user)
 ):
     """Delete user account (works for both regular and Google OAuth users)"""
     print(f"Account deletion requested for user: {current_user.username} ({current_user.email})")

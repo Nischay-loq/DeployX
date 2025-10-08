@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import ParticlesBackground from '../components/ParticlesBackground.jsx';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const VerifyEmailChange = () => {
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState('verifying'); // 'verifying', 'success', 'error'
@@ -23,7 +25,7 @@ const VerifyEmailChange = () => {
     try {
       setStatus('verifying');
       
-      const response = await fetch('http://localhost:8000/auth/verify-email-change', {
+      const response = await fetch(`${API_BASE_URL}/auth/verify-email-change`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

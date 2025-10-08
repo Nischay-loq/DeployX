@@ -1,4 +1,3 @@
-// Authentication service for managing user state and tokens
 import apiClient from './api.js';
 
 class AuthService {
@@ -9,71 +8,47 @@ class AuthService {
     this.setupSessionManagement();
   }
 
-  // Setup session management for non-remember-me logins
   setupSessionManagement() {
-    // For session-only logins, we'll use a combination of sessionStorage and a heartbeat
-    this.sessionHeartbeat();
-  }
-
-  // Session heartbeat to maintain session activity
-  sessionHeartbeat() {
-    // Update session timestamp every 30 seconds if session is active and not persistent
     setInterval(() => {
       const sessionActive = sessionStorage.getItem('sessionActive');
       if (sessionActive === 'true') {
-        // Only update heartbeat for non-persistent sessions
         sessionStorage.setItem('sessionLastActive', Date.now().toString());
       }
-      // Persistent sessions and OAuth sessions don't need heartbeat updates
     }, 30000);
   }
 
-  // Notify app/components that auth state changed
   notifyAuthChange() {
     try {
       window.dispatchEvent(new Event('auth:changed'));
-    } catch (_) {
-      // no-op in non-browser contexts
-    }
+    } catch (_) {}
   }
 
-  // Initialize authentication state from stored tokens
   init() {
-    // Check localStorage first (remember me was checked)
     let token = localStorage.getItem('access_token') || localStorage.getItem('token');
     let username = localStorage.getItem('username');
     let rememberMe = true;
     
-    // If not found in localStorage, check sessionStorage (remember me was not checked)
     if (!token) {
       token = sessionStorage.getItem('access_token') || sessionStorage.getItem('token');
       username = sessionStorage.getItem('username');
       rememberMe = false;
       
-      // For session-only logins, check if session is still valid
       const sessionActive = sessionStorage.getItem('sessionActive');
       if (token && sessionActive) {
         const isOAuthSession = sessionStorage.getItem('oauth_provider');
         const isPersistentSession = sessionActive === 'persistent';
         
-        // OAuth sessions and persistent sessions don't expire automatically
         if (isOAuthSession || isPersistentSession) {
-          // Update the last active timestamp but don't expire
           sessionStorage.setItem('sessionLastActive', Date.now().toString());
         } else if (sessionActive === 'true') {
-          // Regular session - check for expiration
           const lastActive = sessionStorage.getItem('sessionLastActive');
           const now = Date.now();
           
-          // If more than 30 minutes since last activity, or no lastActive timestamp, 
-          // consider the session expired (increased from 5 to 30 minutes)
           if (!lastActive || (now - parseInt(lastActive)) > 30 * 60 * 1000) {
-            // Session expired, clear it
             this.clearSessionTokens();
             token = null;
             username = null;
           } else {
-            // Update the last active timestamp
             sessionStorage.setItem('sessionLastActive', now.toString());
           }
         }
@@ -83,7 +58,6 @@ class AuthService {
     if (token && username) {
       this.token = token;
       
-      // Load full user data if available
       const storage = rememberMe ? localStorage : sessionStorage;
       const storedUserData = storage.getItem('user');
       
@@ -91,7 +65,6 @@ class AuthService {
         try {
           this.user = JSON.parse(storedUserData);
         } catch (e) {
-          console.warn('Failed to parse stored user data:', e);
           this.user = { username };
         }
       } else {
@@ -100,7 +73,6 @@ class AuthService {
       
       this.isAuthenticated = true;
       
-      // If it's a session token (not remember me), ensure session is marked as active
       if (!rememberMe) {
         sessionStorage.setItem('sessionActive', 'true');
         sessionStorage.setItem('sessionLastActive', Date.now().toString());
@@ -113,7 +85,6 @@ class AuthService {
     this.notifyAuthChange();
   }
 
-  // Login function
   async login(credentials, rememberMe = false) {
     try {
       const response = await apiClient.login(credentials);
@@ -122,40 +93,31 @@ class AuthService {
       this.user = { username: credentials.username };
       this.isAuthenticated = true;
 
-      // Clear any existing tokens first
       this.clearAllTokens();
 
-      // Store tokens based on remember me preference
       if (rememberMe) {
         localStorage.setItem('access_token', response.access_token);
-        localStorage.setItem('token', response.access_token); // Keep for backward compatibility
+        localStorage.setItem('token', response.access_token);
         localStorage.setItem('username', credentials.username);
         
-        // Store refresh token if available
         if (response.refresh_token) {
           localStorage.setItem('refresh_token', response.refresh_token);
         }
         
-        // Store user data if available
         if (response.user) {
           localStorage.setItem('user', JSON.stringify(response.user));
         }
       } else {
         sessionStorage.setItem('token', response.access_token);
         sessionStorage.setItem('username', credentials.username);
-        sessionStorage.setItem('sessionActive', 'true'); // Regular session - can expire
+        sessionStorage.setItem('sessionActive', 'true');
         sessionStorage.setItem('sessionLastActive', Date.now().toString());
-        
-        // For session storage, also store access_token for consistency
         sessionStorage.setItem('access_token', response.access_token);
         
-        // Store refresh token in localStorage even for session logins
-        // (refresh tokens are usually longer-lived)
         if (response.refresh_token) {
           localStorage.setItem('refresh_token', response.refresh_token);
         }
         
-        // Store user data
         if (response.user) {
           sessionStorage.setItem('user', JSON.stringify(response.user));
         }
@@ -172,50 +134,18 @@ class AuthService {
     }
   }
 
-  // Step 1: Request signup and send OTP
   async signupRequest(userData) {
-    try {
-      const response = await apiClient.signupRequest(userData);
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    return apiClient.signupRequest(userData);
   }
 
-  // Step 2: Complete signup after OTP verification
   async signupComplete(email, otp) {
-    try {
-      const response = await apiClient.signupComplete({ email, otp });
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    return apiClient.signupComplete({ email, otp });
   }
 
-  // Legacy signup function (direct, no OTP)
   async signup(userData) {
-    try {
-      const response = await apiClient.signup(userData);
-      return response;
-    } catch (error) {
-      throw error;
-    }
+    return apiClient.signup(userData);
   }
 
-  // Signup with OTP verification (deprecated - use signupRequest + signupComplete)
-  async signupWithOTP(userData, otp) {
-    try {
-      const response = await apiClient.signupWithOTP({
-        ...userData,
-        otp: otp
-      });
-      return response;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  // Helper method to clear session tokens only
   clearSessionTokens() {
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('access_token');
@@ -226,7 +156,6 @@ class AuthService {
     sessionStorage.removeItem('oauth_provider');
   }
 
-  // Helper method to clear all stored tokens
   clearAllTokens() {
     localStorage.removeItem('token');
     localStorage.removeItem('access_token');
@@ -237,32 +166,25 @@ class AuthService {
     this.clearSessionTokens();
   }
 
-  // Logout function
   logout() {
     this.isAuthenticated = false;
     this.user = null;
     this.token = null;
-    
-    // Clear all stored tokens
     this.clearAllTokens();
     this.notifyAuthChange();
   }
 
-  // Check if user is authenticated
   isLoggedIn() {
-    return this.isAuthenticated;
+    return this.isAuthenticated && this.token;
   }
 
-  // Get current user
   getCurrentUser() {
     return this.user;
   }
 
-  // Update current user data
   updateUserData(userData) {
     this.user = { ...this.user, ...userData };
     
-    // Also update stored user data
     const isRememberMe = localStorage.getItem('access_token') || localStorage.getItem('token');
     const storage = isRememberMe ? localStorage : sessionStorage;
     
@@ -273,17 +195,14 @@ class AuthService {
     this.notifyAuthChange();
   }
 
-  // Get token
   getToken() {
-    return this.token;
+    return this.token || localStorage.getItem('token') || sessionStorage.getItem('token');
   }
 
-  // Send OTP for password reset
   async sendOTP(email, purpose = 'signup') {
     return apiClient.sendOTP(email, purpose);
   }
 
-  // Verify OTP
   async verifyOTP(email, otp) {
     return apiClient.verifyOTP(email, otp);
   }
@@ -300,8 +219,7 @@ class AuthService {
     return apiClient.confirmPasswordReset(token, newPassword);
   }
 
-  // Google OAuth login
-  async googleLogin(token, rememberMe = true) { // Default to true for OAuth
+  async googleLogin(token, rememberMe = true) {
     try {
       const response = await apiClient.googleAuth(token);
       
@@ -309,28 +227,25 @@ class AuthService {
       this.user = response.user || { username: response.user?.username || 'google_user' };
       this.isAuthenticated = true;
 
-      // Clear any existing tokens first
       this.clearAllTokens();
 
-      // OAuth sessions are typically persistent unless explicitly set otherwise
       const storage = rememberMe ? localStorage : sessionStorage;
       
       storage.setItem('access_token', response.access_token);
       storage.setItem('token', response.access_token);
       storage.setItem('username', this.user.username);
-      storage.setItem('oauth_provider', 'google'); // Mark as OAuth session
+      storage.setItem('oauth_provider', 'google');
       
       if (response.refresh_token) {
-        localStorage.setItem('refresh_token', response.refresh_token); // Always store refresh token in localStorage
+        localStorage.setItem('refresh_token', response.refresh_token);
       }
       
       if (response.user) {
         storage.setItem('user', JSON.stringify(response.user));
       }
 
-      // For session storage OAuth, still mark as active but don't expire automatically
       if (!rememberMe) {
-        sessionStorage.setItem('sessionActive', 'persistent'); // Mark as persistent session
+        sessionStorage.setItem('sessionActive', 'persistent');
         sessionStorage.setItem('sessionLastActive', Date.now().toString());
       }
 
@@ -345,42 +260,18 @@ class AuthService {
     }
   }
 
-  // Password reset
   async resetPassword(email, otp, newPassword) {
     return apiClient.resetPassword(email, otp, newPassword);
   }
 
-  // Check if user is logged in
-  isLoggedIn() {
-    return this.isAuthenticated && this.token;
-  }
-
-  // Get current token
-  getToken() {
-    return this.token || localStorage.getItem('token') || sessionStorage.getItem('token');
-  }
-
-  // Check if current session is persistent (should not auto-logout)
   isPersistentSession() {
-    // Check if tokens are in localStorage (Remember Me was checked)
     const hasLocalStorageToken = !!(localStorage.getItem('access_token') || localStorage.getItem('token'));
-    
-    // Check if this is an OAuth session
     const isOAuthSession = !!(localStorage.getItem('oauth_provider') || sessionStorage.getItem('oauth_provider'));
-    
-    // Check if session is marked as persistent
     const isPersistentSession = sessionStorage.getItem('sessionActive') === 'persistent';
     
     return hasLocalStorageToken || isOAuthSession || isPersistentSession;
   }
-
-  // Get current user
-  getCurrentUser() {
-    return this.user;
-  }
 }
 
-// Create a singleton instance
 const authService = new AuthService();
-
 export default authService;

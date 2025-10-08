@@ -39,18 +39,15 @@ const TerminalComponent = ({ height = '70vh' }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [notifications, setNotifications] = useState([]);
 
-  // Notification handler
   const addNotification = useCallback((message, type = 'info') => {
     const id = Date.now();
-    // Different durations for different notification types
     const durations = {
-      error: 8000,    // Errors stay longer
-      warning: 6000,  // Warnings stay a bit longer
-      success: 3000,  // Success messages are shorter
-      info: 2000      // Info messages are shortest
+      error: 8000,
+      warning: 6000,
+      success: 3000,
+      info: 2000
     };
 
-    // Remove any existing notifications with the same message to prevent duplicates
     setNotifications(prev => {
       const filtered = prev.filter(n => n.message !== message);
       return [...filtered, { 
@@ -67,20 +64,14 @@ const TerminalComponent = ({ height = '70vh' }) => {
     setNotifications(prev => prev.filter(notification => notification.id !== id));
   }, []);
 
-  // Update refs whenever state changes
   useEffect(() => {
     selectedAgentRef.current = selectedAgent;
-    console.log('selectedAgent updated to:', selectedAgent);
   }, [selectedAgent]);
 
   useEffect(() => {
     shellStartedRef.current = shellStarted;
-    console.log('shellStarted updated to:', shellStarted);
   }, [shellStarted]);
 
-  // no session handling in legacy component
-
-  // Terminal configuration
   const TERMINAL_CONFIG = {
     cursorBlink: true,
     cursorStyle: 'block',
@@ -436,11 +427,13 @@ const TerminalComponent = ({ height = '70vh' }) => {
       socketRef.current = io(socketUrl, {
         transports: ['websocket', 'polling'],
         reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionAttempts: 5,
-        timeout: 20000,
+        reconnectionDelay: 500,
+        reconnectionAttempts: Infinity,
+        timeout: 20000,  // Connection timeout: 20 seconds
         forceNew: true,
-        autoConnect: true
+        autoConnect: true,
+        pingTimeout: 60000,  // Ping timeout: 60 seconds
+        pingInterval: 25000  // Ping every 25 seconds
       });
 
       // Connection successful

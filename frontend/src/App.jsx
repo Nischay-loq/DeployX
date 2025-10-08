@@ -12,28 +12,20 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Initialize authentication state on app load
     authService.init();
     setIsAuthenticated(authService.isLoggedIn());
     setIsLoading(false);
 
-    // Subscribe to auth change events instead of polling
-    const handler = () => {
-      setIsAuthenticated(authService.isLoggedIn());
-    };
+    const handler = () => setIsAuthenticated(authService.isLoggedIn());
     window.addEventListener('auth:changed', handler);
-    return () => {
-      window.removeEventListener('auth:changed', handler);
-    };
+    return () => window.removeEventListener('auth:changed', handler);
   }, []);
 
-  // Handle logout
   const handleLogout = () => {
     authService.logout();
     setIsAuthenticated(false);
   };
 
-  // Professional loading screen (initial app load only)
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
@@ -51,7 +43,6 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-900 transition-colors duration-300">
       <Routes>
-        {/* Public Routes */}
         <Route 
           path="/" 
           element={isAuthenticated ? <Navigate to="/dashboard" /> : <Home />} 
@@ -69,13 +60,11 @@ export default function App() {
           element={<VerifyEmailChange />} 
         />
         
-        {/* Protected Routes */}
         <Route 
           path="/dashboard" 
           element={isAuthenticated ? <Dashboard onLogout={handleLogout} /> : <Navigate to="/" />} 
         />
         
-        {/* Catch all route - Professional 404 */}
         <Route path="*" element={
           <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-6">
             <div className="text-center max-w-md">

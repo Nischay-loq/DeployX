@@ -13,7 +13,6 @@ export default function Login() {
   const [notification, setNotification] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Pre-fill username if coming from signup
   useEffect(() => {
     if (location.state?.email) {
       setUsername(location.state.email);
@@ -24,7 +23,6 @@ export default function Login() {
     e.preventDefault();
     setNotification(null);
 
-    // Validate input fields - only check if they are provided
     if (!username.trim()) {
       setNotification({
         type: "error",
@@ -62,30 +60,10 @@ export default function Login() {
   };
 
   const handleGoogleLogin = async () => {
-    try {
-      // For demo purposes, we'll use a mock token
-      // In a real implementation, you would use Google's OAuth library
-      const mockGoogleToken = "mock_google_token_" + Date.now();
-      
-      setIsLoading(true);
-      await authService.googleLogin(mockGoogleToken, rememberMe);
-      
-      setNotification({
-        type: "success",
-        message: "Google login successful! Redirecting to dashboard...",
-      });
-      
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 1000);
-    } catch (error) {
-      setNotification({
-        type: "error",
-        message: error?.message || "Google login failed. Please try again.",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    setNotification({
+      type: "error",
+      message: "Google login is not yet configured. Please use email/password login.",
+    });
   };
 
   const handleClose = () => {
@@ -94,7 +72,6 @@ export default function Login() {
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(0,255,247,0.12),transparent_35%),radial-gradient(circle_at_80%_80%,rgba(0,168,255,0.12),transparent_35%)]">
-      {/* motion particles */}
       <div className="particles-background">
         {Array.from({ length: 20 }).map((_, i) => (
           <div

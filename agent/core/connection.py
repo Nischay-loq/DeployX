@@ -20,28 +20,30 @@ class ConnectionManager:
         if agent_id is None:
             agent_id = generate_agent_id()
         self.agent_id = agent_id
-        self.machine_id = None  # Will be set when system info is retrieved
-        self.system_info = None  # Will be set when system info is retrieved
+        self.machine_id = None
+        self.system_info = None
         self.sio = socketio.AsyncClient(
-            logger=False,  # Reduce logging noise
+            logger=False,
             engineio_logger=False,
             reconnection=True,
-            reconnection_attempts=0,  # Infinite reconnection attempts
-            reconnection_delay=2,  # Slower reconnection to prevent race conditions
-            reconnection_delay_max=10  # Max 10 second delay
-            # Removed ping configuration - not compatible with python-socketio 5.x
+            reconnection_attempts=0,
+            reconnection_delay=1,
+            reconnection_delay_max=5
         )
         self.connected = False
         self._event_handlers: Dict[str, Callable] = {}
         
-        # Get system information on initialization
         self._initialize_system_info()
         
-        # Register built-in event handlers
+        self._shells = None
+        
         @self.sio.event
         async def connect():
             logger.info("Socket.IO connected")
             self.connected = True
+            if self._shells:
+                logger.info("Auto re-registering agent after reconnection")
+                await self.register_agent(self._shells)
             
         @self.sio.event
         async def connect_error(data):
@@ -68,7 +70,6 @@ class ConnectionManager:
                     data = {}
                 logger.info(f"Handling event {event} with data: {data}")
                 result = await handler(data)
-                # If handler returns a value, emit acknowledgment
                 if result is not None:
                     ack_event = f"{event}_ack"
                     await self.emit(ack_event, {
@@ -79,7 +80,6 @@ class ConnectionManager:
                 logger.info(f"Finished handling event {event}")
             except Exception as e:
                 logger.error(f"Error in handler for {event}: {e}")
-                # Send error acknowledgment
                 await self.emit(f"{event}_ack", {
                     'status': 'error',
                     'agent_id': self.agent_id,
@@ -97,7 +97,7 @@ class ConnectionManager:
                 return True
                 
             logger.info(f"Attempting to connect to {self.server_url}")
-            await self.sio.connect(self.server_url, wait_timeout=10)  # 10 second timeout
+            await self.sio.connect(self.server_url, wait_timeout=None)
             self.connected = True
             logger.info("Successfully connected to backend")
             return True
@@ -135,7 +135,6 @@ class ConnectionManager:
             if data is None:
                 data = {}
                 
-            # Always include agent_id in emitted data
             if isinstance(data, dict):
                 data['agent_id'] = self.agent_id
 
@@ -160,18 +159,16 @@ class ConnectionManager:
     async def register_agent(self, shells: Dict[str, str]):
         """Register this agent with the backend."""
         try:
-            # Ensure system info is loaded
+            self._shells = shells
+            
             if not self.system_info:
                 self._initialize_system_info()
-
-            # Debug shell detection
-            logger.info(f"Shells parameter type: {type(shells)}")
-            logger.info(f"Shells content: {shells}")
             
             if not shells:
                 logger.warning("No shells detected! Trying to re-detect...")
-                from agent.utils.shell_detector import detect_shells
+                from agent.main import detect_shells
                 shells = detect_shells()
+                self._shells = shells
                 logger.info(f"Re-detected shells: {shells}")
 
             registration_data = {

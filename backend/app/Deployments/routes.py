@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
-from .schemas import DeploymentCreate, DeploymentResponse, DeploymentProgressResponse, RetryRequest, DeploymentListResponse
-from .models import Deployment, DeploymentTarget, Checkpoint
+from .models import (
+    Deployment, DeploymentTarget, Checkpoint,
+    DeploymentCreate, DeploymentResponse, DeploymentProgressResponse, 
+    RetryRequest, DeploymentListResponse
+)
 from .executor import SoftwareDeploymentExecutor
 from app.grouping.models import DeviceGroupMap, Device as Devices, DeviceGroup as DeviceGroups
-from app.auth.database import get_db
+from app.auth.database import get_db, User
 from app.auth.utils import get_current_user
-from app.auth.models import User
 from datetime import datetime
 from typing import List, Optional
 import logging

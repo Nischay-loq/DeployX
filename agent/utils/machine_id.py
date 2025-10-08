@@ -4,7 +4,10 @@ import platform
 import hashlib
 import subprocess
 import logging
-from typing import Optional
+import socket
+import psutil
+from datetime import datetime
+from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +30,7 @@ def get_machine_id() -> str:
             return _get_windows_machine_id()
         elif system == "linux":
             return _get_linux_machine_id()
-        elif system == "darwin":  # macOS
+        elif system == "darwin":
             return _get_macos_machine_id()
         else:
             logger.warning(f"Unknown system {system}, using fallback method")
@@ -39,7 +42,6 @@ def get_machine_id() -> str:
 def _get_windows_machine_id() -> str:
     """Get Windows machine UUID using WMIC."""
     try:
-        # Try to get the computer system UUID
         result = subprocess.run(
             ["wmic", "csproduct", "get", "UUID", "/value"],
             capture_output=True,
@@ -54,7 +56,6 @@ def _get_windows_machine_id() -> str:
                     if uuid_str and uuid_str.lower() != 'ffffffff-ffff-ffff-ffff-ffffffffffff':
                         return uuid_str.lower()
         
-        # Fallback: Try motherboard serial number
         result = subprocess.run(
             ["wmic", "baseboard", "get", "serialnumber", "/value"],
             capture_output=True,
@@ -67,7 +68,6 @@ def _get_windows_machine_id() -> str:
                 if line.startswith('SerialNumber='):
                     serial = line.split('=', 1)[1].strip()
                     if serial and serial != 'To be filled by O.E.M.':
-                        # Create UUID from serial number
                         return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"windows-{serial}"))
                         
     except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError) as e:
@@ -87,12 +87,10 @@ def _get_linux_machine_id() -> str:
             with open(path, 'r') as f:
                 machine_id = f.read().strip()
                 if machine_id and len(machine_id) >= 32:
-                    # Convert to UUID format
                     return str(uuid.UUID(machine_id))
         except (FileNotFoundError, ValueError, PermissionError):
             continue
     
-    # Try DMI product UUID
     try:
         with open("/sys/class/dmi/id/product_uuid", 'r') as f:
             product_uuid = f.read().strip()
@@ -106,7 +104,6 @@ def _get_linux_machine_id() -> str:
 def _get_macos_machine_id() -> str:
     """Get macOS machine UUID using system_profiler."""
     try:
-        # Try to get hardware UUID
         result = subprocess.run(
             ["system_profiler", "SPHardwareDataType"],
             capture_output=True,
@@ -121,7 +118,6 @@ def _get_macos_machine_id() -> str:
                     if uuid_str:
                         return uuid_str.lower()
         
-        # Fallback: Try IOPlatformUUID
         result = subprocess.run(
             ["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
             capture_output=True,
@@ -132,7 +128,6 @@ def _get_macos_machine_id() -> str:
         if result.returncode == 0:
             for line in result.stdout.split('\n'):
                 if 'IOPlatformUUID' in line:
-                    # Extract UUID from the line
                     parts = line.split('"')
                     if len(parts) >= 4:
                         return parts[3].lower()
@@ -145,22 +140,17 @@ def _get_macos_machine_id() -> str:
 def _get_fallback_machine_id() -> str:
     """Generate machine ID using available system information as fallback."""
     try:
-        # Combine hostname and MAC address
         hostname = platform.node()
         
-        # Get MAC address
         mac = hex(uuid.getnode())[2:].upper()
         mac_formatted = ':'.join([mac[i:i+2] for i in range(0, 12, 2)])
         
-        # Combine with system info
         system_info = f"{hostname}-{mac_formatted}-{platform.system()}-{platform.machine()}"
         
-        # Create deterministic UUID
         return str(uuid.uuid5(uuid.NAMESPACE_DNS, system_info))
         
     except Exception as e:
         logger.error(f"Fallback machine ID generation failed: {e}")
-        # Last resort: random UUID (not deterministic but unique)
         return str(uuid.uuid4())
 
 def generate_agent_id(prefix: str = "agent") -> str:
@@ -174,8 +164,6 @@ def generate_agent_id(prefix: str = "agent") -> str:
     """
     machine_id = get_machine_id()
     
-    # Shorten the machine ID for readability while maintaining uniqueness
-    # Take first 8 characters of the hash
     short_id = hashlib.sha256(machine_id.encode()).hexdigest()[:8]
     
     agent_id = f"{prefix}_{short_id}"
@@ -193,21 +181,17 @@ def get_system_info() -> dict:
         import psutil
         import socket
         
-        # Get memory info
         memory = psutil.virtual_memory()
         disk = psutil.disk_usage('/')
         
-        # Get IP address
         ip_address = "0.0.0.0"
         try:
-            # Try to get the actual IP address by connecting to an external server
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))
             ip_address = s.getsockname()[0]
             s.close()
         except Exception:
             try:
-                # Fallback: get hostname IP
                 ip_address = socket.gethostbyname(socket.gethostname())
             except Exception:
                 ip_address = "0.0.0.0"
@@ -229,7 +213,6 @@ def get_system_info() -> dict:
             "ip_address": ip_address
         }
     except ImportError:
-        # Fallback without psutil
         import socket
         
         # Get IP address
@@ -266,8 +249,49 @@ def get_system_info() -> dict:
             "error": str(e)
         }
 
+def get_detailed_system_info() -> Dict[str, Any]:
+    """Get comprehensive system information including CPU, memory, and disk usage.
+    
+    Returns:
+        Dictionary containing detailed system information
+    """
+    try:
+        return {
+            "hostname": socket.gethostname(),
+            "system": platform.system(),
+            "version": platform.version(),
+            "release": platform.release(),
+            "machine": platform.machine(),
+            "processor": platform.processor(),
+            "architecture": platform.architecture()[0],
+            "cpu_physical_cores": psutil.cpu_count(logical=False),
+            "cpu_total_cores": psutil.cpu_count(logical=True),
+            "cpu_max_freq": psutil.cpu_freq().max,
+            "cpu_min_freq": psutil.cpu_freq().min,
+            "cpu_current_freq": psutil.cpu_freq().current,
+            "cpu_usage": psutil.cpu_percent(interval=1),
+            "memory_total": round(psutil.virtual_memory().total / (1024 ** 3), 2),
+            "memory_available": round(psutil.virtual_memory().available / (1024 ** 3), 2),
+            "memory_used": round(psutil.virtual_memory().used / (1024 ** 3), 2),
+            "memory_usage_percent": psutil.virtual_memory().percent,
+            "disk_total": round(psutil.disk_usage('/').total / (1024 ** 3), 2),
+            "disk_used": round(psutil.disk_usage('/').used / (1024 ** 3), 2),
+            "disk_free": round(psutil.disk_usage('/').free / (1024 ** 3), 2),
+            "disk_usage_percent": psutil.disk_usage('/').percent,
+            "ip_address": socket.gethostbyname(socket.gethostname()),
+            "bytes_sent": psutil.net_io_counters().bytes_sent,
+            "bytes_received": psutil.net_io_counters().bytes_recv,
+            "users_count": len(psutil.users()),
+            "logged_in_users": ", ".join([user.name for user in psutil.users()]),
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+    except Exception as e:
+        return {
+            "error": f"Failed to gather system information: {str(e)}",
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+
 if __name__ == "__main__":
-    # Test the functions
     import sys
     
     logging.basicConfig(level=logging.INFO)

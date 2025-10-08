@@ -52,7 +52,6 @@ import {
 import GroupsManager from '../components/GroupsManager.jsx';
 import DeploymentsManager from '../components/DeploymentsManager.jsx';
 import FileSystemManager from '../components/FileSystemManager.jsx';
-import APITest from '../components/APITest.jsx';
 import GroupForm from '../components/GroupForm.jsx';
 import UsernameModal from '../components/UsernameModal.jsx';
 import PasswordModal from '../components/PasswordModal.jsx';
@@ -870,13 +869,13 @@ export default function Dashboard({ onLogout }) {
       socketRef.current = io(socketUrl, {
         transports: ['websocket', 'polling'],
         reconnection: true,
-        reconnectionDelay: 1000,  // Wait 1 second between attempts
-        reconnectionAttempts: 5,  // Limit to 5 reconnection attempts
-        timeout: 5000,  // 5 second connection timeout
+        reconnectionDelay: 500,  // Fast reconnection
+        reconnectionAttempts: Infinity,  // Infinite reconnection attempts
+        timeout: 20000,  // Connection timeout: 20 seconds
         forceNew: true,
         autoConnect: true,
-        pingTimeout: 10000,  // 10 second ping timeout
-        pingInterval: 25000  // Ping every 25 seconds (matches backend)
+        pingTimeout: 60000,  // Ping timeout: 60 seconds
+        pingInterval: 25000  // Ping every 25 seconds to keep connection alive
       });
 
       // Connection successful
@@ -3082,10 +3081,6 @@ export default function Dashboard({ onLogout }) {
                 </div>
               )}
             </div>
-          )}
-
-          {activeSection === 'api-test' && (
-            <APITest />
           )}
         </main>
       </div>

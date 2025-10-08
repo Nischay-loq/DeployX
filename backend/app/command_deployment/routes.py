@@ -660,24 +660,6 @@ async def promote_canary(canary_id: str):
         logger.error(f"Error promoting canary {canary_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/test/rollback-strategies")
-async def test_rollback_strategies():
-    """Run comprehensive tests for all rollback strategies."""
-    try:
-        from .test_rollback_strategies import RollbackStrategyTester
-        
-        tester = RollbackStrategyTester()
-        results = tester.run_all_tests()
-        
-        return {
-            "message": "Rollback strategy tests completed",
-            "results": results
-        }
-    
-    except Exception as e:
-        logger.error(f"Error running rollback strategy tests: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 @router.delete("/commands/completed")
 async def clear_completed_commands():
     """Clear all completed and failed commands."""

@@ -1,12 +1,10 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, Column, Integer, String, Text, TIMESTAMP, func
 from sqlalchemy.orm import sessionmaker, declarative_base
 from dotenv import load_dotenv
 import os
 
-# Load environment variables
 load_dotenv()
 
-# Get PostgreSQL database URL from environment
 DATABASE_URL = os.getenv('DB_URL')
 
 if not DATABASE_URL:
@@ -29,3 +27,13 @@ def get_db():
         yield db
     finally:
         db.close()
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, nullable=False)
+    email = Column(String(100), unique=True, nullable=False)
+    password = Column(Text, nullable=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    last_login = Column(TIMESTAMP)

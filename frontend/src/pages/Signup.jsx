@@ -21,10 +21,8 @@ export default function Signup() {
     setIsLoading(true);
     setErrors({});
 
-    // Comprehensive validation
     const newErrors = {};
     
-    // Username validation
     if (!formData.username.trim()) {
       newErrors.username = 'Username is required';
     } else if (formData.username.length < 3) {
@@ -35,14 +33,12 @@ export default function Signup() {
       newErrors.username = 'Username can only contain letters, numbers, and underscores';
     }
     
-    // Email validation
     if (!formData.email.trim()) {
       newErrors.email = 'Email address is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email address';
     }
     
-    // Password validation
     if (!formData.password) {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 6) {
@@ -51,7 +47,6 @@ export default function Signup() {
       newErrors.password = 'Password must not exceed 128 characters';
     }
     
-    // Confirm password validation
     if (!formData.confirmPassword) {
       newErrors.confirmPassword = 'Please confirm your password';
     } else if (formData.password !== formData.confirmPassword) {
@@ -65,7 +60,6 @@ export default function Signup() {
     }
 
     try {
-      // Request signup - this validates data and sends OTP (doesn't create user yet)
       await authService.signupRequest({
         username: formData.username,
         email: formData.email,
@@ -74,7 +68,6 @@ export default function Signup() {
       setStep('otp');
       
     } catch (error) {
-      // Handle API errors
       const errorMessage = error.message || 'Signup failed. Please try again.';
       if (errorMessage.includes('Email already registered')) {
         setErrors({ email: 'Email already registered' });
@@ -95,7 +88,6 @@ export default function Signup() {
       await authService.signupComplete(formData.email, otpCode);
       
       setShowSuccess(true);
-      // Redirect to login with username pre-filled after 2 seconds
       setTimeout(() => {
         navigate('/login', { 
           state: { 
@@ -106,32 +98,16 @@ export default function Signup() {
       }, 2000);
     } catch (error) {
       setErrors({ general: error.message || 'Failed to create account. Please try again.' });
-      setStep('signup'); // Go back to signup form
+      setStep('signup');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleGoogleSignup = async () => {
-    try {
-      // For demo purposes, we'll use a mock token
-      // In a real implementation, you would use Google's OAuth library
-      const mockGoogleToken = "mock_google_token_" + Date.now();
-      
-      setIsLoading(true);
-      await authService.googleLogin(mockGoogleToken, false);
-      
-      setShowSuccess(true);
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 2000);
-    } catch (error) {
-      setErrors({ 
-        general: error?.message || "Google signup failed. Please try again." 
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    setErrors({ 
+      general: "Google signup is not yet configured. Please use email signup." 
+    });
   };
 
   const handleChange = (e) => {
@@ -139,7 +115,6 @@ export default function Signup() {
       ...formData,
       [e.target.name]: e.target.value
     });
-    // Clear error when user starts typing
     if (errors[e.target.name]) {
       setErrors({
         ...errors,
@@ -150,7 +125,6 @@ export default function Signup() {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(0,255,247,0.12),transparent_35%),radial-gradient(circle_at_80%_80%,rgba(0,168,255,0.12),transparent_35%)]">
-      {/* motion particles via CSS circles */}
       <div className="particles-background">
         {Array.from({length: 20}).map((_,i)=>(
           <div key={i} className="absolute w-2 h-2 rounded-full bg-neonAqua blur-[1px] opacity-70"

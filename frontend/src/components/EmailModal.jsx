@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import authService from '../services/auth.js';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const EmailModal = ({ onClose }) => {
   const [newEmail, setNewEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,7 +30,7 @@ const EmailModal = ({ onClose }) => {
     setMessage('');
     
     try {
-      const response = await fetch('http://localhost:8000/auth/request-email-change', {
+      const response = await fetch(`${API_BASE_URL}/auth/request-email-change`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

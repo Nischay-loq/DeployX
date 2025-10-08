@@ -3,9 +3,8 @@ from sqlalchemy.orm import Session
 from typing import List
 from .schemas import SoftwareCreate, SoftwareUpdate, SoftwareResponse, SoftwareListResponse
 from .models import Software
-from app.auth.database import get_db
+from app.auth.database import get_db, User
 from app.auth.utils import get_current_user
-from app.auth.models import User
 
 router = APIRouter(prefix="/software", tags=["Software"])
 

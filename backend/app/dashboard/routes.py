@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
-from app.auth.database import get_db
+from app.auth.database import get_db, User
 from app.auth.utils import get_current_user
-from app.auth.models import User
 from app.grouping.models import Device, DeviceGroup, DeviceGroupMap
 from app.Deployments.models import Deployment, DeploymentTarget
 from app.command_deployment.queue import command_queue
