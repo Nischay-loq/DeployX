@@ -160,10 +160,10 @@ export default function Contact() {
                 
                 <button 
                   type="submit" 
-                  className="btn-cta w-full group"
+                  className="w-full btn-cta group flex items-center justify-center gap-3"
                 >
-                  <Send className="w-5 h-5 mr-2 transition-transform group-hover:translate-x-1" />
-                  Send Message
+                  <span>Send Message</span>
+                  <Send className="w-5 h-5 transition-transform group-hover:translate-x-1" />
                 </button>
               </form>
             </div>

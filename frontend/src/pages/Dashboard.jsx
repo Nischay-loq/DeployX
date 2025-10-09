@@ -68,6 +68,7 @@ export default function Dashboard({ onLogout }) {
   const [currentShell, setCurrentShell] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
+  const [showAgentsTooltip, setShowAgentsTooltip] = useState(false);
   const socketRef = useRef(null);
   const isMountedRef = useRef(true);
   const user = authService.getCurrentUser();
@@ -1860,21 +1861,76 @@ export default function Dashboard({ onLogout }) {
             </div>
             
             {/* Connection Status */}
-            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
-              isConnected 
-                ? 'bg-green-500/20 border-green-500/30' 
-                : 'bg-red-500/20 border-red-500/30'
-            }`}>
-              <div className={`w-2 h-2 rounded-full ${
-                isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'
-              }`}></div>
-              <span className={`text-sm font-medium ${
-                isConnected ? 'text-green-400' : 'text-red-400'
+            <div 
+              className="relative"
+              onMouseEnter={() => agents.length > 0 && setShowAgentsTooltip(true)}
+              onMouseLeave={() => setShowAgentsTooltip(false)}
+            >
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
+                isConnected 
+                  ? 'bg-green-500/20 border-green-500/30' 
+                  : 'bg-red-500/20 border-red-500/30'
               }`}>
-                {isConnected ? 'Connected' : 'Disconnected'}
-              </span>
-              {agents.length > 0 && (
-                <span className="text-gray-400 text-xs">• {agents.length} agent(s)</span>
+                <div className={`w-2 h-2 rounded-full ${
+                  isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'
+                }`}></div>
+                <span className={`text-sm font-medium ${
+                  isConnected ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  {isConnected ? 'Connected' : 'Disconnected'}
+                </span>
+                {agents.length > 0 && (
+                  <span className="text-gray-400 text-xs">• {agents.length} agent(s)</span>
+                )}
+              </div>
+
+              {/* Agents Tooltip */}
+              {showAgentsTooltip && agents.length > 0 && (
+                <div className="absolute top-full mt-2 right-0 w-72 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl z-[100] backdrop-blur-sm">
+                  <div className="p-3 border-b border-gray-700 bg-gray-800/50">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                      <h3 className="text-sm font-semibold text-white">Connected Devices</h3>
+                      <span className="ml-auto text-xs text-gray-400 bg-gray-700/50 px-2 py-0.5 rounded-full">
+                        {agents.length}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {agents.map((agent, index) => (
+                      <div 
+                        key={agent.agent_id}
+                        className={`p-3 hover:bg-gray-800/50 transition-colors ${
+                          index !== agents.length - 1 ? 'border-b border-gray-800' : ''
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                            <Server className="w-4 h-4 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-white truncate">
+                              {agent.hostname || 'Unknown Host'}
+                            </p>
+                            <p className="text-xs text-gray-400 font-mono truncate">
+                              ID: {agent.agent_id}
+                            </p>
+                            {agent.os && (
+                              <div className="flex items-center gap-1 mt-1">
+                                <span className="text-xs text-gray-500">
+                                  {agent.os}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-shrink-0">
+                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
             

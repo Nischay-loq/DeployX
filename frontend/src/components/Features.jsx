@@ -111,30 +111,6 @@ export default function Features() {
             </motion.div>
           ))}
         </div>
-
-        {/* Call to Action */}
-        <motion.div 
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-          className="text-center mt-16"
-        >
-          <div className="glass-panel rounded-2xl p-8 max-w-2xl mx-auto">
-            <h3 className="text-2xl font-bold text-white mb-4">Ready to Experience Enterprise Deployment?</h3>
-            <p className="text-gray-400 mb-6">
-              Join thousands of teams who trust DeployX for their critical infrastructure management.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button className="btn-primary">
-                Start Free Trial
-              </button>
-              <button className="btn-outline bg-white/5 border-white/20 text-white hover:bg-white hover:text-gray-900">
-                View Documentation
-              </button>
-            </div>
-          </div>
-        </motion.div>
       </div>
     </section>
   )

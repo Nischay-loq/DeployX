@@ -16,6 +16,46 @@ export default function Navbar({ onOpenAuth }) {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
+  // Scrollspy effect - detect which section is in view
+  useEffect(() => {
+    const observerOptions = {
+      root: null,
+      rootMargin: '0px 0px -40% 0px', // Trigger when section is 40% from bottom
+      threshold: 0
+    }
+
+    const observerCallback = (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const sectionId = entry.target.id
+          const matchedItem = items.find(item => getSectionId(item) === sectionId)
+          if (matchedItem) {
+            setActive(matchedItem)
+          }
+        }
+      })
+    }
+
+    const observer = new IntersectionObserver(observerCallback, observerOptions)
+
+    // Observe all sections
+    items.forEach(item => {
+      const section = document.getElementById(getSectionId(item))
+      if (section) {
+        observer.observe(section)
+      }
+    })
+
+    return () => {
+      items.forEach(item => {
+        const section = document.getElementById(getSectionId(item))
+        if (section) {
+          observer.unobserve(section)
+        }
+      })
+    }
+  }, [])
+
   const getSectionId = (item) => {
     switch(item) {
       case 'Home': return 'home'
@@ -27,9 +67,23 @@ export default function Navbar({ onOpenAuth }) {
     }
   }
 
-  const handleNavClick = (item) => {
+  const scrollToSection = (sectionId) => {
+    const section = document.getElementById(sectionId)
+    if (section) {
+      const navHeight = 80 // Approximate navbar height
+      const targetPosition = section.offsetTop - navHeight
+      window.scrollTo({
+        top: targetPosition,
+        behavior: 'smooth'
+      })
+    }
+  }
+
+  const handleNavClick = (item, e) => {
+    e.preventDefault()
     setActive(item)
     setIsMobileMenuOpen(false)
+    scrollToSection(getSectionId(item))
   }
 
   return (
@@ -60,7 +114,7 @@ export default function Navbar({ onOpenAuth }) {
                     className={`nav-link-dark transition-all duration-200 hover:text-primary-400 ${
                       active === item ? 'text-primary-400 bg-primary-900/30' : 'text-gray-300'
                     }`}
-                    onClick={() => setActive(item)}
+                    onClick={(e) => handleNavClick(item, e)}
                   >
                     {item}
                   </a>
@@ -115,7 +169,7 @@ export default function Navbar({ onOpenAuth }) {
                         ? 'text-primary-400 bg-primary-900/30 border border-primary-500/30' 
                         : 'text-gray-300 hover:text-white hover:bg-gray-800'
                     }`}
-                    onClick={() => handleNavClick(item)}
+                    onClick={(e) => handleNavClick(item, e)}
                   >
                     {item}
                   </a>
