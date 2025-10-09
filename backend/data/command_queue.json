@@ -1,49 +1,37 @@
 {
   "commands": [
     {
-      "id": "78cc0fe5-add7-4f82-9a5c-0ad4517a6ca5",
-      "command": "mkdir hasdasdadsasdasd",
+      "id": "dff7a3fe-775b-4e0b-b6a2-0c020ac27a01",
+      "command": "dir",
       "status": "completed",
-      "output": "\r\nE:\\CKC\\Projects\\DeployX>\r\nE:\\CKC\\Projects\\DeployX>",
-      "strategy": "transactional",
-      "timestamp": "2025-10-07T22:20:16.429305",
+      "output": " Volume in drive E has no label.\r\n Volume Serial Number is 749A-5CF9\r\n\r\n Directory of E:\\CKC\\Projects\\DeployX\r\n\r\n08-10-2025  22:58    <DIR>          .\r\n08-10-2025  22:58    <DIR>          ..\r\n30-09-2025  18:05    <DIR>          .dist\r\n26-09-2025  22:48               444 .gitignore\r\n27-09-2025  14:15    <DIR>          .venv\r\n08-10-2025  22:36    <DIR>          .vscode\r\n08-10-2025  22:35    <DIR>          agent\r\n08-10-2025  22:24    <DIR>          backend\r\n08-10-2025  22:45    <DIR>          frontend\r\n08-10-2025  22:49    <DIR>          hihi\r\n06-08-2025  19:03             1,113 LICENSE\r\n06-08-2025  19:03             1,582 README.md\r\n08-10-2025  22:58             6,943 ROLLBACK_QUICK_GUIDE.md\r\n08-10-2025  22:58            13,331 ROLLBACK_VISUAL_GUIDE.md\r\n08-10-2025  22:31             8,521 SNAPSHOT_IMPLEMENTATION_SUMMARY.md\r\n08-10-2025  22:47            10,857 SNAPSHOT_UI_IMPLEMENTATION.md\r\n               7 File(s)         42,791 bytes\r\n               9 Dir(s)  206,711,803,904 bytes free\r\n\r\nE:\\CKC\\Projects\\DeployX> Volume in drive E has no label.\r\n Volume Serial Number is 749A-5CF9\r\n\r\n Directory of E:\\CKC\\Projects\\DeployX\r\n\r\n08-10-2025  22:58    <DIR>          .\r\n08-10-2025  22:58    <DIR>          ..\r\n30-09-2025  18:05    <DIR>          .dist\r\n26-09-2025  22:48               444 .gitignore\r\n27-09-2025  14:15    <DIR>          .venv\r\n08-10-2025  22:36    <DIR>          .vscode\r\n08-10-2025  22:35    <DIR>          agent\r\n08-10-2025  22:24    <DIR>          backend\r\n08-10-2025  22:45    <DIR>          frontend\r\n08-10-2025  22:49    <DIR>          hihi\r\n06-08-2025  19:03             1,113 LICENSE\r\n06-08-2025  19:03             1,582 README.md\r\n08-10-2025  22:58             6,943 ROLLBACK_QUICK_GUIDE.md\r\n08-10-2025  22:58            13,331 ROLLBACK_VISUAL_GUIDE.md\r\n08-10-2025  22:31             8,521 SNAPSHOT_IMPLEMENTATION_SUMMARY.md\r\n08-10-2025  22:47            10,857 SNAPSHOT_UI_IMPLEMENTATION.md\r\n               7 File(s)         42,791 bytes\r\n               9 Dir(s)  206,711,803,904 bytes free\r\n\r\nE:\\CKC\\Projects\\DeployX>",
+      "strategy": "snapshot",
+      "timestamp": "2025-10-08T22:59:23.656356",
       "agent_id": "agent_f0ebce17",
       "shell": "cmd",
       "error": null,
-      "started_at": "2025-10-07T22:20:16.447609",
-      "completed_at": "2025-10-07T22:20:16.971658",
+      "started_at": "2025-10-08T22:59:23.661032",
+      "completed_at": "2025-10-08T22:59:24.214181",
       "config": {
-        "original_command": "mkdir hasdasdadsasdasd"
-      },
-      "rollback_status": null,
-      "rollback_command_id": null,
-      "rollback_timestamp": null,
-      "rollback_feasible": null,
-      "rollback_risk_level": null,
-      "rollback_validation_results": null
+        "original_command": "dir"
+      }
     },
     {
-      "id": "4aa0b22b-c286-4cf7-b2e0-e868c22615e4",
-      "command": "rmdir hasdasdadsasdasd",
-      "status": "completed",
-      "output": "\r\nE:\\CKC\\Projects\\DeployX>\r\nE:\\CKC\\Projects\\DeployX>",
-      "strategy": "transactional",
-      "timestamp": "2025-10-07T22:20:42.501785",
+      "id": "c46a2163-11d8-4e08-b30d-96a7d7591f51",
+      "command": "ls",
+      "status": "failed",
+      "output": "'ls' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n\r\nE:\\CKC\\Projects\\DeployX>'ls' is not recognized as an internal or external command,\r\noperable program or batch file.\r\n\r\nE:\\CKC\\Projects\\DeployX>",
+      "strategy": "snapshot",
+      "timestamp": "2025-10-08T22:59:38.646298",
       "agent_id": "agent_f0ebce17",
-      "shell": "cmd",
-      "error": null,
-      "started_at": "2025-10-07T22:20:42.506005",
-      "completed_at": "2025-10-07T22:20:43.043750",
+      "shell": "bash",
+      "error": "Command execution failed (see output for details)",
+      "started_at": "2025-10-08T22:59:38.651569",
+      "completed_at": "2025-10-08T22:59:39.174028",
       "config": {
-        "original_command": "rmdir hasdasdadsasdasd"
-      },
-      "rollback_status": null,
-      "rollback_command_id": null,
-      "rollback_timestamp": null,
-      "rollback_feasible": null,
-      "rollback_risk_level": null,
-      "rollback_validation_results": null
+        "original_command": "ls"
+      }
     }
   ],
-  "last_updated": "2025-10-07T22:20:43.043853"
+  "last_updated": "2025-10-08T22:59:39.174101"
 }

@@ -69,7 +69,6 @@ export default function Dashboard({ onLogout }) {
   const [connectionError, setConnectionError] = useState(null);
   const socketRef = useRef(null);
   const isMountedRef = useRef(true);
-  const lastErrorTimeRef = useRef(0);
   const user = authService.getCurrentUser();
 
   // Add authentication debugging
@@ -687,8 +686,6 @@ export default function Dashboard({ onLogout }) {
         headers
       });
       
-      const groupsResponse = await Promise.race([fetchPromise, timeoutPromise]);
-      
       if (groupsResponse.ok) {
         const groupsDataResponse = await groupsResponse.json();
         const fetchEndTime = performance.now();
@@ -902,13 +899,7 @@ export default function Dashboard({ onLogout }) {
       socketRef.current.on('connect_error', (error) => {
         if (!isMountedRef.current) return;
         
-        // Throttle error logging to prevent spam
-        const now = Date.now();
-        if (now - lastErrorTimeRef.current > 5000) { // Only log every 5 seconds
-          console.error('Dashboard: Connection error:', error);
-          lastErrorTimeRef.current = now;
-        }
-        
+        console.error('Dashboard: Connection error:', error);
         setIsConnected(false);
         setConnectionError(`Failed to connect: ${error.message}`);
       });
@@ -929,15 +920,6 @@ export default function Dashboard({ onLogout }) {
         
         // Don't reset dashboard stats on socket disconnect
         // They will be updated via API calls
-      });
-
-      // Reconnection failed after max attempts
-      socketRef.current.on('reconnect_failed', () => {
-        if (!isMountedRef.current) return;
-        
-        console.log('Dashboard: Reconnection failed after maximum attempts');
-        setIsConnected(false);
-        setConnectionError('Connection failed. Please check if the backend server is running and refresh the page.');
       });
 
       // Agents list received
@@ -2347,8 +2329,6 @@ export default function Dashboard({ onLogout }) {
                   >
                     <Monitor className="w-10 h-10 text-orange-400 group-hover:scale-110 transition-transform" />
                     <span className="text-white text-sm font-medium">Groups</span>
-         <Network className="w-8 h-8 text-indigo-400 group-hover:scale-110 transition-transform" />
-                    <span className="text-white text-sm font-medium">Network</span>
                   </button>
                 </div>
               </div>
@@ -2471,26 +2451,9 @@ export default function Dashboard({ onLogout }) {
                     <Command className="w-6 h-6 text-teal-400" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-white">Command Execution</h2>
-                    <p className="text-gray-400">Execute commands with deployment strategies and rollback capabilities</p>
+                    <h2 className="text-2xl font-bold text-white">Deployment Manager</h2>
+                    <p className="text-gray-400">Execute commands with deployment strategies and safety checks</p>
                   </div>
-                </div>
-                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
-                  isConnected 
-                    ? 'bg-green-500/20 border-green-500/30' 
-                    : 'bg-red-500/20 border-red-500/30'
-                }`}>
-                  <div className={`w-2 h-2 rounded-full ${
-                    isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'
-                  }`}></div>
-                  <span className={`text-sm font-medium ${
-                    isConnected ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    {isConnected ? 'Connected' : 'Disconnected'}
-                  </span>
-                  {agents.length > 0 && (
-                    <span className="text-gray-400 text-xs">• {agents.length} agent(s)</span>
-                  )}
                 </div>
               </div>
               

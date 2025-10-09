@@ -20,7 +20,7 @@ const data = [
     title: 'Auto-Updating Agents', 
     subtitle: 'Zero-Downtime Deployments',
     icon: RefreshCw, 
-    desc: 'Intelligent agent updates with staged rollouts, health checks, and automatic rollback capabilities.',
+    desc: 'Intelligent agent updates with staged rollouts, health checks, and automatic validation.',
     gradient: 'from-purple-500 to-violet-600'
   },
   { 

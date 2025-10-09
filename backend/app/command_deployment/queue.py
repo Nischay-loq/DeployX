@@ -35,13 +35,6 @@ class CommandItem(BaseModel):
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
     config: Dict[str, Any] = {}
-    # Rollback tracking fields
-    rollback_status: Optional[str] = None  # "pending", "completed", "failed", "not_needed"
-    rollback_command_id: Optional[str] = None  # ID of the rollback command
-    rollback_timestamp: Optional[str] = None  # When rollback was initiated
-    rollback_feasible: Optional[bool] = None  # Whether rollback is technically feasible
-    rollback_risk_level: Optional[str] = None  # "low", "medium", "high", "destructive"
-    rollback_validation_results: Optional[Dict[str, Any]] = None  # Pre-rollback validation
 
 class CommandQueue:
     """Manager for command queue operations with JSON persistence."""
@@ -103,7 +96,7 @@ class CommandQueue:
         """Add a new command to the queue."""
         cmd_id = str(uuid.uuid4())
         
-        # Ensure config includes the original command for rollback purposes
+        # Ensure config includes the original command
         if config is None:
             config = {}
         config['original_command'] = command

@@ -10,15 +10,14 @@ import uuid
 from datetime import datetime
 
 from .queue import command_queue, CommandStatus, CommandItem
-from .strategies import HybridDeploymentStrategy, RollbackValidator
+from .strategies import HybridDeploymentStrategy
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/deployment", tags=["deployment"])
 
-# Initialize deployment strategy and rollback validator
+# Initialize deployment strategy
 deployment_strategy = HybridDeploymentStrategy()
-rollback_validator = RollbackValidator()
 
 # Request/Response models
 class CommandRequest(BaseModel):
@@ -89,7 +88,7 @@ async def recommend_strategy(command: str, current_strategy: str = "transactiona
         
         warning = None
         if current_strategy == 'transactional' and recommended == 'snapshot':
-            warning = f"WARNING: Command '{command}' is destructive and may cause data loss. Consider using 'snapshot' strategy for better rollback capability."
+            warning = f"WARNING: Command '{command}' is destructive and may cause data loss. Consider using 'snapshot' strategy for better safety."
         
         return {
             "command": command,
@@ -354,176 +353,6 @@ async def resume_command(cmd_id: str, background_tasks: BackgroundTasks):
         raise
     except Exception as e:
         logger.error(f"Error resuming command {cmd_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/commands/{cmd_id}/rollback")
-async def rollback_command(cmd_id: str, background_tasks: BackgroundTasks, force: bool = False):
-    """Enhanced rollback with validation and safety checks."""
-    try:
-        cmd = command_queue.get_command(cmd_id)
-        if not cmd:
-            raise HTTPException(status_code=404, detail="Command not found")
-        
-        if cmd.status != CommandStatus.COMPLETED:
-            raise HTTPException(status_code=400, detail="Can only rollback completed commands")
-        
-        # Validate rollback request
-        if not force:
-            validation_passed, validation_message, validation_details = rollback_validator.validate_rollback_request(
-                cmd.command, cmd.config
-            )
-            
-            if not validation_passed:
-                return {
-                    "message": "Rollback validation failed",
-                    "validation_message": validation_message,
-                    "validation_details": validation_details,
-                    "requires_force": True,
-                    "cmd_id": cmd_id
-                }
-            
-            # Update command with validation results
-            cmd.rollback_feasible = validation_details.get("feasible", True)
-            cmd.rollback_risk_level = validation_details.get("risk_assessment", "medium")
-            cmd.rollback_validation_results = validation_details
-        
-        # Execute rollback using the deployment strategy
-        strategy = deployment_strategy.strategies.get(cmd.strategy)
-        if not strategy:
-            raise HTTPException(status_code=400, detail=f"Strategy {cmd.strategy} not found")
-        
-        rollback_command_text = strategy.rollback(cmd.config)
-        
-        # Update rollback status
-        cmd.rollback_status = "pending"
-        cmd.rollback_timestamp = datetime.now().isoformat()
-        
-        # Check if we got a real command or just a message
-        if rollback_command_text.startswith('#'):
-            # It's just a message, not an executable command
-            cmd.rollback_status = "not_needed"
-            return {
-                "message": f"Rollback information for command {cmd_id}",
-                "rollback_info": rollback_command_text,
-                "executable": False,
-                "validation_passed": not force,
-                "validation_message": validation_message if not force else "Forced rollback"
-            }
-        else:
-            # It's an executable command, add it to the queue and execute it
-            rollback_cmd_id = command_queue.add_command(
-                command=rollback_command_text,
-                agent_id=cmd.agent_id,
-                shell=cmd.shell,
-                strategy=cmd.strategy,
-                config={
-                    "is_rollback": True,
-                    "original_command_id": cmd_id,
-                    "original_command": cmd.command
-                }
-            )
-            
-            # Link rollback command
-            cmd.rollback_command_id = rollback_cmd_id
-            
-            # Execute the rollback command in background
-            background_tasks.add_task(execute_command_async, rollback_cmd_id)
-            
-            return {
-                "message": f"Rollback command created and queued for execution",
-                "original_command_id": cmd_id,
-                "rollback_command_id": rollback_cmd_id,
-                "rollback_command": rollback_command_text,
-                "executable": True,
-                "validation_passed": not force,
-                "validation_message": validation_message if not force else "Forced rollback"
-            }
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error rolling back command {cmd_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/commands/{cmd_id}/validate-rollback")
-async def validate_rollback(cmd_id: str):
-    """Validate rollback feasibility without executing."""
-    try:
-        cmd = command_queue.get_command(cmd_id)
-        if not cmd:
-            raise HTTPException(status_code=404, detail="Command not found")
-        
-        validation_passed, validation_message, validation_details = rollback_validator.validate_rollback_request(
-            cmd.command, cmd.config
-        )
-        
-        # Get rollback recommendations
-        recommendations = rollback_validator.get_rollback_recommendations(cmd.command, cmd.strategy)
-        
-        return {
-            "cmd_id": cmd_id,
-            "command": cmd.command,
-            "current_strategy": cmd.strategy,
-            "validation_passed": validation_passed,
-            "validation_message": validation_message,
-            "validation_details": validation_details,
-            "recommendations": recommendations
-        }
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error validating rollback for command {cmd_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/rollback/atomic-group")
-async def create_atomic_rollback_group(
-    command_ids: List[str], 
-    group_name: str = "Unnamed Group"
-):
-    """Create an atomic rollback group for related commands."""
-    try:
-        # Validate all command IDs exist
-        for cmd_id in command_ids:
-            cmd = command_queue.get_command(cmd_id)
-            if not cmd:
-                raise HTTPException(status_code=400, detail=f"Command {cmd_id} not found")
-            if cmd.status != CommandStatus.COMPLETED:
-                raise HTTPException(status_code=400, detail=f"Command {cmd_id} is not completed")
-        
-        group_id = rollback_validator.create_atomic_rollback_group(command_ids, group_name)
-        
-        if group_id:
-            return {
-                "message": f"Atomic rollback group created successfully",
-                "group_id": group_id,
-                "group_name": group_name,
-                "command_ids": command_ids
-            }
-        else:
-            raise HTTPException(status_code=500, detail="Failed to create atomic group")
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error creating atomic rollback group: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/rollback/atomic-group/{group_id}/rollback")
-async def rollback_atomic_group(group_id: str):
-    """Rollback all commands in an atomic group."""
-    try:
-        success, message, results = rollback_validator.rollback_atomic_group(group_id)
-        
-        return {
-            "group_id": group_id,
-            "success": success,
-            "message": message,
-            "rollback_results": results
-        }
-    
-    except Exception as e:
-        logger.error(f"Error rolling back atomic group {group_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/snapshots")

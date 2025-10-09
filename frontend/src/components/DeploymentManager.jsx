@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { 
   Play, 
   Pause, 
-  RotateCcw, 
   Plus, 
   Trash2, 
   RefreshCw, 
@@ -16,15 +15,13 @@ import {
   Layers
 } from 'lucide-react';
 import io from 'socket.io-client';
+import SnapshotManager from './SnapshotManager';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const DEPLOYMENT_STRATEGIES = [
-  { value: 'transactional', label: 'Transactional', icon: '🔄', description: 'Package manager transactions with rollback' },
-  { value: 'blue_green', label: 'Blue-Green', icon: '🔵', description: 'Zero-downtime deployments' },
-  { value: 'snapshot', label: 'Snapshot', icon: '📸', description: 'System snapshots for critical changes' },
-  { value: 'canary', label: 'Canary', icon: '🐤', description: 'Gradual rollout with monitoring' }
+  { value: 'snapshot', label: 'Snapshot Rollback', icon: '�', description: 'Creates system snapshots before each command for easy rollback' }
 ];
 
 const STATUS_ICONS = {
@@ -57,7 +54,7 @@ export default function DeploymentManager({
   console.log('DeploymentManager: Current agent:', currentAgent);
   const [commands, setCommands] = useState([]);
   const [newCommand, setNewCommand] = useState('');
-  const [selectedStrategy, setSelectedStrategy] = useState('transactional');
+  const [selectedStrategy, setSelectedStrategy] = useState('snapshot');
   const [isLoading, setIsLoading] = useState(false);
   const [socket, setSocket] = useState(null);
   const [stats, setStats] = useState({ total: 0, pending: 0, running: 0, completed: 0, failed: 0, paused: 0 });
@@ -244,22 +241,6 @@ export default function DeploymentManager({
     }
   };
 
-  const rollbackCommand = async (cmdId) => {
-    if (!confirm('Are you sure you want to rollback this command?')) return;
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/deployment/commands/${cmdId}/rollback`, { method: 'POST' });
-      if (response.ok) {
-        const result = await response.json();
-        alert(result.message);
-        loadCommands(); // Reload to show rollback command
-        loadStats();
-      }
-    } catch (error) {
-      console.error('Error rolling back command:', error);
-    }
-  };
-
   const deleteCommand = async (cmdId) => {
     if (!confirm('Are you sure you want to delete this command?')) return;
 
@@ -302,53 +283,6 @@ export default function DeploymentManager({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-purple-500/20 rounded-lg">
-            <Command className="w-6 h-6 text-purple-400" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-white">Deployment Manager</h2>
-            <p className="text-gray-400">Execute commands with deployment strategies and rollback capabilities</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Connection Status */}
-          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
-            isConnected 
-              ? 'bg-green-500/20 border-green-500/30' 
-              : 'bg-red-500/20 border-red-500/30'
-          }`}>
-            <div className={`w-2 h-2 rounded-full ${
-              isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'
-            }`}></div>
-            <span className={`text-sm font-medium ${
-              isConnected ? 'text-green-400' : 'text-red-400'
-            }`}>
-              {isConnected ? 'Connected' : 'Disconnected'}
-            </span>
-          </div>
-          <button
-            onClick={() => setBatchMode(!batchMode)}
-            className={`px-4 py-2 rounded-lg border transition-all ${
-              batchMode 
-                ? 'bg-purple-500/20 border-purple-500/30 text-purple-400' 
-                : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
-            }`}
-          >
-            <Layers className="w-4 h-4 inline mr-2" />
-            Batch Mode
-          </button>
-          <button
-            onClick={loadCommands}
-            className="p-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-400 hover:text-white hover:border-gray-600 transition-all"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
       {/* Connection Error */}
       {connectionError && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
@@ -372,13 +306,6 @@ export default function DeploymentManager({
 
       {/* Command Input */}
       <div className="card-dark">
-        <div className="flex items-center gap-3 mb-4">
-          <Terminal className="w-5 h-5 text-cyan-400" />
-          <h3 className="text-lg font-semibold text-white">
-            {batchMode ? 'Batch Command Execution' : 'Command Execution'}
-          </h3>
-        </div>
-
         {/* Agent and Shell Selection */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div>
@@ -419,26 +346,18 @@ export default function DeploymentManager({
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">Strategy</label>
-            <select
-              value={selectedStrategy}
-              onChange={(e) => setSelectedStrategy(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none"
+            <label className="block text-sm font-medium text-gray-400 mb-2">Mode</label>
+            <button
+              onClick={() => setBatchMode(!batchMode)}
+              className={`px-4 py-2 rounded-lg border transition-all ${
+                batchMode 
+                  ? 'bg-purple-500/20 border-purple-500/30 text-purple-400' 
+                  : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'
+              }`}
             >
-              {DEPLOYMENT_STRATEGIES.map(strategy => (
-                <option key={strategy.value} value={strategy.value}>
-                  {strategy.icon} {strategy.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Strategy Description */}
-        <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
-          <div className="text-sm text-gray-400">
-            <strong className="text-white">Selected Strategy:</strong> {' '}
-            {DEPLOYMENT_STRATEGIES.find(s => s.value === selectedStrategy)?.description}
+              <Layers className="w-4 h-4 inline mr-2" />
+              Batch Mode
+            </button>
           </div>
         </div>
 
@@ -554,15 +473,6 @@ export default function DeploymentManager({
                         <Play className="w-4 h-4" />
                       </button>
                     )}
-                    {cmd.status === 'completed' && (
-                      <button
-                        onClick={() => rollbackCommand(cmd.id)}
-                        className="p-1 text-yellow-400 hover:bg-yellow-500/20 rounded transition-all"
-                        title="Rollback"
-                      >
-                        <RotateCcw className="w-4 h-4" />
-                      </button>
-                    )}
                     <button
                       onClick={() => deleteCommand(cmd.id)}
                       className="p-1 text-red-400 hover:bg-red-500/20 rounded transition-all"
@@ -616,6 +526,13 @@ export default function DeploymentManager({
           )}
         </div>
       </div>
+
+      {/* Snapshot Manager */}
+      <SnapshotManager 
+        socket={socket} 
+        selectedAgent={currentAgent}
+        isConnected={isConnected}
+      />
     </div>
   );
 }

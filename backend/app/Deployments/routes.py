@@ -40,8 +40,7 @@ def get_user_deployments(
             "status": deployment.status,
             "started_at": deployment.started_at.isoformat() if deployment.started_at else None,
             "ended_at": deployment.ended_at.isoformat() if deployment.ended_at else None,
-            "device_count": device_count,
-            "rollback_performed": deployment.rollback_performed
+            "device_count": device_count
         })
     
     return result

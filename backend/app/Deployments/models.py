@@ -12,9 +12,6 @@ class Deployment(Base):
     status = Column(String(20), nullable=False, default="pending")
     started_at = Column(DateTime, nullable=True)
     ended_at = Column(DateTime, nullable=True)
-    rollback_performed = Column(Boolean, default=False)
-    rollback_time = Column(DateTime, nullable=True)
-    rollback_reason = Column(Text, nullable=True)
     
     targets = relationship("DeploymentTarget", back_populates="deployment", cascade="all, delete-orphan")
     checkpoints = relationship("Checkpoint", back_populates="deployment", cascade="all, delete-orphan")
@@ -60,7 +57,6 @@ class DeploymentListResponse(BaseModel):
     started_at: Optional[str]
     ended_at: Optional[str]
     device_count: int
-    rollback_performed: bool
     
     model_config = {"from_attributes": True}
 

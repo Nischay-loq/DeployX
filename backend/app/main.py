@@ -129,8 +129,7 @@ def test_deployments():
             "status": "completed",
             "started_at": "2024-01-01T00:00:00",
             "ended_at": "2024-01-01T01:00:00",
-            "device_count": 3,
-            "rollback_performed": False
+            "device_count": 3
         }
     ]
 

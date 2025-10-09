@@ -1,22 +1,24 @@
 """Socket.IO event handlers for DeployX agent."""
 import asyncio
 import logging
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
 from agent.core.shell_manager import ShellManager
 import platform
 
 logger = logging.getLogger(__name__)
 
 class SocketEventHandler:
-    def __init__(self, shell_manager: ShellManager, connection=None):
+    def __init__(self, shell_manager: ShellManager, connection=None, command_executor=None):
         """Initialize the socket event handler.
         
         Args:
             shell_manager: Instance of ShellManager to handle shell operations
             connection: Instance of ConnectionManager for socket communication
+            command_executor: Instance of CommandExecutor for snapshot/rollback operations
         """
         self.shell_manager = shell_manager
         self._connection = connection
+        self.command_executor = command_executor
 
     async def handle_connect(self, data: Dict[str, Any] = None):
         """Handle socket connection event."""
@@ -390,6 +392,312 @@ class SocketEventHandler:
                     'success': False,
                     'error': error_msg
                 })
+    
+    async def handle_rollback_command(self, data: Dict[str, Any]):
+        """Handle rollback request for a single command."""
+        try:
+            snapshot_id = data.get('snapshot_id')
+            
+            if not snapshot_id:
+                error_msg = "Snapshot ID is required for rollback"
+                logger.error(error_msg)
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('rollback_result', {
+                        'snapshot_id': snapshot_id,
+                        'success': False,
+                        'error': error_msg
+                    })
+                return
+            
+            logger.info(f"Received rollback request for snapshot {snapshot_id}")
+            
+            if not self.command_executor:
+                error_msg = "Command executor not initialized"
+                logger.error(error_msg)
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('rollback_result', {
+                        'snapshot_id': snapshot_id,
+                        'success': False,
+                        'error': error_msg
+                    })
+                return
+            
+            # Notify start of rollback
+            if self._connection and self._connection.connected:
+                await self._connection.emit('rollback_status', {
+                    'snapshot_id': snapshot_id,
+                    'status': 'in_progress',
+                    'message': 'Starting rollback...'
+                })
+            
+            # Perform rollback
+            success = await self.command_executor.rollback_command(snapshot_id)
+            
+            # Send result
+            if self._connection and self._connection.connected:
+                await self._connection.emit('rollback_result', {
+                    'snapshot_id': snapshot_id,
+                    'success': success,
+                    'message': 'Rollback completed successfully' if success else 'Rollback failed'
+                })
+            
+            logger.info(f"Rollback for snapshot {snapshot_id}: {'success' if success else 'failed'}")
+            
+        except Exception as e:
+            error_msg = f"Error handling rollback request: {str(e)}"
+            logger.exception(error_msg)
+            if self._connection and self._connection.connected:
+                await self._connection.emit('rollback_result', {
+                    'snapshot_id': data.get('snapshot_id'),
+                    'success': False,
+                    'error': error_msg
+                })
+    
+    async def handle_rollback_batch(self, data: Dict[str, Any]):
+        """Handle rollback request for an entire batch."""
+        try:
+            batch_id = data.get('batch_id')
+            
+            if not batch_id:
+                error_msg = "Batch ID is required for batch rollback"
+                logger.error(error_msg)
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('batch_rollback_result', {
+                        'batch_id': batch_id,
+                        'success': False,
+                        'error': error_msg
+                    })
+                return
+            
+            logger.info(f"Received batch rollback request for batch {batch_id}")
+            
+            if not self.command_executor:
+                error_msg = "Command executor not initialized"
+                logger.error(error_msg)
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('batch_rollback_result', {
+                        'batch_id': batch_id,
+                        'success': False,
+                        'error': error_msg
+                    })
+                return
+            
+            # Notify start of rollback
+            if self._connection and self._connection.connected:
+                await self._connection.emit('batch_rollback_status', {
+                    'batch_id': batch_id,
+                    'status': 'in_progress',
+                    'message': 'Starting batch rollback...'
+                })
+            
+            # Perform batch rollback
+            success = await self.command_executor.rollback_batch(batch_id)
+            
+            # Send result
+            if self._connection and self._connection.connected:
+                await self._connection.emit('batch_rollback_result', {
+                    'batch_id': batch_id,
+                    'success': success,
+                    'message': 'Batch rollback completed successfully' if success else 'Batch rollback failed'
+                })
+            
+            logger.info(f"Batch rollback for {batch_id}: {'success' if success else 'failed'}")
+            
+        except Exception as e:
+            error_msg = f"Error handling batch rollback request: {str(e)}"
+            logger.exception(error_msg)
+            if self._connection and self._connection.connected:
+                await self._connection.emit('batch_rollback_result', {
+                    'batch_id': data.get('batch_id'),
+                    'success': False,
+                    'error': error_msg
+                })
+    
+    async def handle_get_snapshot_info(self, data: Dict[str, Any]):
+        """Handle request to get snapshot information."""
+        try:
+            snapshot_id = data.get('snapshot_id')
+            
+            if not snapshot_id:
+                error_msg = "Snapshot ID is required"
+                logger.error(error_msg)
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('snapshot_info_result', {
+                        'snapshot_id': snapshot_id,
+                        'success': False,
+                        'error': error_msg
+                    })
+                return
+            
+            if not self.command_executor:
+                error_msg = "Command executor not initialized"
+                logger.error(error_msg)
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('snapshot_info_result', {
+                        'snapshot_id': snapshot_id,
+                        'success': False,
+                        'error': error_msg
+                    })
+                return
+            
+            info = self.command_executor.get_snapshot_info(snapshot_id)
+            
+            if info:
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('snapshot_info_result', {
+                        'snapshot_id': snapshot_id,
+                        'success': True,
+                        'info': info
+                    })
+            else:
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('snapshot_info_result', {
+                        'snapshot_id': snapshot_id,
+                        'success': False,
+                        'error': 'Snapshot not found'
+                    })
+            
+        except Exception as e:
+            error_msg = f"Error getting snapshot info: {str(e)}"
+            logger.exception(error_msg)
+            if self._connection and self._connection.connected:
+                await self._connection.emit('snapshot_info_result', {
+                    'snapshot_id': data.get('snapshot_id'),
+                    'success': False,
+                    'error': error_msg
+                })
+    
+    async def handle_get_batch_snapshots(self, data: Dict[str, Any]):
+        """Handle request to get batch snapshot information."""
+        try:
+            batch_id = data.get('batch_id')
+            
+            if not batch_id:
+                error_msg = "Batch ID is required"
+                logger.error(error_msg)
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('batch_snapshots_result', {
+                        'batch_id': batch_id,
+                        'success': False,
+                        'error': error_msg
+                    })
+                return
+            
+            if not self.command_executor:
+                error_msg = "Command executor not initialized"
+                logger.error(error_msg)
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('batch_snapshots_result', {
+                        'batch_id': batch_id,
+                        'success': False,
+                        'error': error_msg
+                    })
+                return
+            
+            info = self.command_executor.get_batch_snapshots(batch_id)
+            
+            if info:
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('batch_snapshots_result', {
+                        'batch_id': batch_id,
+                        'success': True,
+                        'info': info
+                    })
+            else:
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('batch_snapshots_result', {
+                        'batch_id': batch_id,
+                        'success': False,
+                        'error': 'Batch not found'
+                    })
+            
+        except Exception as e:
+            error_msg = f"Error getting batch snapshots: {str(e)}"
+            logger.exception(error_msg)
+            if self._connection and self._connection.connected:
+                await self._connection.emit('batch_snapshots_result', {
+                    'batch_id': data.get('batch_id'),
+                    'success': False,
+                    'error': error_msg
+                })
+    
+    async def handle_cleanup_snapshot(self, data: Dict[str, Any]):
+        """Handle request to manually cleanup a snapshot."""
+        try:
+            snapshot_id = data.get('snapshot_id')
+            
+            if not snapshot_id:
+                error_msg = "Snapshot ID is required"
+                logger.error(error_msg)
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('cleanup_result', {
+                        'snapshot_id': snapshot_id,
+                        'success': False,
+                        'error': error_msg
+                    })
+                return
+            
+            if not self.command_executor:
+                error_msg = "Command executor not initialized"
+                logger.error(error_msg)
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('cleanup_result', {
+                        'snapshot_id': snapshot_id,
+                        'success': False,
+                        'error': error_msg
+                    })
+                return
+            
+            success = await self.command_executor.cleanup_snapshot(snapshot_id)
+            
+            if self._connection and self._connection.connected:
+                await self._connection.emit('cleanup_result', {
+                    'snapshot_id': snapshot_id,
+                    'success': success,
+                    'message': 'Snapshot cleaned up successfully' if success else 'Failed to cleanup snapshot'
+                })
+            
+        except Exception as e:
+            error_msg = f"Error cleaning up snapshot: {str(e)}"
+            logger.exception(error_msg)
+            if self._connection and self._connection.connected:
+                await self._connection.emit('cleanup_result', {
+                    'snapshot_id': data.get('snapshot_id'),
+                    'success': False,
+                    'error': error_msg
+                })
+    
+    async def handle_list_snapshots(self, data: Dict[str, Any]):
+        """Handle request to list all snapshots."""
+        try:
+            if not self.command_executor:
+                error_msg = "Command executor not initialized"
+                logger.error(error_msg)
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('snapshots_list_result', {
+                        'success': False,
+                        'error': error_msg
+                    })
+                return
+            
+            snapshots = self.command_executor.snapshot_manager.list_snapshots()
+            batches = self.command_executor.snapshot_manager.list_batches()
+            
+            if self._connection and self._connection.connected:
+                await self._connection.emit('snapshots_list_result', {
+                    'success': True,
+                    'snapshots': snapshots,
+                    'batches': batches
+                })
+            
+        except Exception as e:
+            error_msg = f"Error listing snapshots: {str(e)}"
+            logger.exception(error_msg)
+            if self._connection and self._connection.connected:
+                await self._connection.emit('snapshots_list_result', {
+                    'success': False,
+                    'error': error_msg
+                })
 
     def get_handlers(self) -> Dict[str, Callable]:
         """Get all event handlers.
@@ -412,7 +720,13 @@ class SocketEventHandler:
             'execute_batch_persistent': self.handle_execute_batch_persistent,
             'receive_file': self.handle_receive_file,
             'install_software': self.handle_install_software,
-            'install_custom_software': self.handle_install_custom_software
+            'install_custom_software': self.handle_install_custom_software,
+            'rollback_command': self.handle_rollback_command,
+            'rollback_batch': self.handle_rollback_batch,
+            'get_snapshot_info': self.handle_get_snapshot_info,
+            'get_batch_snapshots': self.handle_get_batch_snapshots,
+            'cleanup_snapshot': self.handle_cleanup_snapshot,
+            'list_snapshots': self.handle_list_snapshots
         }
 
     async def _handle_stop_shell_request(self, data: Dict[str, Any]):
