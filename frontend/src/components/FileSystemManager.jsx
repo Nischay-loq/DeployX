@@ -75,9 +75,25 @@ export default function FileSystemManager() {
     const id = Date.now();
     const newNotification = { id, message, type };
     setNotifications(prev => [...prev, newNotification]);
-    setTimeout(() => {
+    
+    // Store timeout ID so it can be cleared if manually closed
+    const timeoutId = setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, type === 'error' ? 6000 : 4000);
+    
+    // Store timeout reference for cleanup
+    newNotification.timeoutId = timeoutId;
+  };
+
+  const removeNotification = (id) => {
+    setNotifications(prev => {
+      // Find and clear the timeout for this notification
+      const notification = prev.find(n => n.id === id);
+      if (notification?.timeoutId) {
+        clearTimeout(notification.timeoutId);
+      }
+      return prev.filter(n => n.id !== id);
+    });
   };
 
   const loadGroups = async () => {
@@ -1200,7 +1216,7 @@ export default function FileSystemManager() {
             key={notification.id}
             message={notification.message}
             type={notification.type}
-            onClose={() => setNotifications(prev => prev.filter(n => n.id !== notification.id))}
+            onClose={() => removeNotification(notification.id)}
           />
         ))}
       </div>

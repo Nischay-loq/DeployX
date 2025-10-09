@@ -3,31 +3,36 @@ import '../css/Notification.css';
 
 const Notification = ({ message, type = 'info', onClose, duration = 5000 }) => {
   const [isRemoving, setIsRemoving] = useState(false);
+  const [isManualClose, setIsManualClose] = useState(false);
 
   useEffect(() => {
     let removalTimer;
-    if (duration && onClose) {
+    let closeTimer;
+    
+    if (duration && onClose && !isManualClose) {
       // Start the removal animation slightly before actual removal
       removalTimer = setTimeout(() => {
         setIsRemoving(true);
       }, duration - 300);
 
       // Actually remove the notification
-      const timer = setTimeout(() => {
+      closeTimer = setTimeout(() => {
         onClose();
       }, duration);
-
-      return () => {
-        clearTimeout(timer);
-        clearTimeout(removalTimer);
-      };
     }
-  }, [duration, onClose]);
 
-  const handleClose = () => {
+    return () => {
+      if (removalTimer) clearTimeout(removalTimer);
+      if (closeTimer) clearTimeout(closeTimer);
+    };
+  }, [duration, onClose, isManualClose]);
+
+  const handleClose = (e) => {
+    e.stopPropagation(); // Prevent event bubbling
+    setIsManualClose(true);
     setIsRemoving(true);
     setTimeout(() => {
-      onClose();
+      if (onClose) onClose();
     }, 300); // Match animation duration
   };
 
