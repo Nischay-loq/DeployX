@@ -73,6 +73,14 @@ def get_file_deployment(db: Session, deployment_id: int, user_id: int) -> Option
         and_(FileDeployment.id == deployment_id, FileDeployment.created_by == user_id)
     ).first()
 
+def get_file_deployment_by_id(db: Session, deployment_id: int) -> Optional[FileDeployment]:
+    """Get a file deployment by ID (without user filter)"""
+    return db.query(FileDeployment).filter(FileDeployment.id == deployment_id).first()
+
+def get_uploaded_file_by_id(db: Session, file_id: int) -> Optional[UploadedFile]:
+    """Get an uploaded file by ID (without user filter)"""
+    return db.query(UploadedFile).filter(UploadedFile.id == file_id).first()
+
 def get_file_deployments(db: Session, user_id: int, skip: int = 0, limit: int = 100) -> List[FileDeployment]:
     """Get all file deployments for a user"""
     return db.query(FileDeployment).filter(

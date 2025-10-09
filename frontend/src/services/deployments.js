@@ -4,8 +4,7 @@ class DeploymentsService {
   // Get all deployments for current user
   async fetchDeployments() {
     try {
-      // Temporarily use test endpoint to debug CORS and connection issues
-      const response = await api.get('/test/deployments');
+      const response = await api.get('/deployments');
       return response;
     } catch (error) {
       console.error('Failed to fetch deployments:', error);

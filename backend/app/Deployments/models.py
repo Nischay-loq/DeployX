@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from app.auth.database import Base
 from pydantic import BaseModel
 from typing import List, Optional
+import json
 
 class Deployment(Base):
     __tablename__ = "deployments"

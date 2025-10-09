@@ -9,41 +9,165 @@ from .executor import SoftwareDeploymentExecutor
 from app.grouping.models import DeviceGroupMap, Device as Devices, DeviceGroup as DeviceGroups
 from app.auth.database import get_db, User
 from app.auth.utils import get_current_user
+from app.software.models import Software
 from datetime import datetime
 from typing import List, Optional
 import logging
+import json
+import asyncio
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/deployments", tags=["Deployments"])
 
+# Helper function to emit socket events
+async def emit_deployment_notification(deployment_id: int, db: Session):
+    """Emit socket.io notification when deployment completes"""
+    try:
+        from app.main import sio
+        
+        deployment = db.query(Deployment).filter(Deployment.id == deployment_id).first()
+        if not deployment:
+            return
+        
+        # Get deployment targets statistics
+        targets = db.query(DeploymentTarget).filter(DeploymentTarget.deployment_id == deployment_id).all()
+        
+        total_count = len(targets)
+        success_count = sum(1 for t in targets if t.deployment_status == 'completed')
+        failure_count = sum(1 for t in targets if t.deployment_status == 'failed')
+        
+        notification_data = {
+            'deployment_id': deployment.id,
+            'deployment_name': deployment.name,
+            'status': deployment.status,
+            'success_count': success_count,
+            'failure_count': failure_count,
+            'total_count': total_count,
+            'created_at': deployment.created_at.isoformat() if deployment.created_at else None,
+            'ended_at': deployment.ended_at.isoformat() if deployment.ended_at else None
+        }
+        
+        # Emit to all connected frontend clients
+        await sio.emit('deployment_completed', notification_data)
+        logger.info(f"Emitted deployment_completed notification for deployment {deployment_id}")
+        
+    except Exception as e:
+        logger.error(f"Error emitting deployment notification: {e}", exc_info=True)
+
+
+
+def update_deployment_status(deployment_id: int, db: Session):
+    """Update overall deployment status based on target device statuses"""
+    try:
+        deployment = db.query(Deployment).filter(Deployment.id == deployment_id).first()
+        if not deployment:
+            logger.error(f"Deployment {deployment_id} not found")
+            return
+        
+        # Get all deployment targets
+        targets = db.query(DeploymentTarget).filter(
+            DeploymentTarget.deployment_id == deployment_id
+        ).all()
+        
+        if not targets:
+            deployment.status = "failed"
+            deployment.ended_at = datetime.utcnow()
+            db.commit()
+            return
+        
+        # Count statuses
+        total = len(targets)
+        completed = sum(1 for t in targets if t.status == "success")
+        failed = sum(1 for t in targets if t.status == "failed")
+        in_progress = sum(1 for t in targets if t.status == "in_progress")
+        pending = sum(1 for t in targets if t.status == "pending")
+        
+        # Determine overall status
+        if completed == total:
+            deployment.status = "completed"
+            deployment.ended_at = datetime.utcnow()
+        elif failed == total:
+            deployment.status = "failed"
+            deployment.ended_at = datetime.utcnow()
+        elif failed > 0 and (completed + failed) == total:
+            deployment.status = "partial"
+            deployment.ended_at = datetime.utcnow()
+        elif in_progress > 0 or pending > 0:
+            deployment.status = "in_progress"
+        else:
+            deployment.status = "completed"
+            deployment.ended_at = datetime.utcnow()
+        
+        db.commit()
+        logger.info(
+            f"Updated deployment {deployment_id} status to {deployment.status} "
+            f"(total: {total}, completed: {completed}, failed: {failed}, in_progress: {in_progress}, pending: {pending})"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error updating deployment status: {e}", exc_info=True)
+
+
+# Add a simple test endpoint without auth
+@router.get("/test")
+def test_endpoint():
+    """Test endpoint without authentication"""
+    return {"message": "Deployments router is working"}
+
+@router.get("", response_model=List[DeploymentListResponse])
 @router.get("/", response_model=List[DeploymentListResponse])
 def get_user_deployments(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get all deployments for the current user"""
-    deployments = db.query(Deployment).filter(
-        Deployment.initiated_by == current_user.id
-    ).order_by(Deployment.started_at.desc()).all()
-    
-    result = []
-    for deployment in deployments:
-        # Count total devices in deployment
-        device_count = db.query(DeploymentTarget).filter(
-            DeploymentTarget.deployment_id == deployment.id
-        ).count()
+    try:
+        logger.info(f"Fetching deployments for user {current_user.id}")
+        deployments = db.query(Deployment).filter(
+            Deployment.initiated_by == current_user.id
+        ).order_by(Deployment.started_at.desc()).all()
         
-        result.append({
-            "id": deployment.id,
-            "deployment_name": deployment.deployment_name,
-            "status": deployment.status,
-            "started_at": deployment.started_at.isoformat() if deployment.started_at else None,
-            "ended_at": deployment.ended_at.isoformat() if deployment.ended_at else None,
-            "device_count": device_count
-        })
-    
-    return result
+        logger.info(f"Found {len(deployments)} deployments")
+        
+        result = []
+        for deployment in deployments:
+            # Count total devices in deployment
+            device_count = db.query(DeploymentTarget).filter(
+                DeploymentTarget.deployment_id == deployment.id
+            ).count()
+            
+            # Get software information
+            software_list = []
+            if deployment.software_ids:
+                try:
+                    software_ids = json.loads(deployment.software_ids)
+                    if software_ids:
+                        software_items = db.query(Software).filter(
+                            Software.id.in_(software_ids)
+                        ).all()
+                        software_list = [{"id": sw.id, "name": sw.name, "version": sw.version} for sw in software_items]
+                except (json.JSONDecodeError, TypeError):
+                    software_list = []
+            
+            result.append({
+                "id": deployment.id,
+                "deployment_name": deployment.deployment_name,
+                "status": deployment.status,
+                "started_at": deployment.started_at.isoformat() if deployment.started_at else None,
+                "ended_at": deployment.ended_at.isoformat() if deployment.ended_at else None,
+                "device_count": device_count,
+                "rollback_performed": deployment.rollback_performed,
+                "software": software_list,
+                "custom_software": deployment.custom_software
+            })
+        
+        logger.info(f"Returning {len(result)} deployments")
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching deployments: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error fetching deployments: {str(e)}")
+
 
 @router.post("/install", response_model=DeploymentResponse)
 async def install_software(
@@ -57,7 +181,9 @@ async def install_software(
         deployment_name=data.deployment_name or "Software Installation",
         initiated_by=current_user.id,
         status="in_progress",
-        started_at=datetime.utcnow()
+        started_at=datetime.utcnow(),
+        software_ids=json.dumps(data.software_ids) if data.software_ids else None,
+        custom_software=data.custom_software
     )
     db.add(deployment)
     db.commit()
@@ -139,8 +265,21 @@ def execute_deployment_background(
             custom_software
         )
         logger.info(f"[BACKGROUND] Deployment {deployment_id} completed: {result}")
+        
+        # Update overall deployment status
+        update_deployment_status(deployment_id, db)
+        
+        # Emit socket notification
+        asyncio.create_task(emit_deployment_notification(deployment_id, db))
+        
     except Exception as e:
         logger.error(f"[BACKGROUND] Error in deployment {deployment_id}: {e}", exc_info=True)
+        # Mark deployment as failed
+        deployment = db.query(Deployment).filter(Deployment.id == deployment_id).first()
+        if deployment:
+            deployment.status = "failed"
+            deployment.ended_at = datetime.utcnow()
+            db.commit()
     finally:
         db.close()
 
@@ -244,3 +383,127 @@ def retry_failed(
         db.add(checkpoint)
     db.commit()
     return {"status": "retrying"}
+
+@router.get("/{deployment_id}/details")
+def get_deployment_details(
+    deployment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get detailed information for a specific deployment"""
+    deployment = db.query(Deployment).filter(
+        Deployment.id == deployment_id,
+        Deployment.initiated_by == current_user.id
+    ).first()
+    
+    if not deployment:
+        raise HTTPException(status_code=404, detail="Deployment not found")
+    
+    # Get software information
+    software_list = []
+    if deployment.software_ids:
+        try:
+            software_ids = json.loads(deployment.software_ids)
+            if software_ids:
+                software_items = db.query(Software).filter(
+                    Software.id.in_(software_ids)
+                ).all()
+                software_list = [{"id": sw.id, "name": sw.name, "version": sw.version} for sw in software_items]
+        except (json.JSONDecodeError, TypeError):
+            software_list = []
+    
+    return {
+        "software": software_list,
+        "custom_software": deployment.custom_software
+    }
+
+@router.get("/by-date/{date}")
+def get_deployments_by_date(
+    date: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all deployments for a specific date (YYYY-MM-DD)"""
+    try:
+        from sqlalchemy import func
+        from datetime import datetime
+        from app.files.models import FileDeployment
+        
+        # Parse the date
+        target_date = datetime.strptime(date, "%Y-%m-%d").date()
+        
+        # Get software deployments for this date
+        software_deployments = db.query(Deployment).filter(
+            Deployment.initiated_by == current_user.id,
+            func.date(Deployment.started_at) == target_date
+        ).all()
+        
+        # Get file deployments for this date
+        file_deployments = db.query(FileDeployment).filter(
+            FileDeployment.created_by == current_user.id,
+            func.date(FileDeployment.started_at) == target_date
+        ).all()
+        
+        # Format software deployments
+        software_list = []
+        for dep in software_deployments:
+            device_count = db.query(DeploymentTarget).filter(
+                DeploymentTarget.deployment_id == dep.id
+            ).count()
+            
+            software_list.append({
+                "id": dep.id,
+                "type": "software",
+                "name": dep.deployment_name or f"Deployment {dep.id}",
+                "status": dep.status,
+                "started_at": dep.started_at.isoformat() if dep.started_at else None,
+                "ended_at": dep.ended_at.isoformat() if dep.ended_at else None,
+                "device_count": device_count,
+                "software_ids": dep.software_ids,
+                "custom_software": dep.custom_software
+            })
+        
+        # Format file deployments
+        file_list = []
+        for dep in file_deployments:
+            try:
+                device_ids = json.loads(dep.device_ids) if dep.device_ids else []
+                file_ids = json.loads(dep.file_ids) if dep.file_ids else []
+            except:
+                device_ids = []
+                file_ids = []
+            
+            file_list.append({
+                "id": dep.id,
+                "type": "file",
+                "name": dep.deployment_name or f"File Deployment {dep.id}",
+                "status": dep.status,
+                "started_at": dep.started_at.isoformat() if dep.started_at else None,
+                "completed_at": dep.completed_at.isoformat() if dep.completed_at else None,
+                "device_count": len(device_ids),
+                "file_count": len(file_ids),
+                "target_path": dep.target_path
+            })
+        
+        return {
+            "date": date,
+            "total_deployments": len(software_list) + len(file_list),
+            "software_deployments": software_list,
+            "file_deployments": file_list,
+            "summary": {
+                "software_count": len(software_list),
+                "file_count": len(file_list),
+                "total_successful": sum(1 for d in software_list if d["status"] == "completed") + 
+                                   sum(1 for d in file_list if d["status"] == "completed"),
+                "total_failed": sum(1 for d in software_list if d["status"] == "failed") + 
+                               sum(1 for d in file_list if d["status"] == "failed"),
+                "total_pending": sum(1 for d in software_list if d["status"] in ["pending", "in_progress"]) + 
+                                sum(1 for d in file_list if d["status"] in ["pending", "in_progress"])
+            }
+        }
+        
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    except Exception as e:
+        logger.error(f"Error fetching deployments by date: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch deployments")

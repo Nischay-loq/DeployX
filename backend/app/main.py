@@ -58,9 +58,6 @@ from app.software import models as software_models  # Import software models
 from app.files import models as file_models  # Import file models
 from app.auth.database import get_db
 from app.agents import crud as agent_crud, schemas as agent_schemas
-from app.grouping import models as grouping_models
-from app.Deployments import models as deployment_models
-from app.files import models as file_models
 from app.agents import schemas as agent_schemas, crud as agent_crud
 from app.Devices import crud as device_crud
 from app.grouping.models import Device
@@ -389,8 +386,10 @@ async def join_room(sid, data):
     try:
         room = data.get('room')
         if room:
-            sio.enter_room(sid, room)
+            await sio.enter_room(sid, room)
             logger.info(f"[OK] Session {sid} joined room: {room}")
+            # Verify the agent is in the room
+            logger.info(f"[VERIFY] Rooms for sid {sid}: {sio.rooms(sid)}")
             return {'status': 'success', 'room': room}
         else:
             logger.error(f"No room specified in join_room request from {sid}")
@@ -484,6 +483,11 @@ async def agent_register(sid, data):
             
         conn_manager.add_agent(reg_data.agent_id, sid, reg_data.shells)
         
+        # IMPORTANT: Join the agent to its own room for targeted messages
+        await sio.enter_room(sid, reg_data.agent_id)
+        logger.info(f"[AUTO-JOIN] Added agent {reg_data.agent_id} to room {reg_data.agent_id}")
+        logger.info(f"[VERIFY] Rooms for sid {sid}: {sio.rooms(sid)}")
+        
         await sio.emit('device_status_changed', {
             'agent_id': device.agent_id,
             'device_name': device.device_name,
@@ -497,6 +501,10 @@ async def agent_register(sid, data):
         
         await sio.emit('registration_success', {'agent_id': reg_data.agent_id}, room=sid)
         logger.info(f"Agent {reg_data.agent_id} registered successfully via socket.")
+        
+    except Exception as e:
+        logger.error(f"Error registering agent: {e}")
+        await sio.emit('registration_error', {'message': str(e)}, room=sid)
         
     except Exception as e:
         logger.error(f"Error registering agent: {e}")
@@ -846,6 +854,12 @@ async def software_installation_status(sid, data):
                 
                 db.commit()
                 logger.info(f"Updated deployment target {target.id} status to {target.status}")
+                
+                # Update overall deployment status when a device completes or fails
+                if status in ['completed', 'failed']:
+                    from app.Deployments.routes import update_deployment_status
+                    update_deployment_status(deployment_id, db)
+                    
         finally:
             db.close()
         

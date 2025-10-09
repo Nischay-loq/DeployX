@@ -74,7 +74,7 @@ class SoftwareDeploymentExecutor:
             Dictionary with deployment status
         """
         from app.software.models import Software
-        from app.Devices.models import Device
+        from app.grouping.models import Device
         from app.Deployments.models import DeploymentTarget
         
         logger.info(f"[DEPLOYMENT {deployment_id}] Starting deployment to {len(device_ids)} devices")
@@ -229,6 +229,20 @@ class SoftwareDeploymentExecutor:
             logger.info(f"[DEPLOYMENT {deployment_id}] Preparing to emit install_software to agent_id: {device.agent_id}")
             logger.info(f"[DEPLOYMENT {deployment_id}] Software data: {len(software_data)} packages")
             logger.info(f"[DEPLOYMENT {deployment_id}] Packages: {[s['name'] for s in software_data]}")
+            logger.info(f"[DEPLOYMENT {deployment_id}] Emitting to room: {device.agent_id}")
+            
+            # Verify the agent is connected and in the room
+            from app.main import conn_manager
+            agent_sid = conn_manager.get_agent_sid(device.agent_id)
+            logger.info(f"[DEPLOYMENT {deployment_id}] Agent SID: {agent_sid}")
+            
+            if not agent_sid:
+                logger.error(f"[DEPLOYMENT {deployment_id}] No agent SID found for agent_id: {device.agent_id}")
+                target.status = "failed"
+                target.error_message = "Agent not connected"
+                target.completed_at = datetime.utcnow()
+                self.db.commit()
+                return False
             
             await sio.emit(
                 'install_software',
