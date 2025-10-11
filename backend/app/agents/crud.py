@@ -107,6 +107,10 @@ def register_or_update_device(db: Session, registration: schemas.DeviceRegistrat
             "last_seen": get_ist_now()
         }
         
+        # Add MAC address if provided
+        if registration.mac_address:
+            update_data["mac_address"] = registration.mac_address
+        
         # Update system info fields if available
         sys_info = registration.system_info
         if sys_info:
@@ -121,6 +125,9 @@ def register_or_update_device(db: Session, registration: schemas.DeviceRegistrat
                 "disk_total": sys_info.get("disk_total"),
                 "disk_free": sys_info.get("disk_free"),
             })
+            # Also extract MAC address from system_info if not in registration
+            if not registration.mac_address and sys_info.get("mac_address"):
+                update_data["mac_address"] = sys_info.get("mac_address")
         
         for field, value in update_data.items():
             if value is not None:
@@ -145,6 +152,10 @@ def register_or_update_device(db: Session, registration: schemas.DeviceRegistrat
             machine_device.last_seen = get_ist_now()
             machine_device.updated_at = get_ist_now()
             
+            # Add MAC address if provided
+            if registration.mac_address:
+                machine_device.mac_address = registration.mac_address
+            
             # Update system info fields if available
             sys_info = registration.system_info
             if sys_info:
@@ -157,6 +168,9 @@ def register_or_update_device(db: Session, registration: schemas.DeviceRegistrat
                 machine_device.memory_available = sys_info.get("memory_available")
                 machine_device.disk_total = sys_info.get("disk_total")
                 machine_device.disk_free = sys_info.get("disk_free")
+                # Also extract MAC address from system_info if not in registration
+                if not registration.mac_address and sys_info.get("mac_address"):
+                    machine_device.mac_address = sys_info.get("mac_address")
             
             db.commit()
             db.refresh(machine_device)
@@ -174,6 +188,10 @@ def register_or_update_device(db: Session, registration: schemas.DeviceRegistrat
                 "system_info": registration.system_info
             }
             
+            # Add MAC address if provided
+            if registration.mac_address:
+                device_data["mac_address"] = registration.mac_address
+            
             # Add system info fields if available
             sys_info = registration.system_info
             if sys_info:
@@ -188,6 +206,9 @@ def register_or_update_device(db: Session, registration: schemas.DeviceRegistrat
                     "disk_total": sys_info.get("disk_total"),
                     "disk_free": sys_info.get("disk_free"),
                 })
+                # Also extract MAC address from system_info if not in registration
+                if not registration.mac_address and sys_info.get("mac_address"):
+                    device_data["mac_address"] = sys_info.get("mac_address")
             
             db_device = Device(**device_data)
             db.add(db_device)

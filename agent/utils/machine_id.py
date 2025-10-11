@@ -171,6 +171,25 @@ def generate_agent_id(prefix: str = "agent") -> str:
     
     return agent_id
 
+def get_mac_address() -> str:
+    """Get the MAC address of the primary network interface.
+    
+    Returns:
+        str: MAC address in format XX:XX:XX:XX:XX:XX
+    """
+    try:
+        # Get MAC address using uuid.getnode()
+        mac_num = uuid.getnode()
+        mac = hex(mac_num)[2:].upper()
+        # Pad with zeros if needed
+        mac = mac.zfill(12)
+        # Format as XX:XX:XX:XX:XX:XX
+        mac_address = ':'.join([mac[i:i+2] for i in range(0, 12, 2)])
+        return mac_address
+    except Exception as e:
+        logger.error(f"Error getting MAC address: {e}")
+        return "00:00:00:00:00:00"
+
 def get_system_info() -> dict:
     """Get comprehensive system information for agent registration.
     
@@ -210,7 +229,8 @@ def get_system_info() -> dict:
             "disk_total": disk.total,
             "disk_free": disk.free,
             "machine_id": get_machine_id(),
-            "ip_address": ip_address
+            "ip_address": ip_address,
+            "mac_address": get_mac_address()
         }
     except ImportError:
         import socket
@@ -237,7 +257,8 @@ def get_system_info() -> dict:
             "processor": platform.processor(),
             "python_version": platform.python_version(),
             "machine_id": get_machine_id(),
-            "ip_address": ip_address
+            "ip_address": ip_address,
+            "mac_address": get_mac_address()
         }
     except Exception as e:
         logger.error(f"Error getting system info: {e}")
@@ -246,6 +267,7 @@ def get_system_info() -> dict:
             "os": platform.system(),
             "machine_id": get_machine_id(),
             "ip_address": "0.0.0.0",
+            "mac_address": get_mac_address(),
             "error": str(e)
         }
 
