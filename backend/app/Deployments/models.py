@@ -13,6 +13,9 @@ class Deployment(Base):
     status = Column(String(20), nullable=False, default="pending")
     started_at = Column(DateTime, nullable=True)
     ended_at = Column(DateTime, nullable=True)
+    software_ids = Column(Text, nullable=True)  # JSON string of software IDs
+    custom_software = Column(Text, nullable=True)  # Custom software name/path
+    rollback_performed = Column(Boolean, default=False)  # Whether rollback was performed
     
     targets = relationship("DeploymentTarget", back_populates="deployment", cascade="all, delete-orphan")
     checkpoints = relationship("Checkpoint", back_populates="deployment", cascade="all, delete-orphan")
@@ -58,6 +61,9 @@ class DeploymentListResponse(BaseModel):
     started_at: Optional[str]
     ended_at: Optional[str]
     device_count: int
+    rollback_performed: Optional[bool] = False
+    software: Optional[List[dict]] = []
+    custom_software: Optional[str] = None
     
     model_config = {"from_attributes": True}
 
