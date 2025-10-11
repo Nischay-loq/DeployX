@@ -1,0 +1,61 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║              MAC ADDRESS NOT INSERTED FOR NEW DEVICES - FIX              ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+ISSUE: New devices that run the agent don't get MAC address inserted
+
+ROOT CAUSE:
+✓ Code is correct (test passed)
+✓ Files are updated
+✗ Backend server is running with OLD CODE in memory
+  - Server started: 19:22
+  - Code changes made after that
+
+═══════════════════════════════════════════════════════════════════════════
+
+SOLUTION: RESTART THE BACKEND SERVER
+═══════════════════════════════════════════════════════════════════════════
+
+STEP 1: Stop the current backend server
+    - Find the terminal running the backend
+    - Press Ctrl+C to stop it
+
+STEP 2: Restart the backend
+    cd D:\DeployX\backend
+    python start_server.py
+
+STEP 3: Test with a new agent
+    - Run agent on a new device
+    - MAC address will be automatically inserted
+
+═══════════════════════════════════════════════════════════════════════════
+
+VERIFICATION:
+═══════════════════════════════════════════════════════════════════════════
+
+After restarting backend, check database:
+    cd D:\DeployX\backend
+    python check_mac_in_db.py
+
+You should see new devices with MAC addresses populated automatically.
+
+═══════════════════════════════════════════════════════════════════════════
+
+TEST RESULTS:
+═══════════════════════════════════════════════════════════════════════════
+
+✓ Backend code: CORRECT (test passed with MAC: AA:BB:CC:DD:EE:FF)
+✓ Agent code: CORRECT (sends MAC address)
+✓ Schema: CORRECT (accepts mac_address field)
+✓ CRUD: CORRECT (extracts and saves MAC address)
+
+✗ Running backend process: HAS OLD CODE
+  → Needs restart to load updated code
+
+═══════════════════════════════════════════════════════════════════════════
+
+IMPORTANT:
+After restarting the backend, ALL NEW agent registrations will
+automatically include MAC addresses. No additional changes needed!
+
+═══════════════════════════════════════════════════════════════════════════
