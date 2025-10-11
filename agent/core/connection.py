@@ -176,6 +176,7 @@ class ConnectionManager:
                 'machine_id': self.machine_id,
                 'device_name': self.system_info.get('hostname'),
                 'ip_address': self.system_info.get('ip_address', '0.0.0.0'),
+                'mac_address': self.system_info.get('mac_address', '00:00:00:00:00:00'),
                 'os': self.system_info.get('os'),
                 'shells': list(shells.keys()),
                 'system_info': self.system_info

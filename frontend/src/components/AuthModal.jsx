@@ -17,6 +17,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isGoogleReady, setIsGoogleReady] = useState(false);
@@ -108,7 +109,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
     }
 
     try {
-      setIsLoading(true);
+      setIsGoogleLoading(true);
       setGoogleError('');
       setError('');
       
@@ -125,7 +126,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
       console.error('Google login error:', error);
       setGoogleError(error.message || 'Google sign-in failed');
     } finally {
-      setIsLoading(false);
+      setIsGoogleLoading(false);
       setCurrentGoogleRequest(null);
     }
   }, [navigate, onClose, currentGoogleRequest]);
@@ -310,7 +311,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
     }
 
     try {
-      setIsLoading(true);
+      setIsGoogleLoading(true);
       setGoogleError('');
       setError('');
       
@@ -341,7 +342,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
           button.click();
         } else {
           setGoogleError('Failed to create Google sign-in button');
-          setIsLoading(false);
+          setIsGoogleLoading(false);
         }
         
         setTimeout(() => {
@@ -354,7 +355,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
     } catch (error) {
       console.error('Google auth error:', error);
       setGoogleError('Failed to start Google sign-in');
-      setIsLoading(false);
+      setIsGoogleLoading(false);
     }
   }, [googleReady, formData.rememberMe]);
 
@@ -648,11 +649,11 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
                 <button
                   type="button"
                   onClick={handleGoogleSignin}
-                  disabled={isLoading}
+                  disabled={isGoogleLoading}
                   className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg bg-white text-gray-900 font-semibold shadow-sm hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <img src="https://www.svgrepo.com/show/355037/google.svg" alt="Google logo" className="w-5 h-5" />
-                  {isLoading ? 'Connecting…' : 'Sign in with Google'}
+                  {isGoogleLoading ? 'Connecting…' : 'Sign in with Google'}
                 </button>
               </>
             )}
@@ -667,7 +668,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
                 <button
                   type="button"
                   onClick={handleGoogleSignup}
-                  disabled={isLoading}
+                  disabled={isGoogleLoading}
                   className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg bg-white text-gray-900 font-semibold shadow-sm hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <img
@@ -675,7 +676,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'signin' }) {
                     alt="Google logo"
                     className="w-5 h-5"
                   />
-                  {isLoading ? 'Connecting…' : 'Sign up with Google'}
+                  {isGoogleLoading ? 'Connecting…' : 'Sign up with Google'}
                 </button>
               </>
             )}

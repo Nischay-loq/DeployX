@@ -85,6 +85,7 @@ class DeviceRegistrationRequest(BaseModel):
     device_name: Optional[str] = None
     hostname: Optional[str] = None  # Backward compatibility
     ip_address: str
+    mac_address: Optional[str] = None
     os: str
     shells: List[str]
     system_info: Dict[str, Any]
