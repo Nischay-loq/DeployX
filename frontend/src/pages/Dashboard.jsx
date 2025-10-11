@@ -793,6 +793,8 @@ export default function Dashboard({ onLogout }) {
         headers
       });
       
+      const groupsResponse = await Promise.race([fetchPromise, timeoutPromise]);
+      
       if (groupsResponse.ok) {
         const groupsDataResponse = await groupsResponse.json();
         const fetchEndTime = performance.now();
