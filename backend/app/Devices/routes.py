@@ -64,16 +64,23 @@ def get_devices(
     current_user: User = Depends(get_current_user),
     force_refresh: bool = False
 ):
-    """Get all devices with their group information - OPTIMIZED with CACHING"""
+    """Get all devices with their group information - OPTIMIZED with CACHING and REAL-TIME STATUS"""
     from app.grouping.models import DeviceGroupMap, DeviceGroup
     from sqlalchemy.orm import joinedload, selectinload
     from sqlalchemy import and_
+    
+    # Import the connection manager to get real-time online status
+    from app.main import conn_manager
     
     if not force_refresh and _is_cache_valid():
         print("Returning cached devices data")
         return _devices_cache["data"]
     
     print("Fetching fresh devices data from database")
+    
+    # Get list of currently connected agents from connection manager
+    online_agent_ids = set(conn_manager.get_agent_list())
+    print(f"Currently connected agents: {online_agent_ids}")
     
     try:
         devices = db.query(Device).options(
@@ -83,13 +90,16 @@ def get_devices(
         
         result = []
         for device in devices:
+            # Determine real-time status based on connection manager
+            actual_status = 'online' if device.agent_id in online_agent_ids else 'offline'
+            
             device_dict = {
                 "id": device.id,
                 "device_name": device.device_name,
                 "ip_address": device.ip_address,
                 "mac_address": device.mac_address,
                 "os": device.os,
-                "status": device.status,
+                "status": actual_status,  # Use real-time status instead of database status
                 "connection_type": device.connection_type,
                 "last_seen": device.last_seen,
                 "group": device.group,
@@ -123,7 +133,7 @@ def get_devices(
                 "ip_address": device.ip_address,
                 "mac_address": device.mac_address,
                 "os": device.os,
-                "status": device.status,
+                "status": 'online' if device.agent_id in online_agent_ids else 'offline',  # Use real-time status
                 "connection_type": device.connection_type,
                 "last_seen": device.last_seen,
                 "group": device.group,

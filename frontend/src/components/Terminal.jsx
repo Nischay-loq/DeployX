@@ -509,27 +509,30 @@ const TerminalComponent = ({ height = '70vh' }) => {
         console.log('Received agents list:', agents);
         
         if (Array.isArray(agents)) {
+          // Filter to only show active/online agents
+          const activeAgents = agents.filter(agent => agent.status === 'online');
+          
           // Check if the agents list has actually changed
-          const agentsString = agents.map(a => a.agent_id).join(',');
+          const agentsString = activeAgents.map(a => a.agent_id).join(',');
           const currentAgentsString = connectedAgents.map(a => a.agent_id).join(',');
           if (agentsString !== currentAgentsString) {
-            setConnectedAgents(agents);
+            setConnectedAgents(activeAgents);
             
-            if (agents.length > 0) {
+            if (activeAgents.length > 0) {
               // Only show notification if it's a new agent list
-              const agentNames = agents.map(a => a.hostname).join(', ');
-              addNotification(`Found ${agents.length} agent(s): ${agentNames}`, 'success');
+              const agentNames = activeAgents.map(a => a.hostname).join(', ');
+              addNotification(`Found ${activeAgents.length} active agent(s): ${agentNames}`, 'success');
               
               // Auto-select first agent only if no agent is selected
               if (!selectedAgentRef.current) {
-                const firstAgent = agents[0];
+                const firstAgent = activeAgents[0];
                 setSelectedAgent(firstAgent.agent_id);
-                console.log('Auto-selecting first agent:', firstAgent.agent_id);
+                console.log('Auto-selecting first active agent:', firstAgent.agent_id);
                 
                 socketRef.current.emit('get_shells', firstAgent.agent_id);
               }
             } else {
-              addNotification('No agents available. Please ensure at least one agent is running and connected.', 'warning');
+              addNotification('No active agents available. Please ensure at least one agent is running and connected.', 'warning');
             }
           }
         } else {
@@ -800,7 +803,7 @@ const TerminalComponent = ({ height = '70vh' }) => {
               disabled={connectedAgents.length === 0 || !isConnected}
             >
               <option value="">
-                {isLoading ? 'Loading...' : `Select Agent (${connectedAgents.length} available)`}
+                {isLoading ? 'Loading...' : `Select Active Agent (${connectedAgents.length} online)`}
               </option>
               {connectedAgents.map(agent => (
                 <option key={agent.agent_id} value={agent.agent_id}>{agent.hostname} ({agent.agent_id})</option>
