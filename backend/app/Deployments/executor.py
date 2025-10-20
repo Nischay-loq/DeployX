@@ -237,12 +237,24 @@ class SoftwareDeploymentExecutor:
             logger.info(f"[DEPLOYMENT {deployment_id}] Agent SID: {agent_sid}")
             
             if not agent_sid:
-                logger.error(f"[DEPLOYMENT {deployment_id}] No agent SID found for agent_id: {device.agent_id}")
+                logger.error(f"[DEPLOYMENT {deployment_id}] ✗ No agent SID found for agent_id: {device.agent_id}")
+                logger.error(f"[DEPLOYMENT {deployment_id}] Available agents: {list(conn_manager.agents.keys())}")
                 target.status = "failed"
                 target.error_message = "Agent not connected"
                 target.completed_at = datetime.utcnow()
                 self.db.commit()
                 return False
+            
+            # Verify the agent is in its room
+            try:
+                rooms = sio.rooms(agent_sid)
+                logger.info(f"[DEPLOYMENT {deployment_id}] Agent {device.agent_id} is in rooms: {rooms}")
+                if device.agent_id not in rooms:
+                    logger.warning(f"[DEPLOYMENT {deployment_id}] Agent {device.agent_id} is NOT in its expected room, re-adding...")
+                    await sio.enter_room(agent_sid, device.agent_id)
+                    logger.info(f"[DEPLOYMENT {deployment_id}] ✓ Re-added agent {device.agent_id} to room {device.agent_id}")
+            except Exception as room_error:
+                logger.error(f"[DEPLOYMENT {deployment_id}] Error checking/adding agent to room: {room_error}")
             
             await sio.emit(
                 'install_software',
@@ -255,7 +267,7 @@ class SoftwareDeploymentExecutor:
             )
             
             logger.info(
-                f"[DEPLOYMENT {deployment_id}] [OK] Emitted install_software to device {device.device_name} "
+                f"[DEPLOYMENT {deployment_id}] ✓ Emitted install_software to device {device.device_name} "
                 f"(agent_id: {device.agent_id}, {len(software_data)} packages)"
             )
             
@@ -295,14 +307,36 @@ class SoftwareDeploymentExecutor:
             # Get Socket.IO instance
             try:
                 from app.main import get_socketio_components
-                sio, _ = get_socketio_components()
+                sio, conn_manager = get_socketio_components()
             except Exception as e:
-                logger.error(f"Failed to get Socket.IO components: {e}")
+                logger.error(f"[CUSTOM SOFTWARE] Failed to get Socket.IO components: {e}")
                 target.status = "failed"
                 target.error_message = "Socket.IO not available"
                 target.completed_at = datetime.utcnow()
                 self.db.commit()
                 return False
+            
+            # Verify agent is connected
+            agent_sid = conn_manager.get_agent_sid(device.agent_id)
+            if not agent_sid:
+                logger.error(f"[CUSTOM SOFTWARE] Agent {device.agent_id} is not connected")
+                logger.error(f"[CUSTOM SOFTWARE] Available agents: {list(conn_manager.agents.keys())}")
+                target.status = "failed"
+                target.error_message = "Agent not connected"
+                target.completed_at = datetime.utcnow()
+                self.db.commit()
+                return False
+            
+            # Verify the agent is in its room
+            try:
+                rooms = sio.rooms(agent_sid)
+                logger.info(f"[CUSTOM SOFTWARE] Agent {device.agent_id} is in rooms: {rooms}")
+                if device.agent_id not in rooms:
+                    logger.warning(f"[CUSTOM SOFTWARE] Agent {device.agent_id} is NOT in its expected room, re-adding...")
+                    await sio.enter_room(agent_sid, device.agent_id)
+                    logger.info(f"[CUSTOM SOFTWARE] ✓ Re-added agent {device.agent_id} to room {device.agent_id}")
+            except Exception as room_error:
+                logger.error(f"[CUSTOM SOFTWARE] Error checking/adding agent to room: {room_error}")
             
             # Send custom installation command
             await sio.emit(
@@ -315,7 +349,7 @@ class SoftwareDeploymentExecutor:
                 room=device.agent_id
             )
             
-            logger.info(f"Sent custom software command to device {device.device_name}")
+            logger.info(f"[CUSTOM SOFTWARE] ✓ Sent custom software command to device {device.device_name}")
             return True
             
         except Exception as e:

@@ -1041,8 +1041,21 @@ class SocketEventHandler:
                     )
                     
                     if not filepath:
-                        logger.error(f"Failed to download {name}")
+                        error_msg = f"Failed to download {name} from {download_url}"
+                        logger.error(error_msg)
                         failed += 1
+                        
+                        # Emit failure status for this software
+                        if self._connection and self._connection.connected:
+                            await self._connection.emit('software_installation_status', {
+                                'deployment_id': deployment_id,
+                                'device_id': device_id,
+                                'status': 'failed',
+                                'progress': int(((idx + 1) / total_software) * 100),
+                                'message': error_msg,
+                                'current_software': name,
+                                'error': error_msg
+                            })
                         continue
                     
                     logger.info(f"[AGENT] Downloaded {name} to: {filepath}")
@@ -1068,13 +1081,52 @@ class SocketEventHandler:
                     if result['success']:
                         logger.info(f"✓ Successfully installed {name}")
                         completed += 1
+                        
+                        # Emit success status for this software
+                        if self._connection and self._connection.connected:
+                            await self._connection.emit('software_installation_status', {
+                                'deployment_id': deployment_id,
+                                'device_id': device_id,
+                                'status': 'in_progress',
+                                'progress': int(((idx + 1) / total_software) * 100),
+                                'message': f'✓ Successfully installed {name}',
+                                'current_software': name
+                            })
                     else:
-                        logger.error(f"✗ Failed to install {name}: {result.get('error')}")
+                        error_msg = f"✗ Failed to install {name}: {result.get('error', 'Unknown error')}"
+                        logger.error(error_msg)
                         failed += 1
+                        
+                        # Emit failure status for this software
+                        if self._connection and self._connection.connected:
+                            await self._connection.emit('software_installation_status', {
+                                'deployment_id': deployment_id,
+                                'device_id': device_id,
+                                'status': 'in_progress',  # Keep overall as in_progress
+                                'progress': int(((idx + 1) / total_software) * 100),
+                                'message': error_msg,
+                                'current_software': name,
+                                'error': result.get('error', 'Unknown error'),
+                                'output': result.get('output', '')
+                            })
                     
                 except Exception as e:
-                    logger.error(f"Error processing software {software.get('name')}: {e}")
+                    error_msg = f"Error processing software {software.get('name')}: {str(e)}"
+                    logger.error(error_msg)
+                    logger.exception(e)
                     failed += 1
+                    
+                    # Emit error status for this software
+                    if self._connection and self._connection.connected:
+                        await self._connection.emit('software_installation_status', {
+                            'deployment_id': deployment_id,
+                            'device_id': device_id,
+                            'status': 'in_progress',
+                            'progress': int(((idx + 1) / total_software) * 100),
+                            'message': error_msg,
+                            'current_software': software.get('name', 'Unknown'),
+                            'error': str(e)
+                        })
             
             # Send final status
             final_status = 'completed' if failed == 0 else ('failed' if completed == 0 else 'partial')

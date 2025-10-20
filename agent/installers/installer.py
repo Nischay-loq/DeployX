@@ -118,19 +118,37 @@ class SoftwareInstaller:
             
             logger.info(f"Executing custom command: {command}")
             
-            # Execute command
+            # Execute command with timeout
             process = await asyncio.create_subprocess_shell(
                 command,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
             
-            stdout, stderr = await process.communicate()
+            try:
+                # 30 minute timeout for large installations
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=1800
+                )
+            except asyncio.TimeoutError:
+                logger.error("Custom command timed out after 30 minutes")
+                try:
+                    process.kill()
+                except:
+                    pass
+                return {
+                    "success": False,
+                    "error": "Command timed out after 30 minutes",
+                    "output": ""
+                }
             
             success = process.returncode == 0
-            output = stdout.decode() + stderr.decode()
+            output = stdout.decode(errors='ignore') + stderr.decode(errors='ignore')
             
             logger.info(f"Command completed with return code: {process.returncode}")
+            if not success:
+                logger.error(f"Command output: {output[:500]}")
             
             return {
                 "success": success,
@@ -140,6 +158,7 @@ class SoftwareInstaller:
             
         except Exception as e:
             logger.error(f"Error executing custom command: {e}")
+            logger.exception(e)
             return {
                 "success": False,
                 "error": str(e),
@@ -192,21 +211,39 @@ class SoftwareInstaller:
         try:
             logger.info(f"Running: {command}")
             
+            # Add timeout to prevent hanging installations
             process = await asyncio.create_subprocess_shell(
                 command,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
             
-            stdout, stderr = await process.communicate()
+            try:
+                # Wait with timeout (30 minutes for large software)
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=1800
+                )
+            except asyncio.TimeoutError:
+                logger.error("Installation timed out after 30 minutes")
+                try:
+                    process.kill()
+                except:
+                    pass
+                return {
+                    "success": False,
+                    "error": "Installation timed out after 30 minutes",
+                    "output": ""
+                }
             
             success = process.returncode == 0
-            output = stdout.decode() + stderr.decode()
+            output = stdout.decode(errors='ignore') + stderr.decode(errors='ignore')
             
             if success:
                 logger.info("Installation completed successfully")
             else:
                 logger.error(f"Installation failed with code {process.returncode}")
+                logger.error(f"Output: {output[:500]}")  # Log first 500 chars
             
             return {
                 "success": success,
@@ -216,6 +253,7 @@ class SoftwareInstaller:
             
         except Exception as e:
             logger.error(f"Error running command: {e}")
+            logger.exception(e)
             return {
                 "success": False,
                 "error": str(e),
