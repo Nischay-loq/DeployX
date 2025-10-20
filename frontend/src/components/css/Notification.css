@@ -19,7 +19,7 @@
   justify-content: space-between;
   animation: slideIn 0.3s ease-out;
   backdrop-filter: blur(8px);
-  margin: 8px;
+  margin: 0;
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
