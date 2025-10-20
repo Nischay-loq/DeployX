@@ -24,7 +24,18 @@ if __name__ == '__main__':
         # Start server with Socket.IO support
         import uvicorn
         print(f"🚀 Starting server on {backend_url}")
-        uvicorn.run("app.main:socket_app", host=host, port=port, reload=True)
+        
+        # Disable reload for production to prevent disconnects during file uploads
+        # The 'reload' feature causes the server to restart when files in the
+        # watched directories change, which includes the 'uploads' directory.
+        # This disconnects all active connections during file deployments.
+        uvicorn.run(
+            "app.main:socket_app", 
+            host=host, 
+            port=port, 
+            reload=False,  # Disabled to prevent disconnects during file operations
+            log_level="info"
+        )
             
     except ImportError as e:
         print(f"❌ Import error: {e}")

@@ -478,6 +478,15 @@ async def agent_register(sid, data):
         try:
             device = device_crud.register_or_update_device(db, reg_data)
             logger.info(f"Agent {device.agent_id} registered/updated in devices table.")
+            
+            # FORCE MAC ADDRESS EXTRACTION (failsafe)
+            if not device.mac_address and reg_data.system_info:
+                mac_from_sysinfo = reg_data.system_info.get('mac_address')
+                if mac_from_sysinfo and mac_from_sysinfo != '00:00:00:00:00:00':
+                    device.mac_address = mac_from_sysinfo
+                    db.commit()
+                    logger.info(f"Force extracted MAC address for {device.agent_id}: {mac_from_sysinfo}")
+            
         finally:
             db.close()
             

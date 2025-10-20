@@ -60,10 +60,14 @@ class SoftwareDownloader:
             logger.info(f"Starting download: {url}")
             logger.info(f"Destination: {filepath}")
             
-            async with aiohttp.ClientSession() as session:
+            # Add timeout to prevent hanging
+            timeout = aiohttp.ClientTimeout(total=300)  # 5 minutes timeout
+            
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(url) as response:
                     if response.status != 200:
                         logger.error(f"Download failed with status {response.status}")
+                        logger.error(f"Response: {await response.text()}")
                         return None
                     
                     total_size = int(response.headers.get('content-length', 0))
@@ -90,8 +94,15 @@ class SoftwareDownloader:
             
             return str(filepath)
             
+        except aiohttp.ClientError as e:
+            logger.error(f"Network error downloading file: {e}")
+            return None
+        except asyncio.TimeoutError:
+            logger.error(f"Download timed out for: {url}")
+            return None
         except Exception as e:
             logger.error(f"Error downloading file: {e}")
+            logger.exception(e)
             return None
     
     async def _verify_checksum(self, filepath: Path, expected_checksum: str) -> bool:
