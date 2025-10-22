@@ -350,7 +350,7 @@ export default function FileSystemManager() {
       const deploymentData = {
         file_ids: uploadResponse.file_ids,
         target_path: deploymentPath,
-        device_ids: targetDevices.map(d => d.id),
+        device_ids: selectedDevices,  // Send only individually selected devices (backend will expand groups)
         group_ids: selectedGroups,
         create_path_if_not_exists: true
       };
