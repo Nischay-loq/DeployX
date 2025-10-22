@@ -40,6 +40,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .control-group label {
@@ -67,6 +68,43 @@
 .control-group select:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.selected-groups {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.group-tag {
+  background: #007acc;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.group-tag button {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.group-tag button:hover {
+  color: #ff6b6b;
 }
 
 .btn-primary {
