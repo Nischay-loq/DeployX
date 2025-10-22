@@ -191,21 +191,28 @@ async def install_software(
 
     # Collect all target device IDs
     target_device_ids = set(data.device_ids)
+    logger.info(f"Initial device_ids from request: {data.device_ids}")
     
     # Add devices from selected groups (only user's own groups)
     if data.group_ids:
+        logger.info(f"Processing group_ids: {data.group_ids} for user {current_user.id}")
         # First verify that all group_ids belong to the current user
         user_group_ids = db.query(DeviceGroups.id).filter(
             DeviceGroups.id.in_(data.group_ids),
             DeviceGroups.user_id == current_user.id
         ).all()
         user_group_ids = [g[0] for g in user_group_ids]
+        logger.info(f"Found {len(user_group_ids)} groups belonging to user: {user_group_ids}")
         
         if user_group_ids:
             group_device_ids = db.query(DeviceGroupMap.device_id).filter(
                 DeviceGroupMap.group_id.in_(user_group_ids)
             ).all()
-            target_device_ids.update([d[0] for d in group_device_ids])
+            group_device_ids = [d[0] for d in group_device_ids]
+            logger.info(f"Found {len(group_device_ids)} devices in groups: {group_device_ids}")
+            target_device_ids.update(group_device_ids)
+    
+    logger.info(f"Total target devices after processing groups: {len(target_device_ids)} - IDs: {list(target_device_ids)}")
 
     if not target_device_ids:
         raise HTTPException(status_code=400, detail="No target devices found")

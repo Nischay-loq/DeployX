@@ -139,6 +139,25 @@ export default function DeploymentsManager() {
     );
   };
 
+  // Get all target devices (from selected groups and individual devices)
+  const getTargetDevices = () => {
+    // Return empty array if data is still loading
+    if (loadingGroups || loadingDevices) {
+      return [];
+    }
+    
+    // Get devices from selected groups
+    const groupDevices = groups
+      .filter(group => selectedGroups.includes(group.id))
+      .flatMap(group => (group.devices || []).map(device => device.id));
+    
+    // Combine with individually selected devices and remove duplicates
+    const allTargetDeviceIds = [...new Set([...groupDevices, ...selectedDevices])];
+    
+    // Return actual device objects
+    return devices.filter(device => allTargetDeviceIds.includes(device.id));
+  };
+
   const handleInstall = async () => {
     // Check if we have software selected (either predefined or custom)
     const hasSoftware = useCustomSoftware ? 
@@ -150,7 +169,8 @@ export default function DeploymentsManager() {
       return;
     }
 
-    if (selectedGroups.length === 0 && selectedDevices.length === 0) {
+    // Check if we have target devices (using the accurate function)
+    if (getTargetDevices().length === 0) {
       alert('Please select at least one group or device.');
       return;
     }
@@ -672,19 +692,32 @@ export default function DeploymentsManager() {
       {/* Action Buttons */}
       <div className="bg-black/60 border border-electricBlue/30 rounded-lg p-6">
         <div className="flex items-center justify-between">
-          <div className="text-sm text-gray-400">
-            {useCustomSoftware ? 
-              `Custom software: ${customSoftware || 'none'}, ` :
-              `${selectedSoftware.length} software, `
-            }
-            {selectedGroups.length} groups, {selectedDevices.length} devices selected
+          <div className="space-y-1">
+            <div className="text-sm text-gray-400">
+              {useCustomSoftware ? 
+                `Custom software: ${customSoftware || 'none'}` :
+                `${selectedSoftware.length} software selected`
+              }
+            </div>
+            <div className="text-sm font-medium text-electricBlue">
+              Target: {getTargetDevices().length} total devices
+              {selectedGroups.length > 0 && selectedDevices.length > 0 && 
+                ` (${selectedGroups.length} groups + ${selectedDevices.length} individual)`
+              }
+              {selectedGroups.length > 0 && selectedDevices.length === 0 && 
+                ` (from ${selectedGroups.length} groups)`
+              }
+              {selectedGroups.length === 0 && selectedDevices.length > 0 && 
+                ` (${selectedDevices.length} individual)`
+              }
+            </div>
           </div>
           <button
             onClick={handleInstall}
             disabled={
               deploying || 
               (useCustomSoftware ? !customSoftware.trim() : selectedSoftware.length === 0) ||
-              (selectedGroups.length === 0 && selectedDevices.length === 0)
+              getTargetDevices().length === 0
             }
             className="px-6 py-2 bg-electricBlue/20 border border-electricBlue/50 rounded-lg text-electricBlue hover:bg-electricBlue/30 disabled:bg-gray-600/20 disabled:text-gray-500 disabled:border-gray-600/50 transition-all font-medium"
           >
