@@ -17,6 +17,7 @@ import {
 import io from 'socket.io-client';
 import SnapshotManager from './SnapshotManager';
 import groupsService from '../services/groups';
+import devicesService from '../services/devices';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -66,6 +67,10 @@ export default function DeploymentManager({
   const [groups, setGroups] = useState([]);
   const [selectedGroups, setSelectedGroups] = useState([]);
   const [loadingGroups, setLoadingGroups] = useState(false);
+  
+  // Devices state (for matching with group devices)
+  const [devices, setDevices] = useState([]);
+  const [loadingDevices, setLoadingDevices] = useState(false);
 
   // Load groups
   const loadGroups = async () => {
@@ -81,8 +86,23 @@ export default function DeploymentManager({
     }
   };
 
+  // Load devices
+  const loadDevices = async () => {
+    setLoadingDevices(true);
+    try {
+      const response = await devicesService.fetchDevices();
+      setDevices(response || []);
+      console.log('DeploymentManager: Loaded devices:', response);
+    } catch (error) {
+      console.error('Failed to load devices:', error);
+    } finally {
+      setLoadingDevices(false);
+    }
+  };
+
   useEffect(() => {
     loadGroups();
+    loadDevices();
   }, []);
 
   useEffect(() => {
@@ -217,7 +237,8 @@ export default function DeploymentManager({
     const targetAgents = [];
     console.log('Selected groups:', selectedGroups);
     console.log('All groups:', groups);
-    console.log('All agents:', agents);
+    console.log('All devices:', devices);
+    console.log('Online agents (from props):', agents);
     
     selectedGroups.forEach(groupId => {
       const group = groups.find(g => g.id === groupId);
@@ -226,24 +247,38 @@ export default function DeploymentManager({
       if (group && group.devices) {
         console.log(`Group devices:`, group.devices);
         
-        group.devices.forEach(device => {
-          console.log(`Checking device:`, device);
-          console.log(`Looking for agent with agent_id: ${device.agent_id}`);
+        group.devices.forEach(groupDevice => {
+          console.log(`Checking group device:`, groupDevice);
           
-          // Check both agent_id and id fields, and also try matching with device_id
-          const agent = agents.find(a => 
-            a.agent_id === device.agent_id || 
-            a.agent_id === device.id ||
-            a.agent_id === device.device_id ||
-            a.id === device.agent_id
+          // Find the actual device from devices list
+          const device = devices.find(d => 
+            d.id === groupDevice.id || 
+            d.id === groupDevice.device_id ||
+            d.device_id === groupDevice.id
           );
           
-          console.log(`Found agent:`, agent);
+          console.log(`Found device in devices list:`, device);
           
-          if (agent && !targetAgents.includes(device.agent_id)) {
-            targetAgents.push(device.agent_id);
-          } else if (agent && !targetAgents.includes(agent.agent_id)) {
-            targetAgents.push(agent.agent_id);
+          if (device) {
+            // Check if this device's agent is online
+            const isOnline = agents.find(a => 
+              a.agent_id === device.agent_id ||
+              a.agent_id === device.device_id ||
+              a === device.agent_id
+            );
+            
+            console.log(`Is agent online for device ${device.agent_id}:`, !!isOnline);
+            
+            // If we have the device and it's online (or we're using currentAgent), add it
+            if (device.agent_id && !targetAgents.includes(device.agent_id)) {
+              // Check if agent is actually online (has status === 'online')
+              if (device.status === 'online' || isOnline) {
+                targetAgents.push(device.agent_id);
+                console.log(`Added agent ${device.agent_id} to target list`);
+              } else {
+                console.log(`Agent ${device.agent_id} is not online, status: ${device.status}`);
+              }
+            }
           }
         });
       }
