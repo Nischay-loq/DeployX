@@ -277,6 +277,10 @@ async def deploy_files(
     if len(devices) != len(target_device_ids):
         raise HTTPException(status_code=404, detail="Some target devices not found")
     
+    logger.info(f"[FILE DEPLOY] Retrieved {len(devices)} devices from database")
+    for device in devices:
+        logger.info(f"[FILE DEPLOY]   - Device: {device.device_name} (ID: {device.id}, Agent: {device.agent_id}, Status: {device.status})")
+    
     deployment = crud.create_file_deployment(db, deployment_request, current_user.id)
     
     # Start deployment process asynchronously
@@ -315,6 +319,9 @@ async def process_file_deployment(deployment_id: int, files: List[UploadedFile],
                                 devices: List, deployment_request: schemas.FileDeploymentRequest, db: Session):
     """Process file deployment asynchronously - Real implementation using Socket.IO"""
     import base64
+    
+    logger.info(f"[FILE DEPLOY] Starting deployment {deployment_id} for {len(devices)} devices")
+    logger.info(f"[FILE DEPLOY] Devices to deploy to: {[f'{d.device_name} (ID:{d.id})' for d in devices]}")
     
     # Get Socket.IO components safely
     sio, conn_manager = get_socketio_components()
