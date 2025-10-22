@@ -38,6 +38,11 @@ const TerminalComponent = ({ height = '70vh' }) => {
   const [isStopping, setIsStopping] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [notifications, setNotifications] = useState([]);
+  
+  // Groups state
+  const [groups, setGroups] = useState([]);
+  const [selectedGroups, setSelectedGroups] = useState([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
 
   const addNotification = useCallback((message, type = 'info') => {
     const id = Date.now();
@@ -62,6 +67,27 @@ const TerminalComponent = ({ height = '70vh' }) => {
 
   const removeNotification = useCallback((id) => {
     setNotifications(prev => prev.filter(notification => notification.id !== id));
+  }, []);
+
+  // Load groups
+  const loadGroups = useCallback(async () => {
+    setLoadingGroups(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:8000/groups/', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setGroups(data || []);
+      }
+    } catch (error) {
+      console.error('Failed to load groups:', error);
+    } finally {
+      setLoadingGroups(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -691,35 +717,111 @@ const TerminalComponent = ({ height = '70vh' }) => {
   }, []);
 
   const handleStartShell = useCallback(() => {
-    if (!selectedAgent || !selectedShell || shellStarted || !socketRef.current?.connected || isStarting) {
-      console.log('Cannot start shell:', { selectedAgent, selectedShell, shellStarted, connected: socketRef.current?.connected });
+    // Validate: must have either selected agent OR selected groups
+    const hasTarget = selectedAgent || selectedGroups.length > 0;
+    if (!hasTarget || !selectedShell || shellStarted || !socketRef.current?.connected || isStarting) {
+      console.log('Cannot start shell:', { 
+        selectedAgent, 
+        selectedGroups: selectedGroups.length, 
+        selectedShell, 
+        shellStarted, 
+        connected: socketRef.current?.connected 
+      });
       return;
     }
 
-    console.log('Starting shell:', selectedShell, 'on agent:', selectedAgent);
     setShellStarted(false);
     setIsStarting(true);
 
     if (terminalInstanceRef.current) {
       terminalInstanceRef.current.clear();
-      terminalInstanceRef.current.writeln(`\x1b[36mStarting ${selectedShell} on ${selectedAgent}...\x1b[0m`);
     }
 
-    socketRef.current.emit('start_shell', {
-      agent_id: selectedAgent,
-      shell: selectedShell
-    });
-  }, [selectedAgent, selectedShell, shellStarted, isStarting]);
+    // Group-based execution
+    if (selectedGroups.length > 0) {
+      // Get all devices from selected groups
+      const targetDevices = [];
+      selectedGroups.forEach(groupId => {
+        const group = groups.find(g => g.id === groupId);
+        if (group && group.devices) {
+          group.devices.forEach(device => {
+            // Only add online agents
+            const agent = connectedAgents.find(a => a.agent_id === device.agent_id);
+            if (agent && !targetDevices.includes(device.agent_id)) {
+              targetDevices.push(device.agent_id);
+            }
+          });
+        }
+      });
+
+      if (targetDevices.length === 0) {
+        addNotification('No online agents found in selected groups', 'error');
+        setIsStarting(false);
+        return;
+      }
+
+      console.log(`Starting ${selectedShell} on ${targetDevices.length} agents from ${selectedGroups.length} groups`);
+      if (terminalInstanceRef.current) {
+        terminalInstanceRef.current.writeln(`\x1b[36mStarting ${selectedShell} on ${targetDevices.length} agents...\x1b[0m`);
+      }
+
+      // Start shell on each agent in the groups
+      targetDevices.forEach(agentId => {
+        socketRef.current.emit('start_shell', {
+          agent_id: agentId,
+          shell: selectedShell
+        });
+      });
+    } 
+    // Single agent execution
+    else if (selectedAgent) {
+      console.log('Starting shell:', selectedShell, 'on agent:', selectedAgent);
+      if (terminalInstanceRef.current) {
+        terminalInstanceRef.current.writeln(`\x1b[36mStarting ${selectedShell} on ${selectedAgent}...\x1b[0m`);
+      }
+
+      socketRef.current.emit('start_shell', {
+        agent_id: selectedAgent,
+        shell: selectedShell
+      });
+    }
+  }, [selectedAgent, selectedGroups, groups, connectedAgents, selectedShell, shellStarted, isStarting, addNotification]);
 
   const handleStopShell = useCallback(() => {
-    if (!selectedAgent || !shellStarted || !socketRef.current?.connected || isStopping) {
-      console.log('Cannot stop shell:', { selectedAgent, shellStarted, connected: socketRef.current?.connected });
+    const hasTarget = selectedAgent || selectedGroups.length > 0;
+    if (!hasTarget || !shellStarted || !socketRef.current?.connected || isStopping) {
+      console.log('Cannot stop shell:', { selectedAgent, selectedGroups: selectedGroups.length, shellStarted, connected: socketRef.current?.connected });
       return;
     }
+    
     setIsStopping(true);
-    addNotification(`Stopping shell on ${selectedAgent}...`, 'info');
-    socketRef.current.emit('stop_shell', { agent_id: selectedAgent });
-  }, [selectedAgent, shellStarted, isStopping, addNotification]);
+
+    // Group-based stopping
+    if (selectedGroups.length > 0) {
+      const targetDevices = [];
+      selectedGroups.forEach(groupId => {
+        const group = groups.find(g => g.id === groupId);
+        if (group && group.devices) {
+          group.devices.forEach(device => {
+            const agent = connectedAgents.find(a => a.agent_id === device.agent_id);
+            if (agent && !targetDevices.includes(device.agent_id)) {
+              targetDevices.push(device.agent_id);
+            }
+          });
+        }
+      });
+
+      addNotification(`Stopping shell on ${targetDevices.length} agents...`, 'info');
+      targetDevices.forEach(agentId => {
+        socketRef.current.emit('stop_shell', { agent_id: agentId });
+      });
+    }
+    // Single agent stopping
+    else if (selectedAgent) {
+      addNotification(`Stopping shell on ${selectedAgent}...`, 'info');
+      socketRef.current.emit('stop_shell', { agent_id: selectedAgent });
+    }
+  }, [selectedAgent, selectedGroups, groups, connectedAgents, shellStarted, isStopping, addNotification]);
 
   // Window and container resize handler
   const handleResize = useCallback(() => {
@@ -759,6 +861,9 @@ const TerminalComponent = ({ height = '70vh' }) => {
       setupTerminalInput(); // Set up input handler once
     }
 
+    // Load groups on mount
+    loadGroups();
+
     window.addEventListener('resize', handleResize);
 
     return () => {
@@ -796,11 +901,47 @@ const TerminalComponent = ({ height = '70vh' }) => {
       <div className="terminal-header">
         <div className="terminal-controls">
           <div className="control-group">
+            <label>Groups:</label>
+            <select
+              value={selectedGroups.length > 0 ? 'selected' : ''}
+              onChange={(e) => {
+                const groupId = parseInt(e.target.value);
+                if (groupId && !selectedGroups.includes(groupId)) {
+                  setSelectedGroups([...selectedGroups, groupId]);
+                }
+              }}
+              disabled={groups.length === 0 || !isConnected}
+            >
+              <option value="">
+                {loadingGroups ? 'Loading...' : `Select Groups (${groups.length} available)`}
+              </option>
+              {groups.map(group => (
+                <option key={group.id} value={group.id}>
+                  {group.group_name} ({group.devices?.length || 0} devices)
+                </option>
+              ))}
+            </select>
+            {selectedGroups.length > 0 && (
+              <div className="selected-groups">
+                {selectedGroups.map(groupId => {
+                  const group = groups.find(g => g.id === groupId);
+                  return group ? (
+                    <span key={groupId} className="group-tag">
+                      {group.group_name}
+                      <button onClick={() => setSelectedGroups(selectedGroups.filter(id => id !== groupId))}>×</button>
+                    </span>
+                  ) : null;
+                })}
+              </div>
+            )}
+          </div>
+          
+          <div className="control-group">
             <label>Agent:</label>
             <select
               value={selectedAgent}
               onChange={(e) => handleAgentChange(e.target.value)}
-              disabled={connectedAgents.length === 0 || !isConnected}
+              disabled={connectedAgents.length === 0 || !isConnected || selectedGroups.length > 0}
             >
               <option value="">
                 {isLoading ? 'Loading...' : `Select Active Agent (${connectedAgents.length} online)`}
@@ -809,6 +950,11 @@ const TerminalComponent = ({ height = '70vh' }) => {
                 <option key={agent.agent_id} value={agent.agent_id}>{agent.hostname} ({agent.agent_id})</option>
               ))}
             </select>
+            {selectedGroups.length > 0 && (
+              <small style={{color: '#888', display: 'block', marginTop: '4px'}}>
+                Agent selection disabled when groups are selected
+              </small>
+            )}
           </div>
           
           <div className="control-group">
@@ -843,10 +989,10 @@ const TerminalComponent = ({ height = '70vh' }) => {
             ) : (
               <button
                 onClick={handleStartShell}
-                disabled={!selectedAgent || !selectedShell || !isConnected || isStarting}
+                disabled={(!selectedAgent && selectedGroups.length === 0) || !selectedShell || !isConnected || isStarting}
                 className="start-shell-btn"
               >
-                {isStarting ? 'Starting...' : 'Start Shell'}
+                {isStarting ? 'Starting...' : (selectedGroups.length > 0 ? `Start on Groups (${selectedGroups.length})` : 'Start Shell')}
               </button>
             )}
           </div>

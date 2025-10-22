@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import io from 'socket.io-client';
 import SnapshotManager from './SnapshotManager';
+import groupsService from '../services/groups';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -60,6 +61,29 @@ export default function DeploymentManager({
   const [stats, setStats] = useState({ total: 0, pending: 0, running: 0, completed: 0, failed: 0, paused: 0 });
   const [batchMode, setBatchMode] = useState(false);
   const [batchCommands, setBatchCommands] = useState(['']);
+  
+  // Groups state
+  const [groups, setGroups] = useState([]);
+  const [selectedGroups, setSelectedGroups] = useState([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
+
+  // Load groups
+  const loadGroups = async () => {
+    setLoadingGroups(true);
+    try {
+      const response = await groupsService.fetchGroups();
+      setGroups(response || []);
+      console.log('DeploymentManager: Loaded groups:', response);
+    } catch (error) {
+      console.error('Failed to load groups:', error);
+    } finally {
+      setLoadingGroups(false);
+    }
+  };
+
+  useEffect(() => {
+    loadGroups();
+  }, []);
 
   useEffect(() => {
     // Initialize socket.io connection
@@ -140,34 +164,48 @@ export default function DeploymentManager({
   };
 
   const executeCommand = async () => {
-    if (!newCommand.trim() || !currentAgent || !isConnected) {
+    const hasTarget = currentAgent || selectedGroups.length > 0;
+    if (!newCommand.trim() || !hasTarget || !isConnected) {
       const message = !isConnected ? 'Backend connection required' : 
-                     !currentAgent ? 'Please select an agent' : 'Please enter a command';
+                     !hasTarget ? 'Please select an agent or group' : 'Please enter a command';
       alert(message);
       return;
     }
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/deployment/commands`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          command: newCommand,
-          agent_id: currentAgent,
-          shell: currentShell || 'cmd',
-          strategy: selectedStrategy
-        })
-      });
+      // Get target agents from groups if groups are selected
+      const targetAgents = selectedGroups.length > 0 
+        ? getTargetAgentsFromGroups() 
+        : [currentAgent];
 
-      if (response.ok) {
-        const newCmd = await response.json();
-        setCommands(prev => [newCmd, ...prev]);
-        setNewCommand('');
-        loadStats();
-      } else {
-        alert('Failed to execute command');
+      if (targetAgents.length === 0) {
+        alert('No online agents found in selected groups');
+        setIsLoading(false);
+        return;
       }
+
+      // Execute command on all target agents
+      for (const agentId of targetAgents) {
+        const response = await fetch(`${API_BASE_URL}/api/deployment/commands`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            command: newCommand,
+            agent_id: agentId,
+            shell: currentShell || 'cmd',
+            strategy: selectedStrategy
+          })
+        });
+
+        if (response.ok) {
+          const newCmd = await response.json();
+          setCommands(prev => [newCmd, ...prev]);
+        }
+      }
+      
+      setNewCommand('');
+      loadStats();
     } catch (error) {
       console.error('Error executing command:', error);
       alert('Error executing command: ' + error.message);
@@ -175,37 +213,68 @@ export default function DeploymentManager({
     setIsLoading(false);
   };
 
+  const getTargetAgentsFromGroups = () => {
+    const targetAgents = [];
+    selectedGroups.forEach(groupId => {
+      const group = groups.find(g => g.id === groupId);
+      if (group && group.devices) {
+        group.devices.forEach(device => {
+          // Only add online agents
+          const agent = agents.find(a => a.agent_id === device.agent_id);
+          if (agent && !targetAgents.includes(device.agent_id)) {
+            targetAgents.push(device.agent_id);
+          }
+        });
+      }
+    });
+    return targetAgents;
+  };
+
   const executeBatchCommands = async () => {
     const validCommands = batchCommands.filter(cmd => cmd.trim());
-    if (validCommands.length === 0 || !currentAgent || !isConnected) {
+    const hasTarget = currentAgent || selectedGroups.length > 0;
+    if (validCommands.length === 0 || !hasTarget || !isConnected) {
       const message = !isConnected ? 'Backend connection required' : 
-                     !currentAgent ? 'Please select an agent' : 'Please enter commands';
+                     !hasTarget ? 'Please select an agent or group' : 'Please enter commands';
       alert(message);
       return;
     }
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/deployment/commands/batch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          commands: validCommands,
-          agent_id: currentAgent,
-          shell: currentShell || 'cmd',
-          strategy: selectedStrategy
-        })
-      });
+      // Get target agents from groups if groups are selected
+      const targetAgents = selectedGroups.length > 0 
+        ? getTargetAgentsFromGroups() 
+        : [currentAgent];
 
-      if (response.ok) {
-        const newCommands = await response.json();
-        setCommands(prev => [...newCommands, ...prev]);
-        setBatchCommands(['']);
-        setBatchMode(false);
-        loadStats();
-      } else {
-        alert('Failed to execute batch commands');
+      if (targetAgents.length === 0) {
+        alert('No online agents found in selected groups');
+        setIsLoading(false);
+        return;
       }
+
+      // Execute batch commands on all target agents
+      for (const agentId of targetAgents) {
+        const response = await fetch(`${API_BASE_URL}/api/deployment/commands/batch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            commands: validCommands,
+            agent_id: agentId,
+            shell: currentShell || 'cmd',
+            strategy: selectedStrategy
+          })
+        });
+
+        if (response.ok) {
+          const newCommands = await response.json();
+          setCommands(prev => [...newCommands, ...prev]);
+        }
+      }
+      
+      setBatchCommands(['']);
+      setBatchMode(false);
+      loadStats();
     } catch (error) {
       console.error('Error executing batch commands:', error);
       alert('Error executing batch commands: ' + error.message);
@@ -306,14 +375,67 @@ export default function DeploymentManager({
 
       {/* Command Input */}
       <div className="card-dark">
+        {/* Group Selection */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-400 mb-2">Groups (Optional)</label>
+          <select
+            value=""
+            onChange={(e) => {
+              const groupId = parseInt(e.target.value);
+              if (groupId && !selectedGroups.includes(groupId)) {
+                setSelectedGroups([...selectedGroups, groupId]);
+                // Clear single agent selection when group is selected
+                if (currentAgent) {
+                  onSelectAgent('');
+                }
+              }
+            }}
+            disabled={groups.length === 0 || !isConnected}
+            className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <option value="">
+              {loadingGroups ? 'Loading...' : groups.length === 0 ? 'No groups available' : `Select Groups (${groups.length} available)`}
+            </option>
+            {groups.map(group => (
+              <option key={group.id} value={group.id}>
+                {group.group_name} ({group.devices?.length || 0} devices)
+              </option>
+            ))}
+          </select>
+          {selectedGroups.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {selectedGroups.map(groupId => {
+                const group = groups.find(g => g.id === groupId);
+                return group ? (
+                  <span key={groupId} className="inline-flex items-center gap-2 px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-400 text-sm">
+                    {group.group_name}
+                    <button 
+                      onClick={() => setSelectedGroups(selectedGroups.filter(id => id !== groupId))}
+                      className="hover:text-red-400 transition-colors"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ) : null;
+              })}
+            </div>
+          )}
+        </div>
+
         {/* Agent and Shell Selection */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-2">Agent</label>
             <select
               value={currentAgent || ''}
-              onChange={(e) => onSelectAgent(e.target.value)}
-              disabled={!isConnected || agents.length === 0}
+              onChange={(e) => {
+                onSelectAgent(e.target.value);
+                // Clear groups when agent is selected
+                if (e.target.value && selectedGroups.length > 0) {
+                  setSelectedGroups([]);
+                }
+              }}
+              disabled={!isConnected || agents.length === 0 || selectedGroups.length > 0}
               className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="">
@@ -328,17 +450,20 @@ export default function DeploymentManager({
             {!isConnected && (
               <p className="text-xs text-red-400 mt-1">Backend connection required</p>
             )}
+            {selectedGroups.length > 0 && (
+              <p className="text-xs text-gray-400 mt-1">Agent selection disabled when groups are selected</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-2">Shell</label>
             <select
               value={currentShell || ''}
               onChange={(e) => onSelectShell(e.target.value)}
-              disabled={!isConnected || !currentAgent || shells.length === 0}
+              disabled={!isConnected || (!currentAgent && selectedGroups.length === 0) || shells.length === 0}
               className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="">
-                {!isConnected ? 'Not connected' : !currentAgent ? 'Select agent first' : shells.length === 0 ? 'No shells available' : 'Select Shell'}
+                {!isConnected ? 'Not connected' : (!currentAgent && selectedGroups.length === 0) ? 'Select agent or group first' : shells.length === 0 ? 'No shells available' : 'Select Shell'}
               </option>
               {shells.map(shell => (
                 <option key={shell} value={shell}>{shell}</option>
@@ -393,11 +518,11 @@ export default function DeploymentManager({
               </button>
               <button
                 onClick={executeBatchCommands}
-                disabled={isLoading || !currentAgent || !isConnected}
+                disabled={isLoading || (!currentAgent && selectedGroups.length === 0) || !isConnected}
                 className="flex items-center gap-2 px-6 py-2 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-all"
               >
                 <Play className="w-4 h-4" />
-                {isLoading ? 'Executing...' : 'Execute Batch'}
+                {isLoading ? 'Executing...' : selectedGroups.length > 0 ? `Execute on Groups (${selectedGroups.length})` : 'Execute Batch'}
               </button>
             </div>
           </div>
@@ -413,11 +538,11 @@ export default function DeploymentManager({
             />
             <button
               onClick={executeCommand}
-              disabled={isLoading || !currentAgent || !isConnected}
+              disabled={isLoading || (!currentAgent && selectedGroups.length === 0) || !isConnected}
               className="flex items-center gap-2 px-6 py-2 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-all"
             >
               <Play className="w-4 h-4" />
-              {isLoading ? 'Executing...' : 'Execute'}
+              {isLoading ? 'Executing...' : selectedGroups.length > 0 ? `Execute on Groups (${selectedGroups.length})` : 'Execute'}
             </button>
           </div>
         )}
