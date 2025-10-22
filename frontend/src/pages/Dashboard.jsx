@@ -1284,9 +1284,26 @@ export default function Dashboard({ onLogout }) {
     console.log('Dashboard: Agent selected:', agentId);
     console.log('Dashboard: Available agents:', agents);
     
+    // If no agentId (clearing selection), just clear everything
+    if (!agentId) {
+      setCurrentAgent('');
+      setShells([]);
+      setCurrentShell('');
+      return;
+    }
+    
     // Find the agent object
     const selectedAgentObj = agents.find(a => a.agent_id === agentId);
     console.log('Dashboard: Selected agent object:', selectedAgentObj);
+    
+    // Check if the agent is actually online/available
+    if (!selectedAgentObj) {
+      console.warn('Dashboard: Selected agent not found in available agents list');
+      setCurrentAgent('');
+      setShells([]);
+      setCurrentShell('');
+      return;
+    }
     
     setCurrentAgent(agentId);
     setShells([]);
@@ -1308,6 +1325,19 @@ export default function Dashboard({ onLogout }) {
   const handleShellSelect = (shellType) => {
     setCurrentShell(shellType);
   };
+
+  // Clear selected agent if it goes offline
+  useEffect(() => {
+    if (currentAgent && agents.length > 0) {
+      const agentStillOnline = agents.find(a => a.agent_id === currentAgent);
+      if (!agentStillOnline) {
+        console.log('Dashboard: Selected agent went offline, clearing selection');
+        setCurrentAgent('');
+        setShells([]);
+        setCurrentShell('');
+      }
+    }
+  }, [agents, currentAgent]);
 
   const handleDisconnect = () => {
     if (onLogout) {
