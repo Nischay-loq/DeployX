@@ -215,18 +215,41 @@ export default function DeploymentManager({
 
   const getTargetAgentsFromGroups = () => {
     const targetAgents = [];
+    console.log('Selected groups:', selectedGroups);
+    console.log('All groups:', groups);
+    console.log('All agents:', agents);
+    
     selectedGroups.forEach(groupId => {
       const group = groups.find(g => g.id === groupId);
+      console.log(`Processing group ${groupId}:`, group);
+      
       if (group && group.devices) {
+        console.log(`Group devices:`, group.devices);
+        
         group.devices.forEach(device => {
-          // Only add online agents
-          const agent = agents.find(a => a.agent_id === device.agent_id);
+          console.log(`Checking device:`, device);
+          console.log(`Looking for agent with agent_id: ${device.agent_id}`);
+          
+          // Check both agent_id and id fields, and also try matching with device_id
+          const agent = agents.find(a => 
+            a.agent_id === device.agent_id || 
+            a.agent_id === device.id ||
+            a.agent_id === device.device_id ||
+            a.id === device.agent_id
+          );
+          
+          console.log(`Found agent:`, agent);
+          
           if (agent && !targetAgents.includes(device.agent_id)) {
             targetAgents.push(device.agent_id);
+          } else if (agent && !targetAgents.includes(agent.agent_id)) {
+            targetAgents.push(agent.agent_id);
           }
         });
       }
     });
+    
+    console.log('Final target agents:', targetAgents);
     return targetAgents;
   };
 
