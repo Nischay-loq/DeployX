@@ -317,35 +317,26 @@ export default function DeploymentManager({
         group.devices.forEach(groupDevice => {
           console.log(`Checking group device:`, groupDevice);
           
-          // Find the actual device from devices list
-          const device = devices.find(d => 
-            d.id === groupDevice.id || 
-            d.id === groupDevice.device_id ||
-            d.device_id === groupDevice.id
-          );
+          // The groupDevice itself IS the device with all info
+          // It has agent_id field directly
+          const agentId = groupDevice.agent_id;
           
-          console.log(`Found device in devices list:`, device);
+          console.log(`Agent ID from group device: ${agentId}`);
           
-          if (device) {
-            // Check if this device's agent is online
-            const isOnline = agents.find(a => 
-              a.agent_id === device.agent_id ||
-              a.agent_id === device.device_id ||
-              a === device.agent_id
-            );
+          if (agentId) {
+            // Check if this agent is online
+            const isOnline = agents.find(a => a.agent_id === agentId);
             
-            console.log(`Is agent online for device ${device.agent_id}:`, !!isOnline);
+            console.log(`Is agent ${agentId} online:`, !!isOnline);
             
-            // If we have the device and it's online (or we're using currentAgent), add it
-            if (device.agent_id && !targetAgents.includes(device.agent_id)) {
-              // Check if agent is actually online (has status === 'online')
-              if (device.status === 'online' || isOnline) {
-                targetAgents.push(device.agent_id);
-                console.log(`Added agent ${device.agent_id} to target list`);
-              } else {
-                console.log(`Agent ${device.agent_id} is not online, status: ${device.status}`);
-              }
+            if (isOnline && !targetAgents.includes(agentId)) {
+              targetAgents.push(agentId);
+              console.log(`Added agent ${agentId} to target list`);
+            } else if (!isOnline) {
+              console.log(`Agent ${agentId} is not online (status: ${groupDevice.status})`);
             }
+          } else {
+            console.log(`No agent_id found for device:`, groupDevice);
           }
         });
       }
