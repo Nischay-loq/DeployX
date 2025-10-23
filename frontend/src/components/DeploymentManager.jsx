@@ -71,6 +71,12 @@ export default function DeploymentManager({
   // Devices state (for matching with group devices)
   const [devices, setDevices] = useState([]);
   const [loadingDevices, setLoadingDevices] = useState(false);
+  
+  // Available shells based on group selection
+  const [availableShells, setAvailableShells] = useState([]);
+  
+  // Common shells as fallback
+  const commonShells = ['cmd', 'powershell', 'bash', 'sh'];
 
   // Load groups
   const loadGroups = async () => {
@@ -99,6 +105,67 @@ export default function DeploymentManager({
       setLoadingDevices(false);
     }
   };
+
+  // Update available shells when groups are selected
+  useEffect(() => {
+    if (selectedGroups.length > 0 && devices.length > 0) {
+      console.log('DeploymentManager: Updating shells for selected groups');
+      console.log('Selected groups:', selectedGroups);
+      console.log('Available devices:', devices);
+      
+      // Get all unique shells from devices in selected groups
+      const shellsSet = new Set();
+      selectedGroups.forEach(groupId => {
+        const group = groups.find(g => g.id === groupId);
+        console.log(`Group ${groupId}:`, group);
+        
+        if (group && group.devices) {
+          group.devices.forEach(groupDevice => {
+            const device = devices.find(d => 
+              d.id === groupDevice.id || 
+              d.id === groupDevice.device_id ||
+              d.device_id === groupDevice.id
+            );
+            
+            console.log('Group device:', groupDevice);
+            console.log('Found device:', device);
+            
+            if (device) {
+              if (device.shells && Array.isArray(device.shells) && device.shells.length > 0) {
+                device.shells.forEach(shell => shellsSet.add(shell));
+              } else {
+                // Use OS-based defaults if device doesn't have shells field
+                if (device.os && device.os.toLowerCase().includes('windows')) {
+                  shellsSet.add('cmd');
+                  shellsSet.add('powershell');
+                } else {
+                  shellsSet.add('bash');
+                  shellsSet.add('sh');
+                }
+              }
+            }
+          });
+        }
+      });
+      
+      let uniqueShells = Array.from(shellsSet);
+      
+      // If no shells found, use common shells as fallback
+      if (uniqueShells.length === 0) {
+        console.log('No shells found in devices, using common shells');
+        uniqueShells = commonShells;
+      }
+      
+      setAvailableShells(uniqueShells);
+      console.log('Available shells for selected groups:', uniqueShells);
+    } else if (selectedGroups.length > 0) {
+      // If groups are selected but devices not loaded yet, use common shells
+      console.log('Groups selected but devices not loaded, using common shells');
+      setAvailableShells(commonShells);
+    } else {
+      setAvailableShells([]);
+    }
+  }, [selectedGroups, groups, devices]);
 
   useEffect(() => {
     loadGroups();
@@ -517,16 +584,21 @@ export default function DeploymentManager({
             <select
               value={currentShell || ''}
               onChange={(e) => onSelectShell(e.target.value)}
-              disabled={!isConnected || (!currentAgent && selectedGroups.length === 0) || shells.length === 0}
+              disabled={!isConnected || (!currentAgent && selectedGroups.length === 0)}
               className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="">
-                {!isConnected ? 'Not connected' : (!currentAgent && selectedGroups.length === 0) ? 'Select agent or group first' : shells.length === 0 ? 'No shells available' : 'Select Shell'}
+                {!isConnected ? 'Not connected' : 
+                 (!currentAgent && selectedGroups.length === 0) ? 'Select agent or group first' : 
+                 'Select Shell'}
               </option>
-              {shells.map(shell => (
+              {(selectedGroups.length > 0 ? availableShells : shells).map(shell => (
                 <option key={shell} value={shell}>{shell}</option>
               ))}
             </select>
+            {selectedGroups.length > 0 && availableShells.length > 0 && (
+              <p className="text-xs text-green-400 mt-1">Shells from selected groups ({availableShells.length} available)</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-2">Mode</label>
