@@ -140,8 +140,10 @@ class CommandQueue:
         old_status = cmd.status
         cmd.status = status
         
+        has_output = False
         if output is not None:
             cmd.output += output
+            has_output = len(output) > 0
         
         if error is not None:
             cmd.error = error
@@ -156,7 +158,14 @@ class CommandQueue:
             self.remove_active_execution(cmd_id)
 
         self._save_to_file()
-        logger.info(f"Updated command {cmd_id} status: {old_status} -> {status}")
+        
+        # Only log when status changes or when it's a significant update
+        if old_status != status:
+            logger.info(f"Updated command {cmd_id} status: {old_status} -> {status}")
+        elif has_output and status in [CommandStatus.COMPLETED, CommandStatus.FAILED]:
+            logger.debug(f"Updated command {cmd_id} with final output")
+        # Skip logging for routine output updates during RUNNING status
+        
         return True
 
     def validate_and_fix_statuses(self) -> int:

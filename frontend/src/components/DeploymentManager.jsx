@@ -12,12 +12,15 @@ import {
   Settings,
   Terminal,
   Command,
-  Layers
+  Layers,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import io from 'socket.io-client';
 import SnapshotManager from './SnapshotManager';
 import groupsService from '../services/groups';
 import devicesService from '../services/devices';
+import authService from '../services/auth';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -77,6 +80,9 @@ export default function DeploymentManager({
   
   // Common shells as fallback
   const commonShells = ['cmd', 'powershell', 'bash', 'sh'];
+  
+  // Expanded group executions state
+  const [expandedExecutions, setExpandedExecutions] = useState(new Set());
 
   // Load groups
   const loadGroups = async () => {
@@ -194,6 +200,12 @@ export default function DeploymentManager({
       updateCommandStatus(data.command_id, data.success ? 'completed' : 'failed', data.output, data.error);
     });
 
+    // Listen for new commands added to queue
+    newSocket.on('command_queue_updated', (data) => {
+      console.log('Command queue updated:', data);
+      loadCommands(); // Reload the entire command list
+    });
+
     // Load initial data
     loadCommands();
     loadStats();
@@ -204,25 +216,45 @@ export default function DeploymentManager({
   }, []);
 
   const updateCommandOutput = (commandId, output) => {
-    setCommands(prev => prev.map(cmd => 
-      cmd.id === commandId 
-        ? { ...cmd, output: (cmd.output || '') + output }
-        : cmd
-    ));
+    setCommands(prev => {
+      const existingCmd = prev.find(cmd => cmd.id === commandId);
+      if (existingCmd) {
+        // Update existing command
+        return prev.map(cmd => 
+          cmd.id === commandId 
+            ? { ...cmd, output: (cmd.output || '') + output }
+            : cmd
+        );
+      } else {
+        // Command doesn't exist yet, fetch it from server
+        loadCommands();
+        return prev;
+      }
+    });
   };
 
   const updateCommandStatus = (commandId, status, output, error) => {
-    setCommands(prev => prev.map(cmd => 
-      cmd.id === commandId 
-        ? { 
-            ...cmd, 
-            status, 
-            output: output || cmd.output,
-            error: error || cmd.error,
-            completed_at: status === 'completed' || status === 'failed' ? new Date().toISOString() : cmd.completed_at
-          }
-        : cmd
-    ));
+    setCommands(prev => {
+      const existingCmd = prev.find(cmd => cmd.id === commandId);
+      if (existingCmd) {
+        // Update existing command
+        return prev.map(cmd => 
+          cmd.id === commandId 
+            ? { 
+                ...cmd, 
+                status, 
+                output: output || cmd.output,
+                error: error || cmd.error,
+                completed_at: status === 'completed' || status === 'failed' ? new Date().toISOString() : cmd.completed_at
+              }
+            : cmd
+        );
+      } else {
+        // Command doesn't exist yet, fetch it from server
+        loadCommands();
+        return prev;
+      }
+    });
     loadStats(); // Refresh stats
   };
 
@@ -261,25 +293,47 @@ export default function DeploymentManager({
 
     setIsLoading(true);
     try {
-      // Get target agents from groups if groups are selected
-      const targetAgents = selectedGroups.length > 0 
-        ? getTargetAgentsFromGroups() 
-        : [currentAgent];
+      // Get authentication token
+      const token = authService.getToken() || 
+                    localStorage.getItem('access_token') || 
+                    sessionStorage.getItem('access_token');
+      
+      // If groups are selected, use the group command execution API
+      if (selectedGroups.length > 0) {
+        // Execute command on each selected group using the group API
+        for (const groupId of selectedGroups) {
+          const response = await fetch(`${API_BASE_URL}/groups/${groupId}/commands`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              command: newCommand,
+              shell: currentShell || 'cmd',
+              strategy: selectedStrategy,
+              config: {}
+            })
+          });
 
-      if (targetAgents.length === 0) {
-        alert('No online agents found in selected groups');
-        setIsLoading(false);
-        return;
-      }
-
-      // Execute command on all target agents
-      for (const agentId of targetAgents) {
+          if (response.ok) {
+            const execution = await response.json();
+            console.log(`Group ${groupId} execution started:`, execution.execution_id);
+            // Reload commands immediately to show new queue entries
+            loadCommands();
+          } else {
+            const error = await response.json();
+            alert(`Error executing on group ${groupId}: ${error.detail || 'Unknown error'}`);
+          }
+        }
+      } else {
+        // Execute command on single agent
         const response = await fetch(`${API_BASE_URL}/api/deployment/commands`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             command: newCommand,
-            agent_id: agentId,
+            agent_id: currentAgent,
             shell: currentShell || 'cmd',
             strategy: selectedStrategy
           })
@@ -358,25 +412,46 @@ export default function DeploymentManager({
 
     setIsLoading(true);
     try {
-      // Get target agents from groups if groups are selected
-      const targetAgents = selectedGroups.length > 0 
-        ? getTargetAgentsFromGroups() 
-        : [currentAgent];
+      // Get authentication token
+      const token = authService.getToken() || 
+                    localStorage.getItem('access_token') || 
+                    sessionStorage.getItem('access_token');
+      
+      // If groups are selected, use the group batch command API
+      if (selectedGroups.length > 0) {
+        // Execute batch commands on each selected group using the group API
+        for (const groupId of selectedGroups) {
+          const response = await fetch(`${API_BASE_URL}/groups/${groupId}/commands/batch/sequential`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              commands: validCommands,
+              shell: currentShell || 'cmd',
+              stop_on_failure: true,
+              config: {}
+            })
+          });
 
-      if (targetAgents.length === 0) {
-        alert('No online agents found in selected groups');
-        setIsLoading(false);
-        return;
-      }
-
-      // Execute batch commands on all target agents
-      for (const agentId of targetAgents) {
+          if (response.ok) {
+            const batch = await response.json();
+            console.log(`Group ${groupId} batch execution started:`, batch.batch_id);
+            alert(`Batch execution started on group. Batch ID: ${batch.batch_id}`);
+          } else {
+            const error = await response.json();
+            alert(`Error executing batch on group ${groupId}: ${error.detail || 'Unknown error'}`);
+          }
+        }
+      } else {
+        // Execute batch commands on single agent
         const response = await fetch(`${API_BASE_URL}/api/deployment/commands/batch`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             commands: validCommands,
-            agent_id: agentId,
+            agent_id: currentAgent,
             shell: currentShell || 'cmd',
             strategy: selectedStrategy
           })
@@ -464,6 +539,72 @@ export default function DeploymentManager({
 
   const removeBatchCommand = (index) => {
     setBatchCommands(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Helper function to group commands by execution_id
+  const groupCommandsByExecution = (commands) => {
+    const grouped = {};
+    const standalone = [];
+
+    console.log('Grouping commands:', commands.length);
+
+    commands.forEach(cmd => {
+      const executionId = cmd.config?.execution_id;
+      const isGroupExecution = cmd.config?.group_execution;
+
+      console.log('Command:', cmd.id, 'isGroup:', isGroupExecution, 'execId:', executionId);
+
+      if (isGroupExecution && executionId) {
+        if (!grouped[executionId]) {
+          grouped[executionId] = {
+            execution_id: executionId,
+            group_name: cmd.config?.group_name || 'Unknown Group',
+            command: cmd.command,
+            shell: cmd.shell,
+            strategy: cmd.strategy,
+            timestamp: cmd.timestamp,
+            commands: []
+          };
+        }
+        grouped[executionId].commands.push(cmd);
+      } else {
+        standalone.push(cmd);
+      }
+    });
+
+    console.log('Grouped executions:', Object.keys(grouped).length);
+    console.log('Standalone commands:', standalone.length);
+
+    return { grouped: Object.values(grouped), standalone };
+  };
+
+  // Toggle expansion for a group execution
+  const toggleExecution = (executionId) => {
+    console.log('Toggling execution:', executionId);
+    console.log('Current expanded:', expandedExecutions);
+    setExpandedExecutions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(executionId)) {
+        newSet.delete(executionId);
+        console.log('Collapsed:', executionId);
+      } else {
+        newSet.add(executionId);
+        console.log('Expanded:', executionId);
+      }
+      console.log('New expanded set:', newSet);
+      return newSet;
+    });
+  };
+
+  // Calculate stats for a group execution
+  const getExecutionStats = (commands) => {
+    const total = commands.length;
+    const completed = commands.filter(c => c.status === 'completed').length;
+    const failed = commands.filter(c => c.status === 'failed').length;
+    const running = commands.filter(c => c.status === 'running').length;
+    const pending = commands.filter(c => c.status === 'pending').length;
+
+    return { total, completed, failed, running, pending };
   };
 
   return (
@@ -672,7 +813,25 @@ export default function DeploymentManager({
       {/* Command Queue */}
       <div className="card-dark">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white">Command Queue</h3>
+          <div className="flex items-center gap-4">
+            <h3 className="text-lg font-semibold text-white">Command Queue</h3>
+            {commands.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded text-xs font-medium">
+                  {commands.filter(c => c.status === 'pending').length} Pending
+                </span>
+                <span className="px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded text-xs font-medium">
+                  {commands.filter(c => c.status === 'running').length} Running
+                </span>
+                <span className="px-2 py-1 bg-green-500/20 text-green-300 rounded text-xs font-medium">
+                  {commands.filter(c => c.status === 'completed').length} Completed
+                </span>
+                <span className="px-2 py-1 bg-red-500/20 text-red-300 rounded text-xs font-medium">
+                  {commands.filter(c => c.status === 'failed').length} Failed
+                </span>
+              </div>
+            )}
+          </div>
           <button
             onClick={clearCompleted}
             className="flex items-center gap-2 px-3 py-2 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 hover:bg-red-500/30 transition-all text-sm"
@@ -682,94 +841,336 @@ export default function DeploymentManager({
           </button>
         </div>
 
-        <div className="space-y-3 max-h-96 overflow-y-auto">
+        <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
           {commands.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">
-              No commands in queue. Execute a command to get started.
+            <div className="text-center py-12 text-gray-400">
+              <div className="text-4xl mb-3">📋</div>
+              <div className="text-lg font-medium mb-1">No commands in queue</div>
+              <div className="text-sm">Execute a command to get started</div>
             </div>
-          ) : (
-            commands.map((cmd) => (
-              <div key={cmd.id} className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    {STATUS_ICONS[cmd.status]}
-                    <code className="text-cyan-400 bg-gray-900 px-2 py-1 rounded text-sm">
-                      {cmd.command}
-                    </code>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium border ${STATUS_COLORS[cmd.status]}`}>
-                      {cmd.status}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {cmd.status === 'running' && (
-                      <button
-                        onClick={() => pauseCommand(cmd.id)}
-                        className="p-1 text-orange-400 hover:bg-orange-500/20 rounded transition-all"
-                        title="Pause"
+          ) : (() => {
+            const { grouped, standalone } = groupCommandsByExecution(commands);
+            
+            return (
+              <>
+                {/* Grouped Executions */}
+                {grouped.map((execution) => {
+                  const stats = getExecutionStats(execution.commands);
+                  const isExpanded = expandedExecutions.has(execution.execution_id);
+                  const hasErrors = stats.failed > 0;
+                  const isRunning = stats.running > 0;
+                  const isCompleted = stats.completed === stats.total;
+                  
+                  return (
+                    <div key={execution.execution_id} className="bg-gray-800/50 rounded-lg border border-l-4 border-l-purple-500 border-gray-700 overflow-hidden">
+                      {/* Group Summary - Clickable */}
+                      <div 
+                        className="p-4 cursor-pointer hover:bg-gray-800/70 transition-all select-none"
+                        onClick={(e) => {
+                          console.log('Clicked group execution:', execution.execution_id);
+                          toggleExecution(execution.execution_id);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            toggleExecution(execution.execution_id);
+                          }
+                        }}
                       >
-                        <Pause className="w-4 h-4" />
-                      </button>
-                    )}
-                    {cmd.status === 'paused' && (
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            {/* Header with expand/collapse icon */}
+                            <div className="flex items-center gap-3 mb-3">
+                              {isExpanded ? (
+                                <ChevronDown className="w-5 h-5 text-purple-400 flex-shrink-0" />
+                              ) : (
+                                <ChevronRight className="w-5 h-5 text-purple-400 flex-shrink-0" />
+                              )}
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                GROUP EXECUTION
+                              </span>
+                              {isRunning && (
+                                <Clock className="w-4 h-4 text-yellow-400 animate-pulse" />
+                              )}
+                              {isCompleted && !hasErrors && (
+                                <CheckCircle className="w-4 h-4 text-green-400" />
+                              )}
+                              {hasErrors && (
+                                <AlertCircle className="w-4 h-4 text-red-400" />
+                              )}
+                            </div>
+                            
+                            {/* Group Name & Command */}
+                            <div className="mb-3">
+                              <div className="text-sm text-purple-300 mb-2 flex items-center gap-2">
+                                <Layers className="w-4 h-4" />
+                                <span className="font-semibold">{execution.group_name}</span>
+                              </div>
+                              <code className="text-cyan-400 bg-gray-900 px-3 py-1.5 rounded font-mono text-sm break-all">
+                                {execution.command}
+                              </code>
+                            </div>
+                            
+                            {/* Stats */}
+                            <div className="flex items-center gap-3 text-sm flex-wrap">
+                              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900/70 rounded">
+                                <span className="text-gray-400">Total Agents:</span>
+                                <span className="text-white font-semibold">{stats.total}</span>
+                              </div>
+                              {stats.completed > 0 && (
+                                <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/30 rounded">
+                                  <CheckCircle className="w-4 h-4 text-green-400" />
+                                  <span className="text-green-400 font-semibold">{stats.completed} Completed</span>
+                                </div>
+                              )}
+                              {stats.failed > 0 && (
+                                <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded">
+                                  <XCircle className="w-4 h-4 text-red-400" />
+                                  <span className="text-red-400 font-semibold">{stats.failed} Failed</span>
+                                </div>
+                              )}
+                              {stats.running > 0 && (
+                                <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/30 rounded">
+                                  <Clock className="w-4 h-4 text-yellow-400" />
+                                  <span className="text-yellow-400 font-semibold">{stats.running} Running</span>
+                                </div>
+                              )}
+                              {stats.pending > 0 && (
+                                <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border border-blue-500/30 rounded">
+                                  <Clock className="w-4 h-4 text-blue-400" />
+                                  <span className="text-blue-400 font-semibold">{stats.pending} Pending</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="text-xs text-gray-400 ml-4">
+                            Click to {isExpanded ? 'collapse' : 'expand'}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Expanded View - Individual Agent Results */}
+                      {isExpanded && (
+                        <div className="border-t border-gray-700 bg-gray-900/30">
+                          <div className="p-4 space-y-3">
+                            <div className="text-sm text-gray-400 mb-3 font-semibold">
+                              Individual Agent Results:
+                            </div>
+                            {execution.commands.map((cmd) => {
+                              const executionTime = cmd.completed_at && cmd.started_at 
+                                ? ((new Date(cmd.completed_at) - new Date(cmd.started_at)) / 1000).toFixed(2) 
+                                : null;
+                              
+                              return (
+                                <div key={cmd.id} className="bg-gray-800/70 rounded-lg p-3 border border-gray-700">
+                                  {/* Agent Header */}
+                                  <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                      {STATUS_ICONS[cmd.status]}
+                                      <span className={`px-2 py-1 rounded-full text-xs font-medium border ${STATUS_COLORS[cmd.status]}`}>
+                                        {cmd.status.toUpperCase()}
+                                      </span>
+                                      <span className="text-white font-mono text-sm">{cmd.agent_id}</span>
+                                      {executionTime && (
+                                        <span className="text-xs text-gray-400">
+                                          ⏱ {executionTime}s
+                                        </span>
+                                      )}
+                                    </div>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        deleteCommand(cmd.id);
+                                      }}
+                                      className="p-1.5 text-red-400 hover:bg-red-500/20 rounded transition-all"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                  
+                                  {/* Output */}
+                                  {cmd.output && (
+                                    <div className="mt-2">
+                                      <div className="text-xs text-gray-400 mb-1">Output:</div>
+                                      <pre className="bg-gray-900 p-2 rounded text-xs text-green-400 max-h-32 overflow-y-auto font-mono border border-gray-800 custom-scrollbar">
+{cmd.output}
+                                      </pre>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Error */}
+                                  {cmd.error && (
+                                    <div className="mt-2">
+                                      <div className="text-xs text-red-400 mb-1">Error:</div>
+                                      <pre className="bg-red-900/20 border border-red-500/30 p-2 rounded text-xs text-red-400 font-mono">
+{cmd.error}
+                                      </pre>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Timestamps */}
+                                  <div className="mt-2 pt-2 border-t border-gray-700 text-xs text-gray-500 flex items-center justify-between">
+                                    <span>Started: {cmd.started_at ? new Date(cmd.started_at).toLocaleTimeString() : 'Pending'}</span>
+                                    {cmd.completed_at && (
+                                      <span>Completed: {new Date(cmd.completed_at).toLocaleTimeString()}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                
+                {/* Standalone Commands (Non-Group) */}
+                {standalone.map((cmd) => {
+              const isGroupExecution = cmd.config?.group_execution;
+              const groupName = cmd.config?.group_name;
+              const executionTime = cmd.completed_at && cmd.started_at 
+                ? ((new Date(cmd.completed_at) - new Date(cmd.started_at)) / 1000).toFixed(2) 
+                : null;
+              
+              return (
+                <div 
+                  key={cmd.id} 
+                  className={`bg-gray-800/50 rounded-lg p-4 border transition-all hover:border-gray-600 ${
+                    isGroupExecution ? 'border-l-4 border-l-purple-500' : 'border-gray-700'
+                  }`}
+                >
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2">
+                        {STATUS_ICONS[cmd.status]}
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium border ${STATUS_COLORS[cmd.status]}`}>
+                          {cmd.status.toUpperCase()}
+                        </span>
+                        {isGroupExecution && (
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                            GROUP
+                          </span>
+                        )}
+                        {executionTime && (
+                          <span className="text-xs text-gray-400">
+                            ⏱ {executionTime}s
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Command */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <code className="text-cyan-400 bg-gray-900 px-3 py-1.5 rounded font-mono text-sm break-all">
+                          {cmd.command}
+                        </code>
+                      </div>
+                      
+                      {/* Group Info */}
+                      {isGroupExecution && groupName && (
+                        <div className="text-sm text-purple-300 mb-2">
+                          📦 Group: <span className="font-semibold">{groupName}</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-1 ml-4">
+                      {cmd.status === 'running' && (
+                        <button
+                          onClick={() => pauseCommand(cmd.id)}
+                          className="p-2 text-orange-400 hover:bg-orange-500/20 rounded transition-all"
+                          title="Pause Command"
+                        >
+                          <Pause className="w-4 h-4" />
+                        </button>
+                      )}
+                      {cmd.status === 'paused' && (
+                        <button
+                          onClick={() => resumeCommand(cmd.id)}
+                          className="p-2 text-blue-400 hover:bg-blue-500/20 rounded transition-all"
+                          title="Resume Command"
+                        >
+                          <Play className="w-4 h-4" />
+                        </button>
+                      )}
                       <button
-                        onClick={() => resumeCommand(cmd.id)}
-                        className="p-1 text-blue-400 hover:bg-blue-500/20 rounded transition-all"
-                        title="Resume"
+                        onClick={() => deleteCommand(cmd.id)}
+                        className="p-2 text-red-400 hover:bg-red-500/20 rounded transition-all"
+                        title="Delete Command"
                       >
-                        <Play className="w-4 h-4" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
-                    )}
-                    <button
-                      onClick={() => deleteCommand(cmd.id)}
-                      className="p-1 text-red-400 hover:bg-red-500/20 rounded transition-all"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    </div>
                   </div>
+
+                  {/* Details Grid */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm mb-3 bg-gray-900/50 p-3 rounded">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">🖥️ Agent:</span>
+                      <span className="text-white font-mono text-xs truncate" title={cmd.agent_id}>
+                        {cmd.agent_id}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">💻 Shell:</span>
+                      <span className="text-cyan-300 font-medium">{cmd.shell}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">⚙️ Strategy:</span>
+                      <span className="text-blue-300 font-medium">{cmd.strategy}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">🕐 Started:</span>
+                      <span className="text-white">
+                        {cmd.started_at ? new Date(cmd.started_at).toLocaleTimeString() : 'Pending'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Output */}
+                  {cmd.output && (
+                    <div className="mt-3">
+                      <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
+                        <span>📤 Output:</span>
+                        <span className="text-xs text-gray-500">
+                          ({cmd.output.split('\n').length} lines)
+                        </span>
+                      </div>
+                      <pre className="bg-gray-900 p-3 rounded text-sm text-green-400 max-h-40 overflow-y-auto font-mono border border-gray-800 custom-scrollbar">
+{cmd.output}
+                      </pre>
+                    </div>
+                  )}
+
+                  {/* Error */}
+                  {cmd.error && (
+                    <div className="mt-3">
+                      <div className="text-sm text-red-400 mb-2 flex items-center gap-2">
+                        <span>❌ Error:</span>
+                      </div>
+                      <pre className="bg-red-900/20 border border-red-500/30 p-3 rounded text-sm text-red-400 font-mono">
+{cmd.error}
+                      </pre>
+                    </div>
+                  )}
+                  
+                  {/* Completed Timestamp */}
+                  {cmd.completed_at && (
+                    <div className="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-400">
+                      ✅ Completed at {new Date(cmd.completed_at).toLocaleString()}
+                    </div>
+                  )}
                 </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-3">
-                  <div>
-                    <span className="text-gray-400">Agent:</span>
-                    <span className="text-white ml-2">{cmd.agent_id}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">Shell:</span>
-                    <span className="text-white ml-2">{cmd.shell}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">Strategy:</span>
-                    <span className="text-white ml-2">{cmd.strategy}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">Started:</span>
-                    <span className="text-white ml-2">
-                      {cmd.started_at ? new Date(cmd.started_at).toLocaleTimeString() : 'N/A'}
-                    </span>
-                  </div>
-                </div>
-
-                {cmd.output && (
-                  <div className="mt-3">
-                    <div className="text-sm text-gray-400 mb-2">Output:</div>
-                    <pre className="bg-gray-900 p-3 rounded text-sm text-green-400 max-h-32 overflow-y-auto">
-                      {cmd.output}
-                    </pre>
-                  </div>
-                )}
-
-                {cmd.error && (
-                  <div className="mt-3">
-                    <div className="text-sm text-gray-400 mb-2">Error:</div>
-                    <pre className="bg-red-900/20 border border-red-500/30 p-3 rounded text-sm text-red-400">
-                      {cmd.error}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            ))
-          )}
+              );
+            })}
+              </>
+            );
+          })()}
         </div>
       </div>
 

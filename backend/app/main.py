@@ -372,7 +372,12 @@ async def _update_and_send_agent_list(sid=None):
     finally:
         db.close()
 
+# Initialize command executors with Socket.IO
 command_executor.set_socketio(sio, conn_manager)
+
+# Initialize group command executor
+from app.grouping.command_executor import group_command_executor
+group_command_executor.set_socketio(sio, conn_manager)
 
 @sio.event
 async def connect(sid, environ, auth):
@@ -710,9 +715,21 @@ async def deployment_command_output(sid, data):
     try:
         cmd_id = data.get('command_id')
         output = data.get('output', '')
+        execution_id = data.get('execution_id')
+        is_group_execution = data.get('group_execution', False)
         
         if cmd_id:
-            await command_executor.handle_command_output(cmd_id, output)
+            # For group executions, just append output without status change
+            if not is_group_execution:
+                await command_executor.handle_command_output(cmd_id, output)
+            else:
+                # For group executions, update queue with output only (don't change status)
+                from app.command_deployment.queue import command_queue
+                if command_queue:
+                    cmd = command_queue.get_command(cmd_id)
+                    if cmd:
+                        # Just append output, don't update status (it's already RUNNING)
+                        command_queue.update_command_status(cmd_id, cmd.status, output=output)
             
             await sio.emit('deployment_command_output', {
                 'command_id': cmd_id,
@@ -729,17 +746,35 @@ async def deployment_command_completed(sid, data):
         success = data.get('success', False)
         final_output = data.get('output', '')
         error = data.get('error', '')
+        execution_id = data.get('execution_id')
+        is_group_execution = data.get('group_execution', False)
         
         if cmd_id:
-            await command_executor.handle_command_completion(
-                cmd_id, success, final_output, error
-            )
+            # Check if this is a group execution
+            if is_group_execution and execution_id:
+                # For group executions, cmd_id is the queue command ID
+                # Update the group execution tracker
+                agent_id = conn_manager.get_agent_by_sid(sid)
+                if agent_id:
+                    from app.grouping.command_executor import group_command_executor
+                    await group_command_executor.handle_device_command_completion(
+                        execution_id, agent_id, success, final_output, error
+                    )
+                    logger.info(f"Handled group execution completion for agent {agent_id} in execution {execution_id}")
+            else:
+                # Handle individual agent command
+                await command_executor.handle_command_completion(
+                    cmd_id, success, final_output, error
+                )
             
+            # Emit completion event to frontend
             await sio.emit('deployment_command_completed', {
                 'command_id': cmd_id,
                 'success': success,
                 'output': final_output,
-                'error': error
+                'error': error,
+                'execution_id': execution_id,
+                'group_execution': is_group_execution
             })
     except Exception as e:
         logger.error(f"Error handling deployment command completion: {e}")
