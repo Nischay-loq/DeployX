@@ -34,8 +34,8 @@ async def emit_deployment_notification(deployment_id: int, db: Session):
         targets = db.query(DeploymentTarget).filter(DeploymentTarget.deployment_id == deployment_id).all()
         
         total_count = len(targets)
-        success_count = sum(1 for t in targets if t.deployment_status == 'completed')
-        failure_count = sum(1 for t in targets if t.deployment_status == 'failed')
+        success_count = sum(1 for t in targets if t.status == 'completed')
+        failure_count = sum(1 for t in targets if t.status == 'failed')
         
         notification_data = {
             'deployment_id': deployment.id,

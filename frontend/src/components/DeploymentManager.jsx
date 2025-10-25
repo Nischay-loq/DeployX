@@ -14,13 +14,16 @@ import {
   Command,
   Layers,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Calendar
 } from 'lucide-react';
 import io from 'socket.io-client';
 import SnapshotManager from './SnapshotManager';
+import SchedulingModal from './SchedulingModal';
 import groupsService from '../services/groups';
 import devicesService from '../services/devices';
 import authService from '../services/auth';
+import schedulingService from '../services/scheduling';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -84,6 +87,10 @@ export default function DeploymentManager({
   // Expanded group executions state
   const [expandedExecutions, setExpandedExecutions] = useState(new Set());
 
+  // Scheduling state
+  const [showSchedulingModal, setShowSchedulingModal] = useState(false);
+  const [schedulingData, setSchedulingData] = useState(null);
+
   // Load groups
   const loadGroups = async () => {
     setLoadingGroups(true);
@@ -105,8 +112,10 @@ export default function DeploymentManager({
       const response = await devicesService.fetchDevices();
       setDevices(response || []);
       console.log('DeploymentManager: Loaded devices:', response);
+      return response || [];
     } catch (error) {
       console.error('Failed to load devices:', error);
+      return [];
     } finally {
       setLoadingDevices(false);
     }
@@ -279,6 +288,127 @@ export default function DeploymentManager({
       }
     } catch (error) {
       console.error('Error loading stats:', error);
+    }
+  };
+
+  // Scheduling functions
+  const openSchedulingModal = async () => {
+    const hasTarget = currentAgent || selectedGroups.length > 0;
+    if (!hasTarget) {
+      alert('Please select an agent or group first');
+      return;
+    }
+
+    // Ensure devices are loaded before trying to schedule
+    let devicesToUse = devices;
+    if (devices.length === 0) {
+      console.log('Devices not loaded, loading now...');
+      try {
+        devicesToUse = await loadDevices();
+        console.log('Devices loaded:', devicesToUse);
+      } catch (error) {
+        console.error('Failed to load devices:', error);
+        alert('Failed to load devices. Please try again.');
+        return;
+      }
+    }
+
+    openSchedulingModalWithDevices(devicesToUse);
+  };
+
+  const openSchedulingModalWithDevices = (devicesToUse = devices) => {
+    // Get device IDs from groups or use current agent
+    let deviceIds = [];
+    if (currentAgent && !selectedGroups.length) {
+      console.log('Looking for device with agent_id:', currentAgent);
+      console.log('Available devices from DB:', devicesToUse);
+      console.log('Available agents (connected):', agents);
+      
+      // First check if the agent is actually connected
+      const connectedAgent = agents.find(a => a.agent_id === currentAgent);
+      if (!connectedAgent) {
+        console.error('CRITICAL: Agent is not connected:', currentAgent);
+        alert(`Cannot schedule: Agent ${currentAgent} is not connected. Please select a connected agent.`);
+        return;
+      }
+      
+      // First try to find in devices array (from database)
+      let device = devicesToUse.find(d => d.agent_id === currentAgent);
+      
+      // If not found in devices, try matching by other fields from the agents list
+      if (!device && agents.length > 0) {
+        const agent = agents.find(a => a.agent_id === currentAgent);
+        console.log('Found agent in connected agents:', agent);
+        
+        if (agent && devicesToUse.length > 0) {
+          // Try matching by hostname (agent.hostname should match device.device_name)
+          device = devicesToUse.find(d => 
+            d.device_name === agent.hostname
+          );
+        }
+      }
+      
+      console.log('Final found device:', device);
+      
+      if (device) {
+        deviceIds = [device.id];
+      } else {
+        // Device not found - reload devices and show error
+        console.error('CRITICAL: Device not found for agent_id:', currentAgent);
+        alert(`Cannot schedule: Device not found in database for agent ${currentAgent}. Please wait for the agent to fully register or select a different agent.`);
+        loadDevices(); // Reload devices to refresh the list
+        return;
+      }
+    }
+
+    const taskData = {
+      device_ids: deviceIds,
+      group_ids: selectedGroups,
+      command_payload: batchMode 
+        ? {
+            commands: batchCommands.filter(cmd => cmd.trim()),
+            shell: currentShell || 'cmd',
+            stop_on_failure: true
+          }
+        : {
+            command: newCommand,
+            shell: currentShell || 'cmd',
+            strategy: selectedStrategy
+          }
+    };
+
+    console.log('DeploymentManager - Opening scheduling modal with data:', {
+      currentAgent,
+      deviceIds,
+      selectedGroups,
+      taskData
+    });
+
+    const targetInfo = selectedGroups.length > 0 
+      ? `${selectedGroups.length} groups selected`
+      : `Agent: ${currentAgent}`;
+
+    setSchedulingData({ taskData, targetInfo });
+    setShowSchedulingModal(true);
+  };
+
+  const handleSchedule = async (schedulePayload) => {
+    try {
+      await schedulingService.createScheduledTask(schedulePayload);
+      alert('Command scheduled successfully!');
+      setShowSchedulingModal(false);
+    } catch (error) {
+      console.error('Scheduling error:', error);
+      throw error;
+    }
+  };
+
+  const handleExecuteNow = async () => {
+    setShowSchedulingModal(false);
+    if (batchMode) {
+      await executeBatchCommands();
+    } else {
+      await executeCommand();
     }
   };
 
@@ -786,6 +916,14 @@ export default function DeploymentManager({
                 Add Command
               </button>
               <button
+                onClick={openSchedulingModal}
+                disabled={batchCommands.filter(cmd => cmd.trim()).length === 0 || (!currentAgent && selectedGroups.length === 0) || !isConnected}
+                className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-all"
+              >
+                <Calendar className="w-4 h-4" />
+                Schedule Batch
+              </button>
+              <button
                 onClick={executeBatchCommands}
                 disabled={isLoading || (!currentAgent && selectedGroups.length === 0) || !isConnected}
                 className="flex items-center gap-2 px-6 py-2 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-all"
@@ -805,6 +943,14 @@ export default function DeploymentManager({
               onKeyPress={(e) => e.key === 'Enter' && executeCommand()}
               className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none"
             />
+            <button
+              onClick={openSchedulingModal}
+              disabled={!newCommand.trim() || (!currentAgent && selectedGroups.length === 0) || !isConnected}
+              className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-all"
+            >
+              <Calendar className="w-4 h-4" />
+              Schedule
+            </button>
             <button
               onClick={executeCommand}
               disabled={isLoading || (!currentAgent && selectedGroups.length === 0) || !isConnected}
@@ -1187,6 +1333,19 @@ export default function DeploymentManager({
         selectedAgent={currentAgent}
         isConnected={isConnected}
       />
+
+      {/* Scheduling Modal */}
+      {showSchedulingModal && (
+        <SchedulingModal
+          isOpen={showSchedulingModal}
+          onClose={() => setShowSchedulingModal(false)}
+          onSchedule={handleSchedule}
+          onExecuteNow={handleExecuteNow}
+          taskType="command"
+          taskData={schedulingData?.taskData}
+          targetInfo={schedulingData?.targetInfo}
+        />
+      )}
     </div>
   );
 }

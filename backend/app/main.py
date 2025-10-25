@@ -51,11 +51,13 @@ from app.auth import routes
 from app.auth.database import engine, get_db, Base
 from app.command_deployment.routes import router as deployment_router
 from app.dashboard.routes import router as dashboard_router
+from app.schedule.routes import router as schedule_router
 from app.command_deployment.executor import command_executor
 from app.grouping import models as grouping_models  # Import grouping models
 from app.Deployments import models as deployment_models  # Import deployment models
 from app.software import models as software_models  # Import software models
 from app.files import models as file_models  # Import file models
+from app.schedule import models as schedule_models  # Import schedule models
 from app.auth.database import get_db
 from app.agents import crud as agent_crud, schemas as agent_schemas
 from app.agents import schemas as agent_schemas, crud as agent_crud
@@ -110,6 +112,7 @@ app.include_router(deployments_router)
 app.include_router(software_router)
 app.include_router(files_router)
 app.include_router(dashboard_router)
+app.include_router(schedule_router)
 
 # Health check endpoint
 @app.get("/health")
@@ -966,6 +969,42 @@ async def get_agents_rest():
 @app.get("/")
 async def root():
     return {"message": "Remote Terminal Server with Real CMD Running (Socket.IO)"}
+
+# Startup and shutdown events
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on application startup"""
+    try:
+        from app.schedule.scheduler import task_scheduler
+        from app.auth.database import SessionLocal
+        
+        # Start the task scheduler
+        task_scheduler.start()
+        logger.info("Task scheduler started")
+        
+        # Load existing scheduled tasks
+        db = SessionLocal()
+        try:
+            task_scheduler.load_existing_tasks(db)
+            logger.info("Loaded existing scheduled tasks")
+        finally:
+            db.close()
+            
+    except Exception as e:
+        logger.error(f"Error during startup: {e}", exc_info=True)
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on application shutdown"""
+    try:
+        from app.schedule.scheduler import task_scheduler
+        
+        # Shutdown the task scheduler
+        task_scheduler.shutdown()
+        logger.info("Task scheduler stopped")
+        
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}", exc_info=True)
 
 socket_app = socketio.ASGIApp(sio, app)
 
