@@ -397,6 +397,13 @@ async def execute_group_batch_sequential(
     All devices execute command 1, then all execute command 2, etc.
     """
     try:
+        logger.info(f"=== BATCH SEQUENTIAL ENDPOINT CALLED ===")
+        logger.info(f"Group ID: {group_id}")
+        logger.info(f"Number of commands: {len(request.commands) if request.commands else 0}")
+        logger.info(f"Commands: {request.commands}")
+        logger.info(f"Shell: {request.shell}")
+        logger.info(f"Stop on failure: {request.stop_on_failure}")
+        
         # Validate group
         db_group = db.query(models.DeviceGroup).filter(
             models.DeviceGroup.id == group_id,

@@ -142,8 +142,12 @@ class SocketEventHandler:
             cmd_id = data.get('command_id')
             command = data.get('command', '')
             shell = data.get('shell', 'cmd')
+            execution_id = data.get('execution_id')  # For group executions
+            is_group_execution = data.get('group_execution', False)
             
             logger.info(f"Received deployment command {cmd_id}: {command}")
+            if is_group_execution:
+                logger.info(f"This is a group execution with execution_id: {execution_id}")
             
             if not cmd_id:
                 logger.error("No command ID provided in deployment command")
@@ -166,7 +170,9 @@ class SocketEventHandler:
                             'command_id': cmd_id,
                             'success': False,
                             'output': '',
-                            'error': error_msg
+                            'error': error_msg,
+                            'execution_id': execution_id,
+                            'group_execution': is_group_execution
                         })
                     return
                 
@@ -188,7 +194,9 @@ class SocketEventHandler:
                             'command_id': cmd_id,
                             'success': False,
                             'output': '',
-                            'error': error_msg
+                            'error': error_msg,
+                            'execution_id': execution_id,
+                            'group_execution': is_group_execution
                         })
                     return
             
@@ -260,7 +268,9 @@ class SocketEventHandler:
                         'command_id': cmd_id,
                         'success': command_success,
                         'output': command_output,
-                        'error': '' if command_success else 'Command execution failed (see output for details)'
+                        'error': '' if command_success else 'Command execution failed (see output for details)',
+                        'execution_id': execution_id,
+                        'group_execution': is_group_execution
                     })
                     
             except Exception as e:
@@ -271,7 +281,9 @@ class SocketEventHandler:
                         'command_id': cmd_id,
                         'success': False,
                         'output': command_output,
-                        'error': error_msg
+                        'error': error_msg,
+                        'execution_id': execution_id,
+                        'group_execution': is_group_execution
                     })
             finally:
                 self.shell_manager.output_callback = original_callback
