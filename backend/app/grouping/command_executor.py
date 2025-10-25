@@ -473,6 +473,8 @@ class GroupCommandExecutor:
             for idx, command in enumerate(batch.commands):
                 batch.current_command_index = idx
                 
+                logger.info(f"[BATCH {batch.batch_id}] Executing command {idx+1}/{len(batch.commands)}: {command}")
+                
                 # Execute this command on all devices
                 execution_id = await self.execute_group_command(
                     batch.group_id,
@@ -483,6 +485,8 @@ class GroupCommandExecutor:
                     "transactional"
                 )
                 
+                logger.info(f"[BATCH {batch.batch_id}] Command {idx+1} execution_id: {execution_id}")
+                
                 # Wait for this command to complete on all devices
                 execution = self.active_executions.get(execution_id)
                 if execution:
@@ -492,20 +496,33 @@ class GroupCommandExecutor:
                     timeout = 300  # 5 minutes per command
                     start_time = datetime.now()
                     
-                    while execution.status == GroupCommandStatus.RUNNING:
+                    logger.info(f"[BATCH {batch.batch_id}] Waiting for command {idx+1} to complete (status: {execution.status})...")
+                    
+                    # Wait while status is PENDING or RUNNING
+                    while execution.status in [GroupCommandStatus.PENDING, GroupCommandStatus.RUNNING]:
                         await asyncio.sleep(1)
                         
                         # Check timeout
                         elapsed = (datetime.now() - start_time).total_seconds()
                         if elapsed > timeout:
-                            logger.warning(f"Command {idx+1} in batch {batch.batch_id} timed out")
+                            logger.warning(f"[BATCH {batch.batch_id}] Command {idx+1} timed out")
                             break
                     
-                    # Check if we should stop on failure
-                    if batch.stop_on_failure and execution.status in [GroupCommandStatus.FAILED, GroupCommandStatus.PARTIAL_SUCCESS]:
-                        logger.warning(f"Stopping batch {batch.batch_id} due to failure on command {idx+1}")
+                    logger.info(f"[BATCH {batch.batch_id}] Command {idx+1} completed with status: {execution.status}")
+                    
+                    # Only stop if ALL devices failed (complete failure), not partial success
+                    if batch.stop_on_failure and execution.status == GroupCommandStatus.FAILED:
+                        logger.warning(f"[BATCH {batch.batch_id}] Stopping - all devices failed on command {idx+1}")
                         batch.status = GroupCommandStatus.FAILED
                         break
+                    elif execution.status == GroupCommandStatus.PARTIAL_SUCCESS:
+                        logger.warning(f"[BATCH {batch.batch_id}] Command {idx+1} had partial success, continuing with next command")
+                        failed_devices = [k for k, v in execution.device_results.items() if v.status == GroupCommandStatus.FAILED]
+                        logger.warning(f"[BATCH {batch.batch_id}] Failed devices: {failed_devices}")
+                else:
+                    logger.error(f"[BATCH {batch.batch_id}] Could not find execution {execution_id}")
+                    batch.status = GroupCommandStatus.FAILED
+                    break
             
             # All commands completed
             if batch.status == GroupCommandStatus.RUNNING:
