@@ -264,14 +264,16 @@ class SocketEventHandler:
                 
                 logger.info(f"Deployment command {cmd_id} completed with success: {command_success}")
                 if self._connection and self._connection.connected:
-                    await self._connection.emit('deployment_command_completed', {
+                    completion_data = {
                         'command_id': cmd_id,
                         'success': command_success,
                         'output': command_output,
                         'error': '' if command_success else 'Command execution failed (see output for details)',
                         'execution_id': execution_id,
                         'group_execution': is_group_execution
-                    })
+                    }
+                    logger.info(f"Sending deployment_command_completed with data: {completion_data}")
+                    await self._connection.emit('deployment_command_completed', completion_data)
                     
             except Exception as e:
                 error_msg = f"Command execution failed: {str(e)}"
@@ -296,7 +298,9 @@ class SocketEventHandler:
                     'command_id': data.get('command_id', ''),
                     'success': False,
                     'output': '',
-                    'error': error_msg
+                    'error': error_msg,
+                    'execution_id': data.get('execution_id'),
+                    'group_execution': data.get('group_execution', False)
                 })
 
     async def handle_receive_file(self, data: Dict[str, Any]):

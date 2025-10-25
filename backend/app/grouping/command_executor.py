@@ -479,7 +479,12 @@ class GroupCommandExecutor:
             logger.info(f"Commands to execute: {batch.commands}")
             
             for idx, command in enumerate(batch.commands):
-                logger.info(f"[BATCH {batch.batch_id}] Starting command {idx+1}/{len(batch.commands)}: {command}")
+                logger.info(f"")
+                logger.info(f"{'='*80}")
+                logger.info(f"[BATCH {batch.batch_id}] *** COMMAND {idx+1}/{len(batch.commands)} STARTING ***")
+                logger.info(f"[BATCH {batch.batch_id}] Command: {command}")
+                logger.info(f"{'='*80}")
+                
                 batch.current_command_index = idx
                 
                 logger.info(f"[BATCH {batch.batch_id}] Executing command {idx+1}/{len(batch.commands)}: {command}")
@@ -495,14 +500,10 @@ class GroupCommandExecutor:
                     "transactional"
                 )
                 
-<<<<<<< HEAD
                 logger.info(f"[BATCH {batch.batch_id}] Command {idx+1} execution_id: {execution_id}")
-=======
-                logger.info(f"[BATCH {batch.batch_id}] Command {idx+1} execution ID: {execution_id}")
                 
                 # Give a moment for execution to be registered
                 await asyncio.sleep(0.5)
->>>>>>> b7da72f24f9ac79f4438bbc8c6d23c5a4095208e
                 
                 # Wait for this command to complete on all devices
                 execution = self.active_executions.get(execution_id)
@@ -516,17 +517,11 @@ class GroupCommandExecutor:
                     timeout = 300  # 5 minutes per command
                     start_time = datetime.now()
                     
-<<<<<<< HEAD
-                    logger.info(f"[BATCH {batch.batch_id}] Waiting for command {idx+1} to complete (status: {execution.status})...")
-                    
-                    # Wait while status is PENDING or RUNNING
-=======
                     logger.info(f"[BATCH {batch.batch_id}] Waiting for command {idx+1} to complete on all devices...")
                     logger.info(f"[BATCH {batch.batch_id}] Initial execution status: {execution.status}")
                     logger.info(f"[BATCH {batch.batch_id}] Execution has {len(execution.device_results)} devices")
                     
                     # Wait until execution is no longer running (could be COMPLETED, FAILED, or PARTIAL_SUCCESS)
->>>>>>> b7da72f24f9ac79f4438bbc8c6d23c5a4095208e
                     while execution.status in [GroupCommandStatus.PENDING, GroupCommandStatus.RUNNING]:
                         await asyncio.sleep(1)
                         
@@ -539,16 +534,6 @@ class GroupCommandExecutor:
                         
                         # Check timeout
                         if elapsed > timeout:
-<<<<<<< HEAD
-                            logger.warning(f"[BATCH {batch.batch_id}] Command {idx+1} timed out")
-                            break
-                    
-                    logger.info(f"[BATCH {batch.batch_id}] Command {idx+1} completed with status: {execution.status}")
-                    
-                    # Only stop if ALL devices failed (complete failure), not partial success
-                    if batch.stop_on_failure and execution.status == GroupCommandStatus.FAILED:
-                        logger.warning(f"[BATCH {batch.batch_id}] Stopping - all devices failed on command {idx+1}")
-=======
                             logger.warning(f"[BATCH {batch.batch_id}] Command {idx+1} timed out after {timeout}s")
                             break
                     
@@ -560,19 +545,10 @@ class GroupCommandExecutor:
                     if batch.stop_on_failure and execution.status == GroupCommandStatus.FAILED:
                         logger.warning(f"[BATCH {batch.batch_id}] Stopping due to complete failure on command {idx+1}")
                         logger.warning(f"[BATCH {batch.batch_id}] Failed devices: {[k for k, v in execution.device_results.items() if v.status == GroupCommandStatus.FAILED]}")
->>>>>>> b7da72f24f9ac79f4438bbc8c6d23c5a4095208e
                         batch.status = GroupCommandStatus.FAILED
                         break
                     elif execution.status == GroupCommandStatus.PARTIAL_SUCCESS:
                         logger.warning(f"[BATCH {batch.batch_id}] Command {idx+1} had partial success, continuing with next command")
-<<<<<<< HEAD
-                        failed_devices = [k for k, v in execution.device_results.items() if v.status == GroupCommandStatus.FAILED]
-                        logger.warning(f"[BATCH {batch.batch_id}] Failed devices: {failed_devices}")
-                else:
-                    logger.error(f"[BATCH {batch.batch_id}] Could not find execution {execution_id}")
-                    batch.status = GroupCommandStatus.FAILED
-                    break
-=======
                         logger.warning(f"[BATCH {batch.batch_id}] Failed devices: {[k for k, v in execution.device_results.items() if v.status == GroupCommandStatus.FAILED]}")
                 else:
                     logger.error(f"[BATCH {batch.batch_id}] Could not find execution {execution_id} for command {idx+1}")
@@ -582,8 +558,16 @@ class GroupCommandExecutor:
                 
                 # Log that we're continuing to next command
                 if idx < len(batch.commands) - 1:
-                    logger.info(f"[BATCH {batch.batch_id}] Moving to next command ({idx+2}/{len(batch.commands)})")
->>>>>>> b7da72f24f9ac79f4438bbc8c6d23c5a4095208e
+                    logger.info(f"")
+                    logger.info(f"[BATCH {batch.batch_id}] ✓ Command {idx+1} finished. Preparing next command...")
+                    logger.info(f"[BATCH {batch.batch_id}] Next command will be: {batch.commands[idx+1]}")
+                    logger.info(f"")
+                else:
+                    logger.info(f"[BATCH {batch.batch_id}] ✓ This was the last command")
+            
+            logger.info(f"")
+            logger.info(f"[BATCH {batch.batch_id}] *** LOOP COMPLETED - All {len(batch.commands)} commands processed ***")
+            logger.info(f"")
             
             # All commands completed
             if batch.status == GroupCommandStatus.RUNNING:

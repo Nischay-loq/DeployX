@@ -749,20 +749,32 @@ async def deployment_command_completed(sid, data):
         execution_id = data.get('execution_id')
         is_group_execution = data.get('group_execution', False)
         
+        # Log what we received for debugging
+        logger.info(f"=== deployment_command_completed received ===")
+        logger.info(f"command_id: {cmd_id}")
+        logger.info(f"success: {success}")
+        logger.info(f"execution_id: {execution_id}")
+        logger.info(f"group_execution: {is_group_execution}")
+        logger.info(f"Full data: {data}")
+        
         if cmd_id:
             # Check if this is a group execution
             if is_group_execution and execution_id:
                 # For group executions, cmd_id is the queue command ID
                 # Update the group execution tracker
                 agent_id = conn_manager.get_agent_by_sid(sid)
+                logger.info(f"This is a GROUP execution - agent: {agent_id}, execution_id: {execution_id}")
                 if agent_id:
                     from app.grouping.command_executor import group_command_executor
                     await group_command_executor.handle_device_command_completion(
                         execution_id, agent_id, success, final_output, error
                     )
                     logger.info(f"Handled group execution completion for agent {agent_id} in execution {execution_id}")
+                else:
+                    logger.error(f"Could not get agent_id from sid: {sid}")
             else:
                 # Handle individual agent command
+                logger.info(f"This is an INDIVIDUAL agent command")
                 await command_executor.handle_command_completion(
                     cmd_id, success, final_output, error
                 )
