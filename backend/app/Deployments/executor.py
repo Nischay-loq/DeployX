@@ -34,18 +34,27 @@ class SoftwareDeploymentExecutor:
         """
         # Create new event loop for this background task
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            result = loop.run_until_complete(
-                self._deploy_to_devices_async(
-                    deployment_id,
-                    software_ids,
-                    device_ids,
-                    custom_software
+            # Check if there's already a running event loop
+            try:
+                loop = asyncio.get_running_loop()
+                # Loop is already running - this shouldn't happen in a thread
+                logger.warning("Event loop already running in deploy_to_devices thread")
+                # Can't use run_until_complete when loop is running
+                raise RuntimeError("Cannot run deployment in current context")
+            except RuntimeError:
+                # No running loop - create a new one (normal case for thread execution)
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                result = loop.run_until_complete(
+                    self._deploy_to_devices_async(
+                        deployment_id,
+                        software_ids,
+                        device_ids,
+                        custom_software
+                    )
                 )
-            )
-            loop.close()
-            return result
+                loop.close()
+                return result
         except Exception as e:
             logger.error(f"Error in deploy_to_devices: {e}", exc_info=True)
             return {

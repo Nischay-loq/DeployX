@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
+import { Calendar } from 'lucide-react';
 import deploymentsService from '../services/deployments';
 import groupsService from '../services/groups';
 import devicesService from '../services/devices';
+import schedulingService from '../services/scheduling';
 import ProgressModal from './ProgressModal';
 import ConfirmDialog from './ConfirmDialog';
+import SchedulingModal from './SchedulingModal';
 
 export default function DeploymentsManager() {
   // Software selection
@@ -44,6 +47,10 @@ export default function DeploymentsManager() {
   const [showDeploymentModal, setShowDeploymentModal] = useState(false);
   const [selectedDeploymentDetails, setSelectedDeploymentDetails] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
+
+  // Scheduling state
+  const [showSchedulingModal, setShowSchedulingModal] = useState(false);
+  const [schedulingData, setSchedulingData] = useState(null);
 
   useEffect(() => {
     // Load initial data
@@ -156,6 +163,57 @@ export default function DeploymentsManager() {
     
     // Return actual device objects
     return devices.filter(device => allTargetDeviceIds.includes(device.id));
+  };
+
+  // Scheduling functions
+  const openSchedulingModal = () => {
+    const hasSoftware = useCustomSoftware ? 
+      customSoftware.trim().length > 0 : 
+      selectedSoftware.length > 0;
+    
+    if (!hasSoftware) {
+      alert('Please select software to install or enter custom software.');
+      return;
+    }
+
+    if (getTargetDevices().length === 0) {
+      alert('Please select at least one group or device.');
+      return;
+    }
+
+    const taskData = {
+      device_ids: selectedDevices,
+      group_ids: selectedGroups,
+      software_payload: {
+        software_ids: useCustomSoftware ? [] : selectedSoftware,
+        custom_software: useCustomSoftware ? customSoftware.trim() : null,
+        deployment_name: useCustomSoftware ? 
+          `Custom Software: ${customSoftware.trim()}` : 
+          `Software Installation - ${new Date().toLocaleString()}`
+      }
+    };
+
+    const targetDevices = getTargetDevices();
+    const targetInfo = `${targetDevices.length} devices (${selectedGroups.length} groups, ${selectedDevices.length} individual devices)`;
+
+    setSchedulingData({ taskData, targetInfo });
+    setShowSchedulingModal(true);
+  };
+
+  const handleSchedule = async (schedulePayload) => {
+    try {
+      await schedulingService.createScheduledTask(schedulePayload);
+      alert('Software deployment scheduled successfully!');
+      setShowSchedulingModal(false);
+    } catch (error) {
+      console.error('Scheduling error:', error);
+      throw error;
+    }
+  };
+
+  const handleExecuteNow = async () => {
+    setShowSchedulingModal(false);
+    await handleInstall();
   };
 
   const handleInstall = async () => {
@@ -712,17 +770,31 @@ export default function DeploymentsManager() {
               }
             </div>
           </div>
-          <button
-            onClick={handleInstall}
-            disabled={
-              deploying || 
-              (useCustomSoftware ? !customSoftware.trim() : selectedSoftware.length === 0) ||
-              getTargetDevices().length === 0
-            }
-            className="px-6 py-2 bg-electricBlue/20 border border-electricBlue/50 rounded-lg text-electricBlue hover:bg-electricBlue/30 disabled:bg-gray-600/20 disabled:text-gray-500 disabled:border-gray-600/50 transition-all font-medium"
-          >
-            {deploying ? 'Starting Deployment...' : 'Install Software'}
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={openSchedulingModal}
+              disabled={
+                deploying || 
+                (useCustomSoftware ? !customSoftware.trim() : selectedSoftware.length === 0) ||
+                getTargetDevices().length === 0
+              }
+              className="flex items-center gap-2 px-6 py-2 bg-blue-600/30 border border-blue-500/50 rounded-lg text-blue-400 hover:bg-blue-600/40 disabled:bg-gray-600/20 disabled:text-gray-500 disabled:border-gray-600/50 transition-all font-medium"
+            >
+              <Calendar className="w-4 h-4" />
+              Schedule Installation
+            </button>
+            <button
+              onClick={handleInstall}
+              disabled={
+                deploying || 
+                (useCustomSoftware ? !customSoftware.trim() : selectedSoftware.length === 0) ||
+                getTargetDevices().length === 0
+              }
+              className="flex items-center gap-2 px-6 py-2 bg-electricBlue/20 border border-electricBlue/50 rounded-lg text-electricBlue hover:bg-electricBlue/30 disabled:bg-gray-600/20 disabled:text-gray-500 disabled:border-gray-600/50 transition-all font-medium"
+            >
+              {deploying ? 'Starting Deployment...' : 'Install Now'}
+            </button>
+          </div>
         </div>
       </div>
         </div>
@@ -935,6 +1007,19 @@ Note: The deployment will continue running in the background."
         onConfirm={handleConfirmClose}
         onCancel={handleCancelClose}
       />
+
+      {/* Scheduling Modal */}
+      {showSchedulingModal && (
+        <SchedulingModal
+          isOpen={showSchedulingModal}
+          onClose={() => setShowSchedulingModal(false)}
+          onSchedule={handleSchedule}
+          onExecuteNow={handleExecuteNow}
+          taskType="software_deployment"
+          taskData={schedulingData?.taskData}
+          targetInfo={schedulingData?.targetInfo}
+        />
+      )}
     </div>
   );
 }

@@ -1,4 +1,131 @@
 {
-  "commands": [],
-  "last_updated": "2025-10-25T13:15:50.474805"
+  "commands": [
+    {
+      "id": "882285f6-e532-40fb-ba90-cfc9bb9391b6",
+      "command": "dir",
+      "status": "completed",
+      "output": "Microsoft Windows [Version 10.0.26200.6901]\r\n(c) Microsoft Corporation. All rights reserved.\r\n\r\nD:\\DeployX> Volume in drive D is New Volume\r\n Volume in drive D is New Volume\r\n Volume Serial Number is EEDC-0DD1\r\n\r\n Directory of D:\\DeployX\r\n\r\n25-10-2025  17:17    <DIR>          .\r\n20-10-2025  19:16               444 .gitignore\r\n20-10-2025  19:18    <DIR>          agent\r\n25-10-2025  16:51    <DIR>          backend\r\n25-10-2025  17:25             3,498 FIX_405_ERROR.md\r\n25-10-2025  16:31    <DIR>          frontend\r\n25-10-2025  17:25             5,614 ISSUES_FIXED.md\r\n20-10-2025  19:16             1,113 LICENSE\r\n20-10-2025  19:16             1,582 README.md\r\n25-10-2025  17:25             3,062 SCHEDULE_BUTTONS_ADDED.md\r\n25-10-2025  17:25            11,172 SCHEDULE_BUTTONS_VISUAL_GUIDE.md\r\n25-10-2025  17:25            16,714 SCHEDULING_COMPLETE_SUMMARY.md\r\n25-10-2025  17:25             5,053 SCHEDULING_FIXES.md\r\n25-10-2025  17:25             8,977 SCHEDULING_FIXES_APPLIED.md\r\n25-10-2025  17:25             3,801 SCHEDULING_QUICK_REFERENCE.md\r\n25-10-2025  17:25             7,120 SCHEDULING_QUICK_START.md\r\n25-10-2025  17:25             9,191 SCHEDULING_SETUP_GUIDE.md\r\n25-10-2025  17:25            11,987 SCHEDULING_SUMMARY.md\r\n25-10-2025  17:25            32,260 SCHEDULING_VISUAL_ARCHITECTURE.md\r\n              15 File(s)        121,588 bytes\r\n               4 Dir(s)  186,917,175,296 bytes free\r\n Volume Serial Number is EEDC-0DD1\r\n\r\n Directory of D:\\DeployX\r\n\r\n25-10-2025  17:17    <DIR>          .\r\n20-10-2025  19:16               444 .gitignore\r\n20-10-2025  19:18    <DIR>          agent\r\n25-10-2025  16:51    <DIR>          backend\r\n25-10-2025  17:25             3,498 FIX_405_ERROR.md\r\n25-10-2025  16:31    <DIR>          frontend\r\n25-10-2025  17:25             5,614 ISSUES_FIXED.md\r\n20-10-2025  19:16             1,113 LICENSE\r\n20-10-2025  19:16             1,582 README.md\r\n25-10-2025  17:25             3,062 SCHEDULE_BUTTONS_ADDED.md\r\n25-10-2025  17:25            11,172 SCHEDULE_BUTTONS_VISUAL_GUIDE.md\r\n25-10-2025  17:25            16,714 SCHEDULING_COMPLETE_SUMMARY.md\r\n25-10-2025  17:25             5,053 SCHEDULING_FIXES.md\r\n25-10-2025  17:25             8,977 SCHEDULING_FIXES_APPLIED.md\r\n25-10-2025  17:25             3,801 SCHEDULING_QUICK_REFERENCE.md\r\n25-10-2025  17:25             7,120 SCHEDULING_QUICK_START.md\r\n25-10-2025  17:25             9,191 SCHEDULING_SETUP_GUIDE.md\r\n25-10-2025  17:25            11,987 SCHEDULING_SUMMARY.md\r\n25-10-2025  17:25            32,260 SCHEDULING_VISUAL_ARCHITECTURE.md\r\n              15 File(s)        121,588 bytes\r\n               4 Dir(s)  186,917,175,296 bytes free\r\n\r\nD:\\DeployX>\r\nD:\\DeployX> Volume in drive D is New Volume\r\n Volume Serial Number is EEDC-0DD1\r\n\r\n Directory of D:\\DeployX\r\n\r\n25-10-2025  17:17    <DIR>          .\r\n20-10-2025  19:16               444 .gitignore\r\n20-10-2025  19:18    <DIR>          agent\r\n25-10-2025  16:51    <DIR>          backend\r\n25-10-2025  17:25             3,498 FIX_405_ERROR.md\r\n25-10-2025  16:31    <DIR>          frontend\r\n25-10-2025  17:25             5,614 ISSUES_FIXED.md\r\n20-10-2025  19:16             1,113 LICENSE\r\n20-10-2025  19:16             1,582 README.md\r\n25-10-2025  17:25             3,062 SCHEDULE_BUTTONS_ADDED.md\r\n25-10-2025  17:25            11,172 SCHEDULE_BUTTONS_VISUAL_GUIDE.md\r\n25-10-2025  17:25            16,714 SCHEDULING_COMPLETE_SUMMARY.md\r\n25-10-2025  17:25             5,053 SCHEDULING_FIXES.md\r\n25-10-2025  17:25             8,977 SCHEDULING_FIXES_APPLIED.md\r\n25-10-2025  17:25             3,801 SCHEDULING_QUICK_REFERENCE.md\r\n25-10-2025  17:25             7,120 SCHEDULING_QUICK_START.md\r\n25-10-2025  17:25             9,191 SCHEDULING_SETUP_GUIDE.md\r\n25-10-2025  17:25            11,987 SCHEDULING_SUMMARY.md\r\n25-10-2025  17:25            32,260 SCHEDULING_VISUAL_ARCHITECTURE.md\r\n              15 File(s)        121,588 bytes\r\n               4 Dir(s)  186,917,175,296 bytes free\r\n\r\nD:\\DeployX>laptop-i8s56vv9\\parth\r\n\r\nD:\\DeployX>",
+      "strategy": "snapshot",
+      "timestamp": "2025-10-26T00:13:01.755911",
+      "agent_id": "agent_86d54f2b",
+      "shell": "cmd",
+      "error": null,
+      "started_at": "2025-10-26T00:13:01.756664",
+      "completed_at": "2025-10-26T00:13:02.792932",
+      "config": {
+        "original_command": "dir",
+        "group_execution": true,
+        "group_id": 0,
+        "group_name": "Scheduled: Command Task - 26/10/2025, 00:11:47",
+        "execution_id": "c967e3c5-c836-41d8-9ffa-f23c23f31980",
+        "device_id": 41
+      }
+    },
+    {
+      "id": "8889b2df-7a3c-4a18-a2db-a30de9e45c14",
+      "command": "whoami",
+      "status": "completed",
+      "output": "laptop-i8s56vv9\\parth\r\n\r\nD:\\DeployX>laptop-i8s56vv9\\parth\r\n\r\nD:\\DeployX>",
+      "strategy": "snapshot",
+      "timestamp": "2025-10-26T00:15:01.697130",
+      "agent_id": "agent_86d54f2b",
+      "shell": "cmd",
+      "error": null,
+      "started_at": "2025-10-26T00:15:01.699243",
+      "completed_at": "2025-10-26T00:15:02.228041",
+      "config": {
+        "original_command": "whoami",
+        "group_execution": true,
+        "group_id": 0,
+        "group_name": "Scheduled: Command Task - 26/10/2025, 00:13:21",
+        "execution_id": "ea192a57-b6a7-429d-9c87-83c5689cfe86",
+        "device_id": 41
+      }
+    },
+    {
+      "id": "590209fb-bc82-4674-93f8-685872846838",
+      "command": "dir",
+      "status": "running",
+      "output": "Microsoft Windows [Version 10.0.26200.6901]\r\n(c) Microsoft Corporation. All rights reserved.\r\n\r\nD:\\DeployX> Volume in drive D is New Volume\r\n Volume in drive D is New Volume\r\n Volume Serial Number is EEDC-0DD1\r\n\r\n Directory of D:\\DeployX\r\n\r\n25-10-2025  17:17    <DIR>          .\r\n20-10-2025  19:16               444 .gitignore\r\n20-10-2025  19:18    <DIR>          agent\r\n25-10-2025  16:51    <DIR>          backend\r\n25-10-2025  17:25             3,498 FIX_405_ERROR.md\r\n25-10-2025  16:31    <DIR>          frontend\r\n25-10-2025  17:25             5,614 ISSUES_FIXED.md\r\n20-10-2025  19:16             1,113 LICENSE\r\n20-10-2025  19:16             1,582 README.md\r\n25-10-2025  17:25             3,062 SCHEDULE_BUTTONS_ADDED.md\r\n25-10-2025  17:25            11,172 SCHEDULE_BUTTONS_VISUAL_GUIDE.md\r\n25-10-2025  17:25            16,714 SCHEDULING_COMPLETE_SUMMARY.md\r\n25-10-2025  17:25             5,053 SCHEDULING_FIXES.md\r\n25-10-2025  17:25             8,977 SCHEDULING_FIXES_APPLIED.md\r\n25-10-2025  17:25             3,801 SCHEDULING_QUICK_REFERENCE.md\r\n25-10-2025  17:25             7,120 SCHEDULING_QUICK_START.md\r\n25-10-2025  17:25             9,191 SCHEDULING_SETUP_GUIDE.md\r\n25-10-2025  17:25            11,987 SCHEDULING_SUMMARY.md\r\n25-10-2025  17:25            32,260 SCHEDULING_VISUAL_ARCHITECTURE.md\r\n              15 File(s)        121,588 bytes\r\n               4 Dir(s)  186,917,683,200 bytes free\r\n Volume Serial Number is EEDC-0DD1\r\n\r\n Directory of D:\\DeployX\r\n\r\n25-10-2025  17:17    <DIR>          .\r\n20-10-2025  19:16               444 .gitignore\r\n20-10-2025  19:18    <DIR>          agent\r\n25-10-2025  16:51    <DIR>          backend\r\n25-10-2025  17:25             3,498 FIX_405_ERROR.md\r\n25-10-2025  16:31    <DIR>          frontend\r\n25-10-2025  17:25             5,614 ISSUES_FIXED.md\r\n20-10-2025  19:16             1,113 LICENSE\r\n20-10-2025  19:16             1,582 README.md\r\n25-10-2025  17:25             3,062 SCHEDULE_BUTTONS_ADDED.md\r\n25-10-2025  17:25            11,172 SCHEDULE_BUTTONS_VISUAL_GUIDE.md\r\n25-10-2025  17:25            16,714 SCHEDULING_COMPLETE_SUMMARY.md\r\n25-10-2025  17:25             5,053 SCHEDULING_FIXES.md\r\n25-10-2025  17:25             8,977 SCHEDULING_FIXES_APPLIED.md\r\n25-10-2025  17:25             3,801 SCHEDULING_QUICK_REFERENCE.md\r\n25-10-2025  17:25             7,120 SCHEDULING_QUICK_START.md\r\n25-10-2025  17:25             9,191 SCHEDULING_SETUP_GUIDE.md\r\n25-10-2025  17:25            11,987 SCHEDULING_SUMMARY.md\r\n25-10-2025  17:25            32,260 SCHEDULING_VISUAL_ARCHITECTURE.md\r\n              15 File(s)        121,588 bytes\r\n               4 Dir(s)  186,917,683,200 bytes free\r\n\r\nD:\\DeployX>\r\nD:\\DeployX> Volume in drive D is New Volume\r\n Volume Serial Number is EEDC-0DD1\r\n\r\n Directory of D:\\DeployX\r\n\r\n25-10-2025  17:17    <DIR>          .\r\n20-10-2025  19:16               444 .gitignore\r\n20-10-2025  19:18    <DIR>          agent\r\n25-10-2025  16:51    <DIR>          backend\r\n25-10-2025  17:25             3,498 FIX_405_ERROR.md\r\n25-10-2025  16:31    <DIR>          frontend\r\n25-10-2025  17:25             5,614 ISSUES_FIXED.md\r\n20-10-2025  19:16             1,113 LICENSE\r\n20-10-2025  19:16             1,582 README.md\r\n25-10-2025  17:25             3,062 SCHEDULE_BUTTONS_ADDED.md\r\n25-10-2025  17:25            11,172 SCHEDULE_BUTTONS_VISUAL_GUIDE.md\r\n25-10-2025  17:25            16,714 SCHEDULING_COMPLETE_SUMMARY.md\r\n25-10-2025  17:25             5,053 SCHEDULING_FIXES.md\r\n25-10-2025  17:25             8,977 SCHEDULING_FIXES_APPLIED.md\r\n25-10-2025  17:25             3,801 SCHEDULING_QUICK_REFERENCE.md\r\n25-10-2025  17:25             7,120 SCHEDULING_QUICK_START.md\r\n25-10-2025  17:25             9,191 SCHEDULING_SETUP_GUIDE.md\r\n25-10-2025  17:25            11,987 SCHEDULING_SUMMARY.md\r\n25-10-2025  17:25            32,260 SCHEDULING_VISUAL_ARCHITECTURE.md\r\n              15 File(s)        121,588 bytes\r\n               4 Dir(s)  186,917,683,200 bytes free\r\n\r\nD:\\DeployX>\r\nWindows IP Configuration\r\n\r\n\r\nEthernet adapter Ethernet 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::1a5c:b6e4:29b5:9d6%24\r\n   IPv4 Address. . . . . . . . . . . : 192.168.56.1\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : \r\n\r\nWireless LAN adapter Local Area Connection* 11:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Local Area Connection* 12:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Wi-Fi:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::ebf3:493c:efdb:1593%4\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.103\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nWireless LAN adapter Wi-Fi 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::3711:29cb:51d:2634%13\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.109\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nEthernet adapter Bluetooth Network Connection 2:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nEthernet adapter Ethernet 3:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : lan.dbit.in\r\n\r\nD:\\DeployX> Volume in drive D is New Volume\r\n Volume Serial Number is EEDC-0DD1\r\n\r\n Directory of D:\\DeployX\r\n\r\n25-10-2025  17:17    <DIR>          .\r\n20-10-2025  19:16               444 .gitignore\r\n20-10-2025  19:18    <DIR>          agent\r\n25-10-2025  16:51    <DIR>          backend\r\n25-10-2025  17:25             3,498 FIX_405_ERROR.md\r\n25-10-2025  16:31    <DIR>          frontend\r\n25-10-2025  17:25             5,614 ISSUES_FIXED.md\r\n20-10-2025  19:16             1,113 LICENSE\r\n20-10-2025  19:16             1,582 README.md\r\n25-10-2025  17:25             3,062 SCHEDULE_BUTTONS_ADDED.md\r\n25-10-2025  17:25            11,172 SCHEDULE_BUTTONS_VISUAL_GUIDE.md\r\n25-10-2025  17:25            16,714 SCHEDULING_COMPLETE_SUMMARY.md\r\n25-10-2025  17:25             5,053 SCHEDULING_FIXES.md\r\n25-10-2025  17:25             8,977 SCHEDULING_FIXES_APPLIED.md\r\n25-10-2025  17:25             3,801 SCHEDULING_QUICK_REFERENCE.md\r\n25-10-2025  17:25             7,120 SCHEDULING_QUICK_START.md\r\n25-10-2025  17:25             9,191 SCHEDULING_SETUP_GUIDE.md\r\n25-10-2025  17:25            11,987 SCHEDULING_SUMMARY.md\r\n25-10-2025  17:25            32,260 SCHEDULING_VISUAL_ARCHITECTURE.md\r\n              15 File(s)        121,588 bytes\r\n               4 Dir(s)  186,917,670,912 bytes free\r\n\r\nD:\\DeployX>\r\nWindows IP Configuration\r\n\r\n\r\nEthernet adapter Ethernet 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::1a5c:b6e4:29b5:9d6%24\r\n   IPv4 Address. . . . . . . . . . . : 192.168.56.1\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : \r\n\r\nWireless LAN adapter Local Area Connection* 11:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Local Area Connection* 12:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Wi-Fi:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::ebf3:493c:efdb:1593%4\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.103\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nWireless LAN adapter Wi-Fi 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::3711:29cb:51d:2634%13\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.109\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nEthernet adapter Bluetooth Network Connection 2:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nEthernet adapter Ethernet 3:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : lan.dbit.in\r\n\r\nD:\\DeployX>",
+      "strategy": "transactional",
+      "timestamp": "2025-10-26T00:53:02.092122",
+      "agent_id": "agent_86d54f2b",
+      "shell": "cmd",
+      "error": null,
+      "started_at": "2025-10-26T00:53:02.093327",
+      "completed_at": "2025-10-26T00:53:03.159062",
+      "config": {
+        "original_command": "dir",
+        "group_execution": true,
+        "group_id": 0,
+        "group_name": "Scheduled: Command Task - 26/10/2025, 00:52:18",
+        "execution_id": "d152dd77-df95-49b6-8e2c-2ec2ed73ec25",
+        "device_id": 41
+      }
+    },
+    {
+      "id": "1f30125c-704e-49e5-8818-f25b38ff2d11",
+      "command": "ipconfig",
+      "status": "completed",
+      "output": "\r\nWindows IP Configuration\r\n\r\n\r\nEthernet adapter Ethernet 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::1a5c:b6e4:29b5:9d6%24\r\n   IPv4 Address. . . . . . . . . . . : 192.168.56.1\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : \r\n\r\nWireless LAN adapter Local Area Connection* 11:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Local Area Connection* 12:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Wi-Fi:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::ebf3:493c:efdb:1593%4\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.103\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nWireless LAN adapter Wi-Fi 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::3711:29cb:51d:2634%13\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.109\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nEthernet adapter Bluetooth Network Connection 2:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nEthernet adapter Ethernet 3:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : lan.dbit.in\r\n\r\nD:\\DeployX>\r\nWindows IP Configuration\r\n\r\n\r\nEthernet adapter Ethernet 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::1a5c:b6e4:29b5:9d6%24\r\n   IPv4 Address. . . . . . . . . . . : 192.168.56.1\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : \r\n\r\nWireless LAN adapter Local Area Connection* 11:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Local Area Connection* 12:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Wi-Fi:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::ebf3:493c:efdb:1593%4\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.103\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nWireless LAN adapter Wi-Fi 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::3711:29cb:51d:2634%13\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.109\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nEthernet adapter Bluetooth Network Connection 2:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nEthernet adapter Ethernet 3:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : lan.dbit.in\r\n\r\nD:\\DeployX>",
+      "strategy": "transactional",
+      "timestamp": "2025-10-26T00:53:03.608745",
+      "agent_id": "agent_86d54f2b",
+      "shell": "cmd",
+      "error": null,
+      "started_at": "2025-10-26T00:53:03.610517",
+      "completed_at": "2025-10-26T00:53:04.124180",
+      "config": {
+        "original_command": "ipconfig",
+        "group_execution": true,
+        "group_id": 0,
+        "group_name": "Scheduled: Command Task - 26/10/2025, 00:52:18",
+        "execution_id": "166a1bd8-9056-42ce-bd6b-6f30ff546c03",
+        "device_id": 41
+      }
+    },
+    {
+      "id": "a62a55ea-3ba8-4ee5-948b-7b22c73ec8a5",
+      "command": "dir",
+      "status": "completed",
+      "output": " Volume in drive D is New Volume\r\n Volume Serial Number is EEDC-0DD1\r\n\r\n Directory of D:\\DeployX\r\n\r\n25-10-2025  17:17    <DIR>          .\r\n20-10-2025  19:16               444 .gitignore\r\n20-10-2025  19:18    <DIR>          agent\r\n25-10-2025  16:51    <DIR>          backend\r\n25-10-2025  17:25             3,498 FIX_405_ERROR.md\r\n25-10-2025  16:31    <DIR>          frontend\r\n25-10-2025  17:25             5,614 ISSUES_FIXED.md\r\n20-10-2025  19:16             1,113 LICENSE\r\n20-10-2025  19:16             1,582 README.md\r\n25-10-2025  17:25             3,062 SCHEDULE_BUTTONS_ADDED.md\r\n25-10-2025  17:25            11,172 SCHEDULE_BUTTONS_VISUAL_GUIDE.md\r\n25-10-2025  17:25            16,714 SCHEDULING_COMPLETE_SUMMARY.md\r\n25-10-2025  17:25             5,053 SCHEDULING_FIXES.md\r\n25-10-2025  17:25             8,977 SCHEDULING_FIXES_APPLIED.md\r\n25-10-2025  17:25             3,801 SCHEDULING_QUICK_REFERENCE.md\r\n25-10-2025  17:25             7,120 SCHEDULING_QUICK_START.md\r\n25-10-2025  17:25             9,191 SCHEDULING_SETUP_GUIDE.md\r\n25-10-2025  17:25            11,987 SCHEDULING_SUMMARY.md\r\n25-10-2025  17:25            32,260 SCHEDULING_VISUAL_ARCHITECTURE.md\r\n              15 File(s)        121,588 bytes\r\n               4 Dir(s)  186,917,670,912 bytes free\r\n\r\nD:\\DeployX> Volume in drive D is New Volume\r\n Volume Serial Number is EEDC-0DD1\r\n\r\n Directory of D:\\DeployX\r\n\r\n25-10-2025  17:17    <DIR>          .\r\n20-10-2025  19:16               444 .gitignore\r\n20-10-2025  19:18    <DIR>          agent\r\n25-10-2025  16:51    <DIR>          backend\r\n25-10-2025  17:25             3,498 FIX_405_ERROR.md\r\n25-10-2025  16:31    <DIR>          frontend\r\n25-10-2025  17:25             5,614 ISSUES_FIXED.md\r\n20-10-2025  19:16             1,113 LICENSE\r\n20-10-2025  19:16             1,582 README.md\r\n25-10-2025  17:25             3,062 SCHEDULE_BUTTONS_ADDED.md\r\n25-10-2025  17:25            11,172 SCHEDULE_BUTTONS_VISUAL_GUIDE.md\r\n25-10-2025  17:25            16,714 SCHEDULING_COMPLETE_SUMMARY.md\r\n25-10-2025  17:25             5,053 SCHEDULING_FIXES.md\r\n25-10-2025  17:25             8,977 SCHEDULING_FIXES_APPLIED.md\r\n25-10-2025  17:25             3,801 SCHEDULING_QUICK_REFERENCE.md\r\n25-10-2025  17:25             7,120 SCHEDULING_QUICK_START.md\r\n25-10-2025  17:25             9,191 SCHEDULING_SETUP_GUIDE.md\r\n25-10-2025  17:25            11,987 SCHEDULING_SUMMARY.md\r\n25-10-2025  17:25            32,260 SCHEDULING_VISUAL_ARCHITECTURE.md\r\n              15 File(s)        121,588 bytes\r\n               4 Dir(s)  186,917,670,912 bytes free\r\n\r\nD:\\DeployX>",
+      "strategy": "transactional",
+      "timestamp": "2025-10-26T00:54:01.863023",
+      "agent_id": "agent_86d54f2b",
+      "shell": "cmd",
+      "error": null,
+      "started_at": "2025-10-26T00:54:01.864517",
+      "completed_at": "2025-10-26T00:54:02.376904",
+      "config": {
+        "original_command": "dir",
+        "group_execution": true,
+        "group_id": 0,
+        "group_name": "Scheduled: Command Task - 26/10/2025, 00:53:14",
+        "execution_id": "26d7fd4f-d2a1-4ee6-96dd-984a8f6f5ac0",
+        "device_id": 41
+      }
+    },
+    {
+      "id": "7ef4e418-d5b9-4710-af39-ae998ba0c177",
+      "command": "ipconfig",
+      "status": "completed",
+      "output": "\r\nWindows IP Configuration\r\n\r\n\r\nEthernet adapter Ethernet 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::1a5c:b6e4:29b5:9d6%24\r\n   IPv4 Address. . . . . . . . . . . : 192.168.56.1\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : \r\n\r\nWireless LAN adapter Local Area Connection* 11:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Local Area Connection* 12:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Wi-Fi:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::ebf3:493c:efdb:1593%4\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.103\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nWireless LAN adapter Wi-Fi 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::3711:29cb:51d:2634%13\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.109\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nEthernet adapter Bluetooth Network Connection 2:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nEthernet adapter Ethernet 3:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : lan.dbit.in\r\n\r\nD:\\DeployX>\r\nWindows IP Configuration\r\n\r\n\r\nEthernet adapter Ethernet 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::1a5c:b6e4:29b5:9d6%24\r\n   IPv4 Address. . . . . . . . . . . : 192.168.56.1\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : \r\n\r\nWireless LAN adapter Local Area Connection* 11:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Local Area Connection* 12:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Wi-Fi:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::ebf3:493c:efdb:1593%4\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.103\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nWireless LAN adapter Wi-Fi 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::3711:29cb:51d:2634%13\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.109\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nEthernet adapter Bluetooth Network Connection 2:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nEthernet adapter Ethernet 3:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : lan.dbit.in\r\n\r\nD:\\DeployX>",
+      "strategy": "transactional",
+      "timestamp": "2025-10-26T00:54:03.387362",
+      "agent_id": "agent_86d54f2b",
+      "shell": "cmd",
+      "error": null,
+      "started_at": "2025-10-26T00:54:03.392709",
+      "completed_at": "2025-10-26T00:54:03.954368",
+      "config": {
+        "original_command": "ipconfig",
+        "group_execution": true,
+        "group_id": 0,
+        "group_name": "Scheduled: Command Task - 26/10/2025, 00:53:14",
+        "execution_id": "241bb4d0-4e1a-4397-ab97-013a126d31d2",
+        "device_id": 41
+      }
+    }
+  ],
+  "last_updated": "2025-10-26T00:54:03.954491"
 }

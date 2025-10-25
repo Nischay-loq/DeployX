@@ -19,6 +19,7 @@ from app.files import models as schemas
 from app.files.models import UploadedFile, FileDeployment
 from app.Devices.crud import get_device, get_devices_by_ids
 from app.grouping.crud import get_group, get_devices_in_groups
+from app.grouping.models import Device
 
 # Import Socket.IO components at module level to avoid circular imports
 sio = None
@@ -284,7 +285,10 @@ async def deploy_files(
     deployment = crud.create_file_deployment(db, deployment_request, current_user.id)
     
     # Start deployment process asynchronously
-    asyncio.create_task(process_file_deployment_async(deployment.id, files, devices, deployment_request))
+    # Pass IDs instead of objects to avoid DetachedInstanceError
+    file_ids = [f.id for f in files]
+    device_ids = [d.id for d in devices]
+    asyncio.create_task(process_file_deployment_async(deployment.id, file_ids, device_ids, deployment_request))
     
     return schemas.FileDeploymentResponse(
         success=True,
@@ -292,13 +296,18 @@ async def deploy_files(
         deployment_id=deployment.id
     )
 
-async def process_file_deployment_async(deployment_id: int, files: List[UploadedFile], 
-                                      devices: List, deployment_request: schemas.FileDeploymentRequest):
-    """Async wrapper that creates its own database session"""
+async def process_file_deployment_async(deployment_id: int, file_ids: List[int], 
+                                      device_ids: List[int], deployment_request: schemas.FileDeploymentRequest):
+    """Async wrapper that creates its own database session and fetches objects fresh"""
     db = None
     try:
         # Create a new database session for this async task
         db = next(get_db())
+        
+        # Fetch files and devices with the new session
+        files = db.query(UploadedFile).filter(UploadedFile.id.in_(file_ids)).all()
+        devices = db.query(Device).filter(Device.id.in_(device_ids)).all()
+        
         await process_file_deployment(deployment_id, files, devices, deployment_request, db)
     except Exception as e:
         logger.exception(f"Error in async file deployment wrapper: {e}")

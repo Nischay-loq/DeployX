@@ -20,13 +20,16 @@ import {
   Settings,
   Cloud,
   Link,
-  ExternalLink
+  ExternalLink,
+  Calendar
 } from 'lucide-react';
 import groupsService from '../services/groups';
 import devicesService from '../services/devices';
 import filesService from '../services/files';
 import googleDriveService from '../services/manualGoogleDrive';
+import schedulingService from '../services/scheduling';
 import Notification from './jsx/Notification';
+import SchedulingModal from './SchedulingModal';
 
 export default function FileSystemManager() {
   // File upload states
@@ -61,6 +64,10 @@ export default function FileSystemManager() {
   const [previewFile, setPreviewFile] = useState(null);
   const [previewContent, setPreviewContent] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
+
+  // Scheduling state
+  const [showSchedulingModal, setShowSchedulingModal] = useState(false);
+  const [schedulingData, setSchedulingData] = useState(null);
 
   // Refs
   const fileInputRef = useRef(null);
@@ -317,6 +324,103 @@ export default function FileSystemManager() {
     
     const allTargetDeviceIds = [...new Set([...groupDevices, ...selectedDevices])];
     return devices.filter(device => allTargetDeviceIds.includes(device.id));
+  };
+
+  // Scheduling functions
+  const canDeploy = () => {
+    return uploadedFiles.length > 0 && 
+           (selectedGroups.length > 0 || selectedDevices.length > 0);
+  };
+
+  const openSchedulingModal = async () => {
+    if (uploadedFiles.length === 0) {
+      addNotification('Please upload files first', 'error');
+      return;
+    }
+
+    const targetDevices = getTargetDevices();
+    if (targetDevices.length === 0) {
+      addNotification('Please select at least one device or group', 'error');
+      return;
+    }
+
+    try {
+      // Upload files to server first if not already uploaded
+      const needsUpload = uploadedFiles.some(f => !f.uploaded);
+      let fileIds = uploadedFiles.filter(f => f.uploaded && f.id).map(f => f.id);
+      
+      if (needsUpload) {
+        addNotification('Uploading files to server...', 'info');
+        const uploadResponse = await filesService.uploadFiles(uploadedFiles);
+        
+        if (!uploadResponse.success) {
+          throw new Error(uploadResponse.message || 'Failed to upload files to server');
+        }
+        
+        fileIds = uploadResponse.file_ids;
+        
+        // Update uploadedFiles state with IDs
+        setUploadedFiles(prev => prev.map((file, index) => ({
+          ...file,
+          id: uploadResponse.file_ids[index],
+          uploaded: true
+        })));
+        
+        addNotification('Files uploaded successfully', 'success');
+      }
+      
+      console.log('FileSystemManager - File IDs for scheduling:', fileIds);
+      
+      if (fileIds.length === 0) {
+        addNotification('No valid file IDs found. Please try uploading files again.', 'error');
+        return;
+      }
+
+      // Use default path if custom path is not provided
+      const deploymentPath = customPath.trim() || '/tmp/deployed_files';
+
+      const taskData = {
+        device_ids: selectedDevices,
+        group_ids: selectedGroups,
+        file_payload: {
+          file_ids: fileIds,
+          target_path: deploymentPath,
+          create_path_if_not_exists: true,
+          deployment_name: `File Deployment - ${new Date().toLocaleString()}`
+        }
+      };
+
+      console.log('FileSystemManager - Opening scheduling modal with data:', {
+        selectedDevices,
+        selectedGroups,
+        taskData
+      });
+
+      const targetInfo = `${fileIds.length} files to ${targetDevices.length} devices`;
+
+      setSchedulingData({ taskData, targetInfo });
+      setShowSchedulingModal(true);
+      
+    } catch (error) {
+      console.error('Error preparing file scheduling:', error);
+      addNotification(`Failed to prepare scheduling: ${error.message}`, 'error');
+    }
+  };
+
+  const handleSchedule = async (schedulePayload) => {
+    try {
+      await schedulingService.createScheduledTask(schedulePayload);
+      addNotification('File deployment scheduled successfully!', 'success');
+      setShowSchedulingModal(false);
+    } catch (error) {
+      console.error('Scheduling error:', error);
+      throw error;
+    }
+  };
+
+  const handleExecuteNow = async () => {
+    setShowSchedulingModal(false);
+    await handleDeploy();
   };
 
   // Deployment handler
@@ -915,23 +1019,34 @@ export default function FileSystemManager() {
                 </div>
               </div>
 
-              <button
-                onClick={handleDeploy}
-                disabled={isDeploying || uploadedFiles.length === 0 || getTargetDevices().length === 0}
-                className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isDeploying ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    Deploying...
-                  </>
-                ) : (
-                  <>
-                    <ArrowRight className="w-4 h-4 mr-2" />
-                    Start Deployment
-                  </>
-                )}
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={openSchedulingModal}
+                  disabled={isDeploying || uploadedFiles.length === 0 || getTargetDevices().length === 0}
+                  className="flex-1 flex items-center justify-center gap-2 btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Calendar className="w-4 h-4" />
+                  Schedule Deployment
+                </button>
+
+                <button
+                  onClick={handleDeploy}
+                  disabled={isDeploying || uploadedFiles.length === 0 || getTargetDevices().length === 0}
+                  className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isDeploying ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Deploying...
+                    </>
+                  ) : (
+                    <>
+                      <ArrowRight className="w-4 h-4 mr-2" />
+                      Deploy Now
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1204,6 +1319,19 @@ export default function FileSystemManager() {
           />
         ))}
       </div>
+
+      {/* Scheduling Modal */}
+      {showSchedulingModal && (
+        <SchedulingModal
+          isOpen={showSchedulingModal}
+          onClose={() => setShowSchedulingModal(false)}
+          onSchedule={handleSchedule}
+          onExecuteNow={handleExecuteNow}
+          taskType="file_deployment"
+          taskData={schedulingData?.taskData}
+          targetInfo={schedulingData?.targetInfo}
+        />
+      )}
     </div>
   );
 }
