@@ -419,8 +419,13 @@ export default function DeploymentManager({
       
       // If groups are selected, use the group batch command API
       if (selectedGroups.length > 0) {
+        console.log('Executing batch commands on groups:', selectedGroups);
+        console.log('Commands to execute:', validCommands);
+        
         // Execute batch commands on each selected group using the group API
         for (const groupId of selectedGroups) {
+          console.log(`Sending batch request to group ${groupId} with ${validCommands.length} commands`);
+          
           const response = await fetch(`${API_BASE_URL}/groups/${groupId}/commands/batch/sequential`, {
             method: 'POST',
             headers: { 
@@ -437,10 +442,12 @@ export default function DeploymentManager({
 
           if (response.ok) {
             const batch = await response.json();
-            console.log(`Group ${groupId} batch execution started:`, batch.batch_id);
-            alert(`Batch execution started on group. Batch ID: ${batch.batch_id}`);
+            console.log(`Group ${groupId} batch execution started:`, batch);
+            // Reload commands immediately to show new queue entries
+            loadCommands();
           } else {
             const error = await response.json();
+            console.error(`Error executing batch on group ${groupId}:`, error);
             alert(`Error executing batch on group ${groupId}: ${error.detail || 'Unknown error'}`);
           }
         }
