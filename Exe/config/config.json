@@ -1,0 +1,6 @@
+{
+  "update_check_interval": 3600,
+  "auto_update_enabled": true,
+  "server_url": "https://deployx-server.onrender.com",
+  "log_level": "INFO"
+}
