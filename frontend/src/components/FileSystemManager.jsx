@@ -601,20 +601,19 @@ export default function FileSystemManager() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-500/20 rounded-lg">
-            <HardDrive className="w-6 h-6 text-blue-400" />
+      <div className="flex items-center justify-between flex-nowrap">
+        <div className="flex items-center gap-3 flex-nowrap min-w-0">
+          <div className="p-2 bg-green-500/20 rounded-lg flex-shrink-0">
+            <FolderOpen className="w-6 h-6 text-green-400" />
           </div>
-          <div>
-            <h2 className="text-2xl font-bold text-white">File System Deployment</h2>
-            <p className="text-gray-400">Upload and deploy files to remote devices</p>
-          </div>
+          <h2 className="text-2xl font-bold text-white whitespace-nowrap">File System</h2>
+          <span className="text-gray-400 whitespace-nowrap">•</span>
+          <p className="text-gray-400 whitespace-nowrap">Transfer and manage files on remote systems</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => setShowResults(!showResults)}
-            className={`px-4 py-2 rounded-lg border transition-all ${
+            className={`px-4 py-2 rounded-lg border transition-all whitespace-nowrap ${
               showResults 
                 ? 'bg-primary-500/20 border-primary-500/30 text-primary-400'
                 : 'bg-gray-800/50 border-gray-700 text-gray-400 hover:bg-gray-800'
