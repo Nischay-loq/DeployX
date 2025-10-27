@@ -23,6 +23,7 @@ import {
   ExternalLink,
   Calendar
 } from 'lucide-react';
+import { io } from 'socket.io-client';
 import groupsService from '../services/groups';
 import devicesService from '../services/devices';
 import filesService from '../services/files';
@@ -72,10 +73,76 @@ export default function FileSystemManager() {
   // Refs
   const fileInputRef = useRef(null);
   const dropZoneRef = useRef(null);
+  const socketRef = useRef(null);
+  const pollIntervalRef = useRef(null);
 
   useEffect(() => {
     loadGroups();
     loadDevices();
+
+    // Initialize Socket.IO connection
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    socketRef.current = io(API_URL, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5
+    });
+
+    socketRef.current.on('connect', () => {
+      console.log('FileSystemManager: Socket.IO connected');
+    });
+
+    socketRef.current.on('disconnect', () => {
+      console.log('FileSystemManager: Socket.IO disconnected');
+    });
+
+    // Listen for file deployment completion
+    socketRef.current.on('file_deployment_completed', (data) => {
+      console.log('File deployment completed:', data);
+      // Refresh deployment progress if we have a deployment ID
+      setCurrentDeploymentId(prevId => {
+        if (prevId && data.deployment_id === prevId) {
+          refreshDeploymentProgress(data.deployment_id);
+        }
+        return prevId;
+      });
+    });
+
+    // Listen for individual file transfer updates
+    socketRef.current.on('file_transfer_update', (data) => {
+      console.log('File transfer update:', data);
+      // Update the specific result if we're tracking this deployment
+      setCurrentDeploymentId(prevId => {
+        if (prevId && data.deployment_id === prevId) {
+          setDeploymentResults(prev => {
+            const updated = [...prev];
+            const index = updated.findIndex(r => 
+              r.deviceId === data.device_id && r.fileName === data.file_name
+            );
+            if (index >= 0) {
+              updated[index] = {
+                ...updated[index],
+                status: data.success ? 'success' : 'error',
+                message: data.message,
+                pathCreated: data.path_created
+              };
+            }
+            return updated;
+          });
+        }
+        return prevId;
+      });
+    });
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+      if (pollIntervalRef.current) {
+        clearTimeout(pollIntervalRef.current);
+      }
+    };
   }, []);
 
   const addNotification = (message, type = 'info') => {
@@ -85,6 +152,40 @@ export default function FileSystemManager() {
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, type === 'error' ? 6000 : 4000);
+  };
+
+  const refreshDeploymentProgress = async (deploymentId) => {
+    try {
+      const progressResponse = await filesService.getDeploymentProgress(deploymentId);
+      setDeploymentResults(progressResponse.results || []);
+      
+      const deploymentStatus = progressResponse.status;
+      const isComplete = ['completed', 'failed', 'partial_failure'].includes(deploymentStatus);
+      
+      if (isComplete) {
+        setIsDeploying(false);
+        setShowResults(true);
+        
+        // Stop polling
+        if (pollIntervalRef.current) {
+          clearTimeout(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        
+        const successCount = progressResponse.results.filter(r => r.status === 'success').length;
+        const totalCount = progressResponse.results.length;
+        
+        if (deploymentStatus === 'completed') {
+          addNotification(`✅ All ${totalCount} deployments completed successfully!`, 'success');
+        } else if (deploymentStatus === 'failed') {
+          addNotification(`❌ All ${totalCount} deployments failed`, 'error');
+        } else if (deploymentStatus === 'partial_failure') {
+          addNotification(`⚠️ ${successCount}/${totalCount} deployments successful`, 'warning');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to refresh deployment progress:', error);
+    }
   };
 
   const loadGroups = async () => {
@@ -326,6 +427,19 @@ export default function FileSystemManager() {
     return devices.filter(device => allTargetDeviceIds.includes(device.id));
   };
 
+  // Handle closing results modal and resetting to upload step
+  const handleCloseResults = () => {
+    setShowResults(false);
+    setCurrentStep(0); // Go back to upload files step
+    setUploadedFiles([]); // Clear uploaded files
+    setSelectedDevices([]); // Clear device selection
+    setSelectedGroups([]); // Clear group selection
+    setCustomPath(''); // Clear custom path
+    setDeploymentResults([]); // Clear results
+    setCurrentDeploymentId(null); // Clear deployment ID
+    addNotification('Ready for new deployment', 'info');
+  };
+
   // Scheduling functions
   const canDeploy = () => {
     return uploadedFiles.length > 0 && 
@@ -471,34 +585,52 @@ export default function FileSystemManager() {
         const pollProgress = async () => {
           try {
             const progressResponse = await filesService.getDeploymentProgress(deploymentId);
+            console.log('📊 Progress Response:', progressResponse);
+            console.log('📊 Deployment Status:', progressResponse.status);
+            console.log('📊 Results:', progressResponse.results);
+            
             setDeploymentResults(progressResponse.results || []);
             
-            // Check if deployment is complete
-            const isComplete = progressResponse.results?.every(r => 
-              r.status === 'success' || r.status === 'error'
-            );
+            // Check if deployment is complete based on deployment status
+            const deploymentStatus = progressResponse.status;
+            const isComplete = ['completed', 'failed', 'partial_failure'].includes(deploymentStatus);
+            
+            console.log('✅ Is Complete?', isComplete, '| Status:', deploymentStatus);
             
             if (!isComplete) {
-              setTimeout(pollProgress, 2000); // Poll every 2 seconds
+              pollIntervalRef.current = setTimeout(pollProgress, 2000); // Poll every 2 seconds
             } else {
               // Deployment complete - re-enable button and show results
+              console.log('🎉 Deployment complete! Setting isDeploying to false');
               setIsDeploying(false);
               setShowResults(true);
+              
+              // Clear polling ref
+              if (pollIntervalRef.current) {
+                clearTimeout(pollIntervalRef.current);
+                pollIntervalRef.current = null;
+              }
               
               const successCount = progressResponse.results.filter(r => r.status === 'success').length;
               const totalCount = progressResponse.results.length;
               
-              if (successCount === totalCount) {
+              console.log('📈 Success Count:', successCount, '| Total:', totalCount);
+              
+              if (deploymentStatus === 'completed') {
                 addNotification(`✅ All ${totalCount} deployments completed successfully!`, 'success');
-              } else if (successCount === 0) {
+              } else if (deploymentStatus === 'failed') {
                 addNotification(`❌ All ${totalCount} deployments failed`, 'error');
-              } else {
+              } else if (deploymentStatus === 'partial_failure') {
                 addNotification(`⚠️ ${successCount}/${totalCount} deployments successful`, 'warning');
               }
             }
           } catch (error) {
             console.error('Failed to get progress:', error);
             setIsDeploying(false);
+            if (pollIntervalRef.current) {
+              clearTimeout(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+            }
             addNotification('Failed to fetch deployment progress', 'error');
           }
         };
@@ -1070,7 +1202,7 @@ export default function FileSystemManager() {
                 </div>
               </div>
               <button
-                onClick={() => setShowResults(false)}
+                onClick={handleCloseResults}
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 <X className="w-6 h-6" />
@@ -1202,23 +1334,14 @@ export default function FileSystemManager() {
                   </div>
                   <div className="flex gap-3">
                     <button
-                      onClick={() => {
-                        // Clear current results and prepare for new deployment
-                        setDeploymentResults([]);
-                        setShowResults(false);
-                        setCurrentStep(0);
-                        setUploadedFiles([]);
-                        setSelectedGroups([]);
-                        setSelectedDevices([]);
-                        setCustomPath('');
-                      }}
+                      onClick={handleCloseResults}
                       className="btn-secondary"
                     >
                       <Plus className="w-4 h-4 mr-2" />
                       New Deployment
                     </button>
                     <button
-                      onClick={() => setShowResults(false)}
+                      onClick={handleCloseResults}
                       className="btn-primary"
                     >
                       Close

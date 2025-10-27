@@ -118,7 +118,7 @@ async def create_scheduled_task(
         raise HTTPException(status_code=500, detail=f"Failed to create scheduled task: {str(e)}")
 
 
-@router.get("/tasks", response_model=List[ScheduledTaskResponse])
+@router.get("/tasks")
 async def get_scheduled_tasks(
     task_type: Optional[TaskType] = None,
     status: Optional[TaskStatus] = None,
@@ -127,7 +127,7 @@ async def get_scheduled_tasks(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get all scheduled tasks for the current user"""
+    """Get all scheduled tasks for the current user with pagination"""
     try:
         query = db.query(ScheduledTask).filter(ScheduledTask.created_by == current_user.id)
         
@@ -137,28 +137,66 @@ async def get_scheduled_tasks(
         if status:
             query = query.filter(ScheduledTask.status == status)
         
-        tasks = query.order_by(ScheduledTask.scheduled_time.desc()).offset(skip).limit(limit).all()
+        # Get total count before pagination
+        total_count = query.count()
+        
+        tasks = query.order_by(ScheduledTask.next_execution.asc()).offset(skip).limit(limit).all()
         
         result = []
         for task in tasks:
-            result.append(ScheduledTaskResponse(
+            # Ensure datetime fields are timezone-aware or properly formatted
+            scheduled_time = task.scheduled_time
+            if scheduled_time and not scheduled_time.tzinfo:
+                scheduled_time = pytz.UTC.localize(scheduled_time)
+            
+            next_execution = task.next_execution
+            if next_execution and not next_execution.tzinfo:
+                next_execution = pytz.UTC.localize(next_execution)
+            
+            last_execution = task.last_execution
+            if last_execution and not last_execution.tzinfo:
+                last_execution = pytz.UTC.localize(last_execution)
+            
+            created_at = task.created_at
+            if created_at and not created_at.tzinfo:
+                created_at = pytz.UTC.localize(created_at)
+            
+            updated_at = task.updated_at
+            if updated_at and not updated_at.tzinfo:
+                updated_at = pytz.UTC.localize(updated_at)
+            
+            result.append(ScheduledTaskDetail(
                 id=task.id,
                 task_name=task.task_name,
                 task_type=task.task_type,
                 status=task.status,
-                scheduled_time=task.scheduled_time,
+                scheduled_time=scheduled_time,
                 recurrence_type=task.recurrence_type,
                 device_ids=json.loads(task.device_ids) if task.device_ids else [],
                 group_ids=json.loads(task.group_ids) if task.group_ids else [],
-                created_at=task.created_at,
-                updated_at=task.updated_at,
-                last_execution=task.last_execution,
-                next_execution=task.next_execution,
+                created_at=created_at,
+                updated_at=updated_at,
+                last_execution=last_execution,
+                next_execution=next_execution,
                 execution_count=task.execution_count,
-                created_by=task.created_by
+                created_by=task.created_by,
+                payload=json.loads(task.payload) if task.payload else {},
+                recurrence_config=json.loads(task.recurrence_config) if task.recurrence_config else None,
+                last_result=json.loads(task.last_result) if task.last_result else None,
+                error_message=task.error_message,
+                executions=[]  # Don't include executions in list view for performance
             ))
         
-        return result
+        # Calculate total pages
+        total_pages = (total_count + limit - 1) // limit if limit > 0 else 1
+        
+        return {
+            "tasks": result,
+            "total": total_count,
+            "total_pages": total_pages,
+            "page": (skip // limit) + 1 if limit > 0 else 1,
+            "page_size": limit
+        }
         
     except Exception as e:
         logger.error(f"Error getting scheduled tasks: {e}", exc_info=True)
@@ -198,19 +236,40 @@ async def get_scheduled_task(
                 "error_message": exec.error_message
             })
         
+        # Ensure datetime fields are timezone-aware
+        scheduled_time = task.scheduled_time
+        if scheduled_time and not scheduled_time.tzinfo:
+            scheduled_time = pytz.UTC.localize(scheduled_time)
+        
+        next_execution = task.next_execution
+        if next_execution and not next_execution.tzinfo:
+            next_execution = pytz.UTC.localize(next_execution)
+        
+        last_execution = task.last_execution
+        if last_execution and not last_execution.tzinfo:
+            last_execution = pytz.UTC.localize(last_execution)
+        
+        created_at = task.created_at
+        if created_at and not created_at.tzinfo:
+            created_at = pytz.UTC.localize(created_at)
+        
+        updated_at = task.updated_at
+        if updated_at and not updated_at.tzinfo:
+            updated_at = pytz.UTC.localize(updated_at)
+        
         return ScheduledTaskDetail(
             id=task.id,
             task_name=task.task_name,
             task_type=task.task_type,
             status=task.status,
-            scheduled_time=task.scheduled_time,
+            scheduled_time=scheduled_time,
             recurrence_type=task.recurrence_type,
             device_ids=json.loads(task.device_ids) if task.device_ids else [],
             group_ids=json.loads(task.group_ids) if task.group_ids else [],
-            created_at=task.created_at,
-            updated_at=task.updated_at,
-            last_execution=task.last_execution,
-            next_execution=task.next_execution,
+            created_at=created_at,
+            updated_at=updated_at,
+            last_execution=last_execution,
+            next_execution=next_execution,
             execution_count=task.execution_count,
             created_by=task.created_by,
             payload=json.loads(task.payload) if task.payload else {},
@@ -227,7 +286,7 @@ async def get_scheduled_task(
         raise HTTPException(status_code=500, detail=f"Failed to get task: {str(e)}")
 
 
-@router.put("/tasks/{task_id}", response_model=ScheduledTaskResponse)
+@router.put("/tasks/{task_id}", response_model=ScheduledTaskDetail)
 async def update_scheduled_task(
     task_id: int,
     task_update: ScheduledTaskUpdate,
@@ -244,6 +303,11 @@ async def update_scheduled_task(
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         
+        # Prevent editing completed tasks (but allow failed tasks for retry)
+        if task.status == TaskStatus.COMPLETED:
+            raise HTTPException(status_code=400, detail="Cannot edit completed tasks")
+        # Failed tasks can be edited for retry purposes
+        
         # Update fields
         if task_update.task_name is not None:
             task.task_name = task_update.task_name
@@ -258,7 +322,24 @@ async def update_scheduled_task(
             task.recurrence_config = json.dumps(task_update.recurrence_config.dict())
         
         if task_update.status is not None:
+            # Validate status transitions
+            if task_update.status == TaskStatus.PAUSED and task.status not in [TaskStatus.PENDING]:
+                raise HTTPException(status_code=400, detail="Only pending tasks can be paused")
+            if task_update.status == TaskStatus.PENDING and task.status not in [TaskStatus.PAUSED, TaskStatus.FAILED]:
+                raise HTTPException(status_code=400, detail="Only paused or failed tasks can be set to pending")
+            if task.status == TaskStatus.COMPLETED and task_update.status != task.status:
+                raise HTTPException(status_code=400, detail="Cannot modify completed tasks")
+            # Allow failed tasks to be retried by setting status to pending
+            
+            old_status = task.status
             task.status = task_update.status
+            
+            # Update scheduler state for pause/resume (reschedule will be done after commit)
+            if task_update.status == TaskStatus.PAUSED:
+                task_scheduler.pause_task(task.id)
+            elif task_update.status == TaskStatus.PENDING and old_status == TaskStatus.PAUSED:
+                task_scheduler.resume_task(task.id)
+            # Note: Retry reschedule will be handled after commit to ensure all fields are updated
         
         if task_update.device_ids is not None:
             task.device_ids = json.dumps(task_update.device_ids)
@@ -266,31 +347,84 @@ async def update_scheduled_task(
         if task_update.group_ids is not None:
             task.group_ids = json.dumps(task_update.group_ids)
         
+        # Update payload based on task type
+        if task.task_type == TaskType.COMMAND and task_update.command_payload is not None:
+            task.payload = json.dumps(task_update.command_payload.dict())
+        elif task.task_type == TaskType.SOFTWARE_DEPLOYMENT and task_update.software_payload is not None:
+            task.payload = json.dumps(task_update.software_payload.dict())
+        elif task.task_type == TaskType.FILE_DEPLOYMENT and task_update.file_payload is not None:
+            task.payload = json.dumps(task_update.file_payload.dict())
+        
         task.updated_at = datetime.utcnow()
         db.commit()
+        
+        # Determine if we need to reschedule
+        need_reschedule = False
         
         # Reschedule if time or recurrence changed
         if task_update.scheduled_time or task_update.recurrence_type or task_update.recurrence_config:
             if task.status in [TaskStatus.PENDING, TaskStatus.PAUSED]:
-                task_scheduler.reschedule_task(db, task)
+                need_reschedule = True
         
-        db.refresh(task)
+        # Also reschedule if status changed to pending (covers retry case)
+        if task_update.status and task.status == TaskStatus.PENDING:
+            need_reschedule = True
         
-        return ScheduledTaskResponse(
+        if need_reschedule:
+            logger.info(f"Rescheduling task {task.id} (status: {task.status}, scheduled_time: {task.scheduled_time})")
+            success = task_scheduler.reschedule_task(db, task)
+            if success:
+                logger.info(f"Task {task.id} successfully rescheduled. Next execution: {task.next_execution}")
+            else:
+                logger.error(f"Failed to reschedule task {task.id}")
+            # Refresh to get updated next_execution
+            db.refresh(task)
+        elif task_update.status:
+            # Just refresh if status changed but no reschedule needed
+            db.refresh(task)
+        
+        # Ensure datetime fields are timezone-aware
+        scheduled_time = task.scheduled_time
+        if scheduled_time and not scheduled_time.tzinfo:
+            scheduled_time = pytz.UTC.localize(scheduled_time)
+        
+        next_execution = task.next_execution
+        if next_execution and not next_execution.tzinfo:
+            next_execution = pytz.UTC.localize(next_execution)
+        
+        last_execution = task.last_execution
+        if last_execution and not last_execution.tzinfo:
+            last_execution = pytz.UTC.localize(last_execution)
+        
+        created_at = task.created_at
+        if created_at and not created_at.tzinfo:
+            created_at = pytz.UTC.localize(created_at)
+        
+        updated_at = task.updated_at
+        if updated_at and not updated_at.tzinfo:
+            updated_at = pytz.UTC.localize(updated_at)
+        
+        # Return full details
+        return ScheduledTaskDetail(
             id=task.id,
             task_name=task.task_name,
             task_type=task.task_type,
             status=task.status,
-            scheduled_time=task.scheduled_time,
+            scheduled_time=scheduled_time,
             recurrence_type=task.recurrence_type,
             device_ids=json.loads(task.device_ids) if task.device_ids else [],
             group_ids=json.loads(task.group_ids) if task.group_ids else [],
-            created_at=task.created_at,
-            updated_at=task.updated_at,
-            last_execution=task.last_execution,
-            next_execution=task.next_execution,
+            created_at=created_at,
+            updated_at=updated_at,
+            last_execution=last_execution,
+            next_execution=next_execution,
             execution_count=task.execution_count,
-            created_by=task.created_by
+            created_by=task.created_by,
+            payload=json.loads(task.payload) if task.payload else {},
+            recurrence_config=json.loads(task.recurrence_config) if task.recurrence_config else None,
+            last_result=json.loads(task.last_result) if task.last_result else None,
+            error_message=task.error_message,
+            executions=[]  # Don't include executions in update response for performance
         )
         
     except HTTPException:

@@ -48,11 +48,15 @@ import {
   X,
   Trash2,
   Plus,
-  FileText
+  FileText,
+  Calendar,
+  RefreshCw
 } from 'lucide-react';
 import GroupsManager from '../components/GroupsManager.jsx';
 import DeploymentsManager from '../components/DeploymentsManager.jsx';
 import FileSystemManager from '../components/FileSystemManager.jsx';
+import Logs from '../components/Logs.jsx';
+import ManageSchedules from '../components/ManageSchedules.jsx';
 import GroupForm from '../components/GroupForm.jsx';
 import UsernameModal from '../components/UsernameModal.jsx';
 import PasswordModal from '../components/PasswordModal.jsx';
@@ -89,7 +93,7 @@ export default function Dashboard({ onLogout }) {
   const [dashboardStats, setDashboardStats] = useState({
     devices: { total: 0, online: 0, offline: 0, health_percentage: 0 },
     deployments: { total: 0, successful: 0, failed: 0, pending: 0, success_rate: 0 },
-    commands: { active: 0, pending: 0, completed: 0, failed: 0 },
+    commands: { total: 0, active: 0, pending: 0, completed: 0, failed: 0 },
     system: { health_score: 0, uptime: '0%', last_updated: null },
     groups: { total: 0 },
     activity: { recent_deployments: 0 }
@@ -104,6 +108,11 @@ export default function Dashboard({ onLogout }) {
     network_connections: 0
   });
   const [deploymentTrends, setDeploymentTrends] = useState([]);
+  const [trendsDays, setTrendsDays] = useState(7); // Default to 7 days (past week)
+  const [trendsMode, setTrendsMode] = useState('preset'); // 'preset' or 'custom'
+  const [trendsFromDate, setTrendsFromDate] = useState('');
+  const [trendsToDate, setTrendsToDate] = useState('');
+  const [trendsLoading, setTrendsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   
   // Devices data with caching
@@ -161,6 +170,23 @@ export default function Dashboard({ onLogout }) {
   const [notifications, setNotifications] = useState([]);
   const [showNotificationPanel, setShowNotificationPanel] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  
+  // Deployment results modal states
+  const [showDeploymentResults, setShowDeploymentResults] = useState(false);
+  const [deploymentResultsData, setDeploymentResultsData] = useState(null);
+  const [deploymentResultsLoading, setDeploymentResultsLoading] = useState(false);
+  
+  // Custom Modal states (replacing alerts/confirms)
+  const [modalConfig, setModalConfig] = useState({
+    show: false,
+    type: 'info', // 'info', 'success', 'warning', 'error', 'confirm'
+    title: '',
+    message: '',
+    onConfirm: null,
+    onCancel: null,
+    confirmText: 'OK',
+    cancelText: 'Cancel'
+  });
   
   // Force refresh key for group and device cards
   const [groupsRefreshKey, setGroupsRefreshKey] = useState(0);
@@ -261,6 +287,8 @@ export default function Dashboard({ onLogout }) {
     { id: 'deployment', name: 'Command Execution', color: 'text-teal-400', icon: Command },
     { id: 'deployments', name: 'Software Deployments', color: 'text-purple-400', icon: Play },
     { id: 'files', name: 'File System', color: 'text-green-400', icon: FolderOpen },
+    { id: 'logs', name: 'System Logs', color: 'text-yellow-400', icon: FileText },
+    { id: 'schedules', name: 'Manage Schedules', color: 'text-indigo-400', icon: Calendar },
   ];
 
   // Click outside handler for profile dropdown and notification panel
@@ -336,6 +364,78 @@ export default function Dashboard({ onLogout }) {
       ]);
     }
   }, [activeSection, initialLoading]);
+
+  // Refetch trends when time period or date range changes (with debouncing for custom dates)
+  useEffect(() => {
+    const fetchTrends = async () => {
+      try {
+        setTrendsLoading(true);
+        const token = authService.getToken();
+        if (!token) {
+          setTrendsLoading(false);
+          return;
+        }
+        
+        const headers = {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        };
+        
+        const apiUrl = getApiUrl();
+        let url;
+        
+        if (trendsMode === 'custom') {
+          // Custom date range mode - only fetch if both dates are set
+          if (!trendsFromDate || !trendsToDate) {
+            console.log('Custom mode: Waiting for both dates to be set');
+            setTrendsLoading(false);
+            return;
+          }
+          url = `${apiUrl}/api/dashboard/deployment-trends?from_date=${trendsFromDate}&to_date=${trendsToDate}`;
+          console.log('Fetching custom range:', trendsFromDate, 'to', trendsToDate);
+        } else {
+          // Preset days mode
+          url = `${apiUrl}/api/dashboard/deployment-trends?days=${trendsDays}`;
+          console.log('Fetching preset days:', trendsDays);
+        }
+        
+        const response = await fetch(url, { headers });
+        
+        if (response.ok) {
+          const trendsData = await response.json();
+          console.log('Trends data received:', trendsData);
+          setDeploymentTrends(trendsData.trends || []);
+        } else {
+          console.error('Failed to fetch trends:', response.status, response.statusText);
+        }
+      } catch (error) {
+        console.error('Error fetching deployment trends:', error);
+      } finally {
+        setTrendsLoading(false);
+      }
+    };
+    
+    if (!initialLoading) {
+      // Debounce custom date changes to avoid excessive API calls
+      const debounceTimer = setTimeout(() => {
+        fetchTrends();
+      }, trendsMode === 'custom' ? 500 : 0); // 500ms delay for custom dates, immediate for presets
+      
+      return () => clearTimeout(debounceTimer);
+    }
+  }, [trendsDays, trendsMode, trendsFromDate, trendsToDate, initialLoading]);
+
+  // Set default dates when switching to custom mode
+  useEffect(() => {
+    if (trendsMode === 'custom' && !trendsFromDate && !trendsToDate) {
+      const today = new Date();
+      const weekAgo = new Date(today);
+      weekAgo.setDate(today.getDate() - 6);
+      
+      setTrendsFromDate(weekAgo.toISOString().split('T')[0]);
+      setTrendsToDate(today.toISOString().split('T')[0]);
+    }
+  }, [trendsMode]);
 
   // Debounced search for better performance
   useEffect(() => {
@@ -504,17 +604,18 @@ export default function Dashboard({ onLogout }) {
       message,
       metadata,
       timestamp: new Date(),
-      read: false
+      read: false,
+      actions: metadata.actions || [] // Support for action buttons
     };
     
     setNotifications(prev => [notification, ...prev].slice(0, 50)); // Keep last 50 notifications
     setUnreadCount(prev => prev + 1);
     
-    // Auto-dismiss success notifications after 5 seconds
-    if (type === 'success') {
+    // Auto-dismiss success notifications after 10 seconds (increased for results viewing)
+    if (type === 'success' && !metadata.persistent) {
       setTimeout(() => {
         setNotifications(prev => prev.filter(n => n.id !== notification.id));
-      }, 5000);
+      }, 10000);
     }
   };
 
@@ -530,9 +631,120 @@ export default function Dashboard({ onLogout }) {
     setUnreadCount(0);
   };
 
+  const viewDeploymentResults = async (deploymentId, deploymentType) => {
+    setDeploymentResultsLoading(true);
+    setShowDeploymentResults(true);
+    
+    try {
+      let resultsData;
+      
+      if (deploymentType === 'file_deployment') {
+        const response = await fetch(`http://localhost:8000/api/files/deployments/${deploymentId}/progress`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`
+          }
+        });
+        resultsData = await response.json();
+      } else if (deploymentType === 'deployment') {
+        const response = await fetch(`http://localhost:8000/api/deployments/${deploymentId}/progress`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`
+          }
+        });
+        resultsData = await response.json();
+      } else if (deploymentType === 'command') {
+        // For command executions, fetch from group command execution endpoint
+        const response = await fetch(`http://localhost:8000/api/groups/commands/executions/${deploymentId}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`
+          }
+        });
+        const data = await response.json();
+        
+        // Transform command execution data to match deployment results format
+        resultsData = {
+          deployment_id: deploymentId,
+          deployment_name: data.group_name || 'Command Execution',
+          status: data.status,
+          total_count: data.device_results?.length || 0,
+          success_count: data.device_results?.filter(r => r.success).length || 0,
+          failure_count: data.device_results?.filter(r => !r.success).length || 0,
+          results: data.device_results?.map(r => ({
+            device_id: r.device_id,
+            device_name: r.device_name,
+            status: r.success ? 'completed' : 'failed',
+            message: r.output || r.error || 'No output',
+            command: r.command
+          })) || []
+        };
+      }
+      
+      setDeploymentResultsData({ ...resultsData, type: deploymentType });
+    } catch (error) {
+      console.error('Error fetching deployment results:', error);
+      setDeploymentResultsData({ error: 'Failed to load deployment results' });
+    } finally {
+      setDeploymentResultsLoading(false);
+    }
+  };
+
   const clearAllNotifications = () => {
     setNotifications([]);
     setUnreadCount(0);
+  };
+
+  // Modal helper functions (replacing alerts/confirms)
+  const showModal = (type, title, message, options = {}) => {
+    setModalConfig({
+      show: true,
+      type,
+      title,
+      message,
+      onConfirm: options.onConfirm || null,
+      onCancel: options.onCancel || null,
+      confirmText: options.confirmText || 'OK',
+      cancelText: options.cancelText || 'Cancel'
+    });
+  };
+
+  const hideModal = () => {
+    setModalConfig(prev => ({ ...prev, show: false }));
+  };
+
+  const showAlert = (message, title = 'Notice', type = 'info') => {
+    showModal(type, title, message, {
+      confirmText: 'OK',
+      onConfirm: hideModal
+    });
+  };
+
+  const showConfirm = (message, title = 'Confirm', onConfirm, onCancel = null) => {
+    showModal('confirm', title, message, {
+      confirmText: 'Confirm',
+      cancelText: 'Cancel',
+      onConfirm: () => {
+        hideModal();
+        if (onConfirm) onConfirm();
+      },
+      onCancel: () => {
+        hideModal();
+        if (onCancel) onCancel();
+      }
+    });
+  };
+
+  const showError = (message, title = 'Error') => {
+    showModal('error', title, message, {
+      confirmText: 'OK',
+      onConfirm: hideModal
+    });
+  };
+
+  const showSuccess = (message, title = 'Success') => {
+    showModal('success', title, message, {
+      confirmText: 'OK',
+      onConfirm: hideModal
+    });
   };
 
   // Fetch dashboard data from API
@@ -576,7 +788,7 @@ export default function Dashboard({ onLogout }) {
         fetch(`${apiUrl}/api/dashboard/recent-activity`, { headers }),
         fetch(`${apiUrl}/api/dashboard/device-status-chart`, { headers }),
         fetch(`${apiUrl}/api/dashboard/system-metrics`, { headers }),
-        fetch(`${apiUrl}/api/dashboard/deployment-trends`, { headers })
+        fetch(`${apiUrl}/api/dashboard/deployment-trends?days=${trendsDays}`, { headers })
       ]);
       
       // Process stats response
@@ -596,7 +808,7 @@ export default function Dashboard({ onLogout }) {
         setDashboardStats({
           devices: { total: agents.length, online: agents.filter(a => a.status === 'connected').length, offline: agents.filter(a => a.status !== 'connected').length, health_percentage: agents.length > 0 ? Math.round((agents.filter(a => a.status === 'connected').length / agents.length) * 100) : 0 },
           deployments: { total: 0, successful: 0, failed: 0, pending: 0, success_rate: 0 },
-          commands: { active: 0, pending: 0, completed: 0, failed: 0 },
+          commands: { total: 0, active: 0, pending: 0, completed: 0, failed: 0 },
           system: { health_score: 85, uptime: '99.9%', last_updated: new Date().toISOString() },
           groups: { total: 0 },
           activity: { recent_deployments: 0 }
@@ -853,7 +1065,7 @@ export default function Dashboard({ onLogout }) {
       console.log('🎯 Group update completed');
     } catch (error) {
       console.error('❌ Failed to update group:', error);
-      alert('Failed to update group: ' + error.message);
+      showError('Failed to update group: ' + error.message);
     }
   };
 
@@ -876,7 +1088,7 @@ export default function Dashboard({ onLogout }) {
       console.log('🎯 Group creation completed');
     } catch (error) {
       console.error('❌ Failed to create group:', error);
-      alert('Failed to create group: ' + error.message);
+      showError('Failed to create group: ' + error.message);
     }
   };
 
@@ -1158,17 +1370,26 @@ export default function Dashboard({ onLogout }) {
         const isPartial = status === 'partial' || (success_count > 0 && failure_count > 0);
         
         let notifType = isSuccess ? 'success' : isPartial ? 'warning' : 'error';
-        let message = `${success_count}/${total_count} devices deployed successfully`;
-        
-        if (failure_count > 0) {
-          message += ` (${failure_count} failed)`;
-        }
+        let title = isSuccess ? '✅ Software Deployment Completed' : 
+                   isPartial ? '⚠️ Software Deployment Partially Completed' : 
+                   '❌ Software Deployment Failed';
+        let message = isSuccess ?
+          `All ${total_count} devices deployed successfully!` :
+          `${success_count}/${total_count} devices deployed successfully${failure_count > 0 ? ` (${failure_count} failed)` : ''}`;
         
         addNotification(
           notifType,
-          `Deployment ${isSuccess ? 'Completed' : isPartial ? 'Partially Completed' : 'Failed'}`,
+          title,
           `"${deployment_name}": ${message}`,
-          { type: 'deployment', deploymentInfo }
+          { 
+            type: 'deployment', 
+            deploymentInfo,
+            actions: [{
+              label: 'View Results',
+              onClick: () => viewDeploymentResults(deployment_id, 'deployment')
+            }],
+            persistent: true
+          }
         );
         
         // Refresh dashboard data
@@ -1184,20 +1405,29 @@ export default function Dashboard({ onLogout }) {
         const { deployment_id, file_name, status, success_count, failure_count, total_count } = deploymentInfo;
         
         const isSuccess = status === 'completed' && failure_count === 0;
-        const isPartial = status === 'partial' || (success_count > 0 && failure_count > 0);
+        const isPartial = status === 'partial_failure' || (success_count > 0 && failure_count > 0);
         
         let notifType = isSuccess ? 'success' : isPartial ? 'warning' : 'error';
-        let message = `${success_count}/${total_count} targets deployed successfully`;
-        
-        if (failure_count > 0) {
-          message += ` (${failure_count} failed)`;
-        }
+        let title = isSuccess ? '✅ File Deployment Completed' : 
+                   isPartial ? '⚠️ File Deployment Partially Completed' : 
+                   '❌ File Deployment Failed';
+        let message = isSuccess ? 
+          `All ${total_count} file deployments completed successfully!` :
+          `${success_count}/${total_count} file deployments successful${failure_count > 0 ? ` (${failure_count} failed)` : ''}`;
         
         addNotification(
           notifType,
-          `File Deployment ${isSuccess ? 'Completed' : isPartial ? 'Partially Completed' : 'Failed'}`,
-          `"${file_name}": ${message}`,
-          { type: 'file_deployment', deploymentInfo }
+          title,
+          message,
+          { 
+            type: 'file_deployment', 
+            deploymentInfo,
+            actions: [{
+              label: 'View Results',
+              onClick: () => viewDeploymentResults(deployment_id, 'file_deployment')
+            }],
+            persistent: true
+          }
         );
         
         // Refresh dashboard data
@@ -1243,6 +1473,56 @@ export default function Dashboard({ onLogout }) {
           'System Error',
           errorInfo.message || 'An error occurred in the system',
           { type: 'system_error', errorInfo }
+        );
+      });
+
+      // Scheduled task completed notification
+      socketRef.current.on('scheduled_task_completed', (taskInfo) => {
+        if (!isMountedRef.current) return;
+        
+        console.log('Dashboard: Scheduled task completed:', taskInfo);
+        
+        const taskTypeLabel = taskInfo.task_type === 'command' ? 'Command Execution' :
+                             taskInfo.task_type === 'software_deployment' ? 'Software Deployment' :
+                             taskInfo.task_type === 'file_deployment' ? 'File Deployment' : 'Task';
+        
+        const notificationMetadata = {
+          type: 'scheduled_task',
+          taskInfo,
+          persistent: true
+        };
+        
+        // Add "View Results" action if deployment_id is available
+        if (taskInfo.deployment_id) {
+          notificationMetadata.actions = [{
+            label: 'View Results',
+            onClick: () => viewDeploymentResults(taskInfo.deployment_id, 'command')
+          }];
+        }
+        
+        addNotification(
+          'success',
+          'Scheduled Task Executed',
+          `${taskTypeLabel} "${taskInfo.task_name}" completed successfully`,
+          notificationMetadata
+        );
+      });
+
+      // Scheduled task failed notification
+      socketRef.current.on('scheduled_task_failed', (taskInfo) => {
+        if (!isMountedRef.current) return;
+        
+        console.log('Dashboard: Scheduled task failed:', taskInfo);
+        
+        const taskTypeLabel = taskInfo.task_type === 'command' ? 'Command Execution' :
+                             taskInfo.task_type === 'software_deployment' ? 'Software Deployment' :
+                             taskInfo.task_type === 'file_deployment' ? 'File Deployment' : 'Task';
+        
+        addNotification(
+          'error',
+          'Scheduled Task Failed',
+          `${taskTypeLabel} "${taskInfo.task_name}" failed: ${taskInfo.error_message}`,
+          { type: 'scheduled_task', taskInfo }
         );
       });
     };
@@ -1635,28 +1915,32 @@ export default function Dashboard({ onLogout }) {
 
     const handleDeleteGroup = async (e) => {
       e.stopPropagation();
-      if (window.confirm(`Are you sure you want to delete the group "${group.group_name}"?`)) {
-        try {
-          console.log('🎯 Deleting group:', group.id, group.group_name);
-          await groupsService.deleteGroup(group.id);
-          console.log('✅ Group deleted successfully, triggering refresh...');
-          
-          // If group devices modal is open for this group, close it
-          if (showGroupDevicesModal && selectedGroup && selectedGroup.id === group.id) {
-            console.log('Closing group devices modal for deleted group');
-            setShowGroupDevicesModal(false);
-            setSelectedGroup(null);
-            setGroupDevices([]);
+      showConfirm(
+        `Are you sure you want to delete the group "${group.group_name}"?`,
+        'Delete Group',
+        async () => {
+          try {
+            console.log('🎯 Deleting group:', group.id, group.group_name);
+            await groupsService.deleteGroup(group.id);
+            console.log('✅ Group deleted successfully, triggering refresh...');
+            
+            // If group devices modal is open for this group, close it
+            if (showGroupDevicesModal && selectedGroup && selectedGroup.id === group.id) {
+              console.log('Closing group devices modal for deleted group');
+              setShowGroupDevicesModal(false);
+              setSelectedGroup(null);
+              setGroupDevices([]);
+            }
+            
+            // Force refresh groups and devices data
+            await forceRefreshGroups();
+            console.log('🎯 Group deletion completed');
+          } catch (error) {
+            console.error('❌ Failed to delete group:', error);
+            showError('Failed to delete group: ' + error.message);
           }
-          
-          // Force refresh groups and devices data
-          await forceRefreshGroups();
-          console.log('🎯 Group deletion completed');
-        } catch (error) {
-          console.error('❌ Failed to delete group:', error);
-          alert('Failed to delete group: ' + error.message);
         }
-      }
+      );
     };
 
     return (
@@ -1759,7 +2043,7 @@ export default function Dashboard({ onLogout }) {
             </div>
             
             {/* Notifications */}
-            <div className="relative notification-container">
+            <div className="relative notification-container flex items-center">
               <button 
                 onClick={() => {
                   console.log('Notification bell clicked. Current state:', showNotificationPanel);
@@ -1855,8 +2139,7 @@ export default function Dashboard({ onLogout }) {
                           return (
                             <div
                               key={notification.id}
-                              onClick={() => !notification.read && markNotificationAsRead(notification.id)}
-                              className={`p-4 cursor-pointer hover:bg-gray-700/50 transition-colors ${getNotificationBg()}`}
+                              className={`p-4 ${getNotificationBg()}`}
                             >
                               <div className="flex items-start gap-3">
                                 <div className="flex-shrink-0 mt-0.5">
@@ -1880,6 +2163,24 @@ export default function Dashboard({ onLogout }) {
                                       minute: '2-digit'
                                     })}
                                   </p>
+                                  {/* Action Buttons */}
+                                  {notification.actions && notification.actions.length > 0 && (
+                                    <div className="flex gap-2 mt-3">
+                                      {notification.actions.map((action, idx) => (
+                                        <button
+                                          key={idx}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            action.onClick();
+                                            markNotificationAsRead(notification.id);
+                                          }}
+                                          className="px-3 py-1 text-xs font-medium bg-primary-600 hover:bg-primary-700 text-white rounded transition-colors"
+                                        >
+                                          {action.label}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -1894,7 +2195,7 @@ export default function Dashboard({ onLogout }) {
             
             {/* Connection Status */}
             <div 
-              className="relative"
+              className="relative flex items-center"
               onMouseEnter={() => agents.length > 0 && setShowAgentsTooltip(true)}
               onMouseLeave={() => setShowAgentsTooltip(false)}
             >
@@ -2150,12 +2451,12 @@ export default function Dashboard({ onLogout }) {
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-gray-400 text-sm font-medium">Active Commands</p>
-                      <p className="text-2xl font-bold text-white">{dashboardStats.commands.active}</p>
+                      <p className="text-gray-400 text-sm font-medium">Total Commands</p>
+                      <p className="text-2xl font-bold text-white">{dashboardStats.commands.total || 0}</p>
                       <p className="text-blue-400 text-xs mt-1">
                         <span className="inline-flex items-center gap-1">
-                          <Zap className="w-3 h-3" />
-                          {dashboardStats.commands.pending} Pending
+                          <CheckCircle className="w-3 h-3" />
+                          {dashboardStats.commands.completed || 0} Completed
                         </span>
                       </p>
                     </div>
@@ -2515,15 +2816,96 @@ export default function Dashboard({ onLogout }) {
               </div>
 
               {/* Deployment Trends Chart */}
-              <div className="card-dark">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-semibold text-white">Deployment Success Trends</h3>
-                  <TrendingUp className="w-5 h-5 text-gray-400" />
+              <div className="card-dark relative">
+                <div className="flex flex-col gap-4 mb-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">Deployment Success Trends</h3>
+                      <p className="text-xs text-gray-400 mt-1">View deployment history and success rates</p>
+                    </div>
+                    <TrendingUp className="w-5 h-5 text-gray-400" />
+                  </div>
+                  
+                  {/* Mode Selector */}
+                  <div className="flex items-center gap-4">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setTrendsMode('preset')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                          trendsMode === 'preset'
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-700/50 text-gray-300 hover:bg-gray-700/70'
+                        }`}
+                      >
+                        Quick Select
+                      </button>
+                      <button
+                        onClick={() => setTrendsMode('custom')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                          trendsMode === 'custom'
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-700/50 text-gray-300 hover:bg-gray-700/70'
+                        }`}
+                      >
+                        Custom Range
+                      </button>
+                    </div>
+                    
+                    {trendsMode === 'preset' ? (
+                      <select
+                        value={trendsDays}
+                        onChange={(e) => setTrendsDays(Number(e.target.value))}
+                        className="px-3 py-2 bg-gray-700/50 border border-gray-600/50 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500/50 focus:bg-gray-700/70 transition-all"
+                      >
+                        <option value={7}>Past Week</option>
+                        <option value={14}>Past 2 Weeks</option>
+                        <option value={30}>Past Month</option>
+                      </select>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <label className="text-sm text-gray-400">From:</label>
+                          <input
+                            type="date"
+                            value={trendsFromDate}
+                            onChange={(e) => setTrendsFromDate(e.target.value)}
+                            max={trendsToDate || new Date().toISOString().split('T')[0]}
+                            className="px-3 py-2 bg-gray-700/50 border border-gray-600/50 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500/50 focus:bg-gray-700/70 transition-all"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-sm text-gray-400">To:</label>
+                          <input
+                            type="date"
+                            value={trendsToDate}
+                            onChange={(e) => setTrendsToDate(e.target.value)}
+                            min={trendsFromDate}
+                            max={new Date().toISOString().split('T')[0]}
+                            className="px-3 py-2 bg-gray-700/50 border border-gray-600/50 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500/50 focus:bg-gray-700/70 transition-all"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="grid grid-cols-7 gap-2 h-32">
+                
+                {/* Loading Indicator */}
+                {trendsLoading && (
+                  <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm rounded-lg flex items-center justify-center z-10">
+                    <div className="flex items-center gap-3 text-white">
+                      <RefreshCw className="w-5 h-5 animate-spin text-blue-400" />
+                      <span className="text-sm font-medium">Loading trends...</span>
+                    </div>
+                  </div>
+                )}
+                
+                <div className={`flex justify-between items-end gap-1 h-32 ${trendsLoading ? 'opacity-50' : ''}`}>
                   {deploymentTrends.length > 0 ? deploymentTrends.map((dayData, i) => {
                     const day = new Date(dayData.date);
-                    const dayName = day.toLocaleDateString('en', { weekday: 'short' });
+                    // Show day name for week view, date for longer periods
+                    const dayLabel = deploymentTrends.length <= 7 
+                      ? day.toLocaleDateString('en', { weekday: 'short' })
+                      : day.toLocaleDateString('en', { month: 'numeric', day: 'numeric' });
                     const height = dayData.total > 0 ? (dayData.success_rate) : 5; // Use actual success rate
                     const isToday = i === deploymentTrends.length - 1;
                     const hasDeployments = dayData.total > 0;
@@ -2531,7 +2913,7 @@ export default function Dashboard({ onLogout }) {
                     return (
                       <div 
                         key={dayData.date} 
-                        className={`flex flex-col items-center justify-end h-full group relative ${hasDeployments ? 'cursor-pointer' : ''}`}
+                        className={`flex flex-col items-center justify-end h-full group relative flex-1 min-w-0 ${hasDeployments ? 'cursor-pointer' : ''}`}
                         onClick={() => hasDeployments && fetchDeploymentDetails({
                           id: `day-${dayData.date}`,
                           name: `Deployments for ${day.toLocaleDateString()}`,
@@ -2557,21 +2939,23 @@ export default function Dashboard({ onLogout }) {
                           }`}
                           style={{ height: `${Math.max(height, 5)}%` }}
                         ></div>
-                        <span className="text-xs text-gray-400 mt-2">{dayName}</span>
+                        <div className="text-xs text-gray-400 mt-2 h-4 flex items-center">{dayLabel}</div>
                         {hasDeployments && (
-                          <span className="text-xs text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">Click for details</span>
+                          <div className="absolute -bottom-5 left-1/2 transform -translate-x-1/2 text-xs text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                            Click for details
+                          </div>
                         )}
                         
                         {/* Tooltip */}
-                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-2 px-3 whitespace-nowrap z-10 shadow-lg border border-gray-700">
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded-lg py-3 px-4 whitespace-nowrap z-50 shadow-2xl border-2 border-gray-600">
                           {hasDeployments ? (
                             <>
-                              <div className="font-semibold text-blue-400 mb-1">
+                              <div className="font-semibold text-blue-400 mb-2 text-sm">
                                 {new Date(dayData.date).toLocaleDateString('en', { month: 'short', day: 'numeric' })}
                               </div>
-                              <div className="space-y-1">
+                              <div className="space-y-1.5">
                                 <div className="flex justify-between gap-4">
-                                  <span className="text-gray-400">Total:</span>
+                                  <span className="text-gray-300">Total:</span>
                                   <span className="text-white font-medium">{dayData.total}</span>
                                 </div>
                                 <div className="flex justify-between gap-4">
@@ -2588,15 +2972,15 @@ export default function Dashboard({ onLogout }) {
                                     <span className="text-white">{dayData.pending}</span>
                                   </div>
                                 )}
-                                <div className="border-t border-gray-700 my-1"></div>
+                                <div className="border-t border-gray-600 my-2"></div>
                                 <div className="flex justify-between gap-4">
-                                  <span className="text-gray-400">Success Rate:</span>
+                                  <span className="text-gray-300">Success Rate:</span>
                                   <span className="text-blue-400 font-medium">{dayData.success_rate}%</span>
                                 </div>
                                 {(dayData.software_deployments > 0 || dayData.file_deployments > 0) && (
                                   <>
-                                    <div className="border-t border-gray-700 my-1"></div>
-                                    <div className="text-gray-400 text-xs mb-1">Breakdown:</div>
+                                    <div className="border-t border-gray-600 my-2"></div>
+                                    <div className="text-gray-300 text-xs mb-1 font-medium">Breakdown:</div>
                                     {dayData.software_deployments > 0 && (
                                       <div className="flex justify-between gap-4">
                                         <span className="text-purple-400">📦 Software:</span>
@@ -2612,7 +2996,7 @@ export default function Dashboard({ onLogout }) {
                                   </>
                                 )}
                               </div>
-                              <div className="text-blue-400 mt-2 text-center border-t border-gray-700 pt-1">
+                              <div className="text-blue-400 mt-2 text-center border-t border-gray-600 pt-2 text-xs">
                                 Click for details
                               </div>
                             </>
@@ -2627,12 +3011,12 @@ export default function Dashboard({ onLogout }) {
                     Array.from({ length: 7 }, (_, i) => {
                       const day = new Date();
                       day.setDate(day.getDate() - (6 - i));
-                      const dayName = day.toLocaleDateString('en', { weekday: 'short' });
+                      const dayLabel = day.toLocaleDateString('en', { weekday: 'short' });
                       
                       return (
                         <div key={i} className="flex flex-col items-center justify-end h-full">
                           <div className="w-full h-2 bg-gray-700 rounded-t animate-pulse"></div>
-                          <span className="text-xs text-gray-400 mt-2">{dayName}</span>
+                          <span className="text-xs text-gray-400 mt-2">{dayLabel}</span>
                         </div>
                       );
                     })
@@ -2945,6 +3329,10 @@ export default function Dashboard({ onLogout }) {
                   onSelectShell={handleShellSelect}
                   isConnected={isConnected}
                   connectionError={connectionError}
+                  showAlert={showAlert}
+                  showConfirm={showConfirm}
+                  showError={showError}
+                  showSuccess={showSuccess}
                 />
               </div>
             </div>
@@ -2952,6 +3340,19 @@ export default function Dashboard({ onLogout }) {
 
           {activeSection === 'files' && (
             <FileSystemManager />
+          )}
+
+          {activeSection === 'logs' && (
+            <Logs />
+          )}
+
+          {activeSection === 'schedules' && (
+            <ManageSchedules 
+              showAlert={showAlert}
+              showConfirm={showConfirm}
+              showError={showError}
+              showSuccess={showSuccess}
+            />
           )}
 
           {activeSection === 'groups' && (
@@ -4259,6 +4660,241 @@ export default function Dashboard({ onLogout }) {
       {showDeleteAccountModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <DeleteAccountModal onClose={() => setShowDeleteAccountModal(false)} />
+        </div>
+      )}
+
+      {/* Deployment Results Modal */}
+      {showDeploymentResults && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Deployment Results</h2>
+                {deploymentResultsData && !deploymentResultsData.error && (
+                  <p className="text-gray-400 mt-1">
+                    {deploymentResultsData.type === 'file_deployment' ? 'File Deployment' : 
+                     deploymentResultsData.type === 'deployment' ? 'Software Deployment' :
+                     deploymentResultsData.type === 'command' ? 'Command Execution' : 'Deployment'}
+                    {deploymentResultsData.deployment_name && ` - ${deploymentResultsData.deployment_name}`}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  setShowDeploymentResults(false);
+                  setDeploymentResultsData(null);
+                }}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {deploymentResultsLoading ? (
+              <div className="flex-1 flex items-center justify-center py-12">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
+                  <p className="text-gray-400">Loading deployment results...</p>
+                </div>
+              </div>
+            ) : deploymentResultsData?.error ? (
+              <div className="flex-1 flex items-center justify-center py-12">
+                <div className="text-center text-red-400">
+                  <XCircle className="w-12 h-12 mx-auto mb-4" />
+                  <p>{deploymentResultsData.error}</p>
+                </div>
+              </div>
+            ) : deploymentResultsData ? (
+              <div className="flex-1 overflow-y-auto">
+                {/* Summary Section */}
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="bg-gray-800 rounded-lg p-4">
+                    <div className="text-gray-400 text-sm mb-1">Total</div>
+                    <div className="text-2xl font-bold text-white">
+                      {deploymentResultsData.total_count || 0}
+                    </div>
+                  </div>
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+                    <div className="text-green-400 text-sm mb-1">Successful</div>
+                    <div className="text-2xl font-bold text-green-400">
+                      {deploymentResultsData.success_count || 0}
+                    </div>
+                  </div>
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+                    <div className="text-red-400 text-sm mb-1">Failed</div>
+                    <div className="text-2xl font-bold text-red-400">
+                      {deploymentResultsData.failure_count || 0}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Results Table */}
+                <div className="bg-gray-800 rounded-lg overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-700">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                            Device
+                          </th>
+                          {deploymentResultsData.type === 'file_deployment' && (
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                              File
+                            </th>
+                          )}
+                          {deploymentResultsData.type === 'command' && (
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                              Command
+                            </th>
+                          )}
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                            Status
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">
+                            {deploymentResultsData.type === 'command' ? 'Output' : 'Message'}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-700">
+                        {(deploymentResultsData.results || []).map((result, idx) => (
+                          <tr key={idx} className="hover:bg-gray-700/50">
+                            <td className="px-4 py-3 text-sm text-white">
+                              {result.device_name || result.device_id || 'Unknown'}
+                            </td>
+                            {deploymentResultsData.type === 'file_deployment' && (
+                              <td className="px-4 py-3 text-sm text-gray-300">
+                                {result.file_name || 'N/A'}
+                              </td>
+                            )}
+                            {deploymentResultsData.type === 'command' && (
+                              <td className="px-4 py-3 text-sm text-gray-300 font-mono text-xs max-w-xs truncate" title={result.command}>
+                                {result.command || 'N/A'}
+                              </td>
+                            )}
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${
+                                result.status === 'completed' || result.status === 'success'
+                                  ? 'bg-green-500/20 text-green-400'
+                                  : result.status === 'failed' || result.status === 'error'
+                                  ? 'bg-red-500/20 text-red-400'
+                                  : 'bg-yellow-500/20 text-yellow-400'
+                              }`}>
+                                {result.status === 'completed' || result.status === 'success' ? (
+                                  <CheckCircle className="w-3 h-3" />
+                                ) : result.status === 'failed' || result.status === 'error' ? (
+                                  <XCircle className="w-3 h-3" />
+                                ) : (
+                                  <AlertTriangle className="w-3 h-3" />
+                                )}
+                                {result.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-300">
+                              {deploymentResultsData.type === 'command' ? (
+                                <pre className="whitespace-pre-wrap font-mono text-xs max-w-md overflow-auto max-h-32">
+                                  {result.message || 'No output'}
+                                </pre>
+                              ) : (
+                                result.message || result.error_message || 'No message'
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-700">
+              <button
+                onClick={() => {
+                  setShowDeploymentResults(false);
+                  setDeploymentResultsData(null);
+                }}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Modal (replaces alerts/confirms) */}
+      {modalConfig.show && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 animate-fadeIn">
+          <div className="bg-gray-900 border-2 rounded-xl max-w-md w-full shadow-2xl animate-slideUp" style={{
+            borderColor: modalConfig.type === 'error' ? '#ef4444' : 
+                        modalConfig.type === 'success' ? '#10b981' : 
+                        modalConfig.type === 'warning' ? '#f59e0b' : 
+                        modalConfig.type === 'confirm' ? '#3b82f6' : '#6b7280'
+          }}>
+            {/* Header */}
+            <div className="p-6 pb-4">
+              <div className="flex items-start gap-4">
+                {/* Icon */}
+                <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${
+                  modalConfig.type === 'error' ? 'bg-red-500/20' : 
+                  modalConfig.type === 'success' ? 'bg-green-500/20' : 
+                  modalConfig.type === 'warning' ? 'bg-yellow-500/20' : 
+                  modalConfig.type === 'confirm' ? 'bg-blue-500/20' : 'bg-gray-500/20'
+                }`}>
+                  {modalConfig.type === 'error' && <XCircle className="w-6 h-6 text-red-400" />}
+                  {modalConfig.type === 'success' && <CheckCircle className="w-6 h-6 text-green-400" />}
+                  {modalConfig.type === 'warning' && <AlertTriangle className="w-6 h-6 text-yellow-400" />}
+                  {modalConfig.type === 'confirm' && <AlertTriangle className="w-6 h-6 text-blue-400" />}
+                  {modalConfig.type === 'info' && <Bell className="w-6 h-6 text-gray-400" />}
+                </div>
+                
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <h3 className={`text-lg font-semibold mb-2 ${
+                    modalConfig.type === 'error' ? 'text-red-400' : 
+                    modalConfig.type === 'success' ? 'text-green-400' : 
+                    modalConfig.type === 'warning' ? 'text-yellow-400' : 
+                    modalConfig.type === 'confirm' ? 'text-blue-400' : 'text-white'
+                  }`}>
+                    {modalConfig.title}
+                  </h3>
+                  <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">
+                    {modalConfig.message}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 pt-4 bg-gray-800/50 flex justify-end gap-3">
+              {modalConfig.type === 'confirm' && (
+                <button
+                  onClick={() => {
+                    if (modalConfig.onCancel) modalConfig.onCancel();
+                    else hideModal();
+                  }}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium"
+                >
+                  {modalConfig.cancelText}
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (modalConfig.onConfirm) modalConfig.onConfirm();
+                  else hideModal();
+                }}
+                className={`px-4 py-2 rounded-lg transition-colors font-medium ${
+                  modalConfig.type === 'error' ? 'bg-red-500 hover:bg-red-600 text-white' : 
+                  modalConfig.type === 'success' ? 'bg-green-500 hover:bg-green-600 text-white' : 
+                  modalConfig.type === 'warning' ? 'bg-yellow-500 hover:bg-yellow-600 text-white' : 
+                  modalConfig.type === 'confirm' ? 'bg-blue-500 hover:bg-blue-600 text-white' : 
+                  'bg-primary-500 hover:bg-primary-600 text-white'
+                }`}
+              >
+                {modalConfig.confirmText}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

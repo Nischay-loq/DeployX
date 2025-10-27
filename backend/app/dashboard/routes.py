@@ -7,7 +7,7 @@ from app.grouping.models import Device, DeviceGroup, DeviceGroupMap
 from app.Deployments.models import Deployment, DeploymentTarget
 from app.command_deployment.queue import command_queue
 from datetime import datetime, timedelta
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -124,6 +124,7 @@ def get_dashboard_stats(
         queue_stats = {}
         try:
             queue_stats = command_queue.get_queue_stats()
+            logger.info(f"Queue stats: {queue_stats}")
         except Exception as queue_error:
             logger.warning(f"Could not get queue stats: {queue_error}")
             queue_stats = {'running': 0, 'pending': 0, 'completed': 0, 'failed': 0, 'total': 0}
@@ -164,6 +165,7 @@ def get_dashboard_stats(
             },
             "commands": {
                 "queue_stats": queue_stats,
+                "total": queue_stats.get('completed', 0) + queue_stats.get('failed', 0),  # Total commands executed (completed + failed)
                 "active": queue_stats.get('running', 0),
                 "pending": queue_stats.get('pending', 0),
                 "completed": queue_stats.get('completed', 0),
@@ -530,15 +532,30 @@ def get_system_metrics(
 @router.get("/deployment-trends")
 def get_deployment_trends_data(
     days: int = 7,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get actual deployment trends over specified days - includes both software and file deployments"""
+    """Get actual deployment trends over specified days or custom date range - includes both software and file deployments"""
     try:
         from app.files.models import FileDeployment
         
-        end_date = datetime.utcnow().date()
-        start_date = end_date - timedelta(days=days-1)
+        # Determine date range based on parameters
+        if from_date and to_date:
+            # Custom date range mode
+            try:
+                start_date = datetime.strptime(from_date, "%Y-%m-%d").date()
+                end_date = datetime.strptime(to_date, "%Y-%m-%d").date()
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+            
+            if start_date > end_date:
+                raise HTTPException(status_code=400, detail="from_date cannot be after to_date")
+        else:
+            # Preset days mode
+            end_date = datetime.utcnow().date()
+            start_date = end_date - timedelta(days=days-1)
         
         # Get deployments grouped by date and status
         deployment_data = []

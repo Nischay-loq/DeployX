@@ -1,0 +1,36 @@
+# Build artifacts
+dist/
+build/
+*.pyc
+__pycache__/
+*.egg-info/
+
+# Platform-specific outputs
+build/windows/dist/
+build/windows/build/
+build/windows/output/
+build/linux/deployx-agent_*/
+build/linux/*.deb
+build/linux/*.sha256
+build/macos/*.dmg
+build/macos/*.sha256
+build/macos/DeployX Agent.app/
+build/macos/dmg_contents/
+build/macos/INSTALL.txt
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+temp/

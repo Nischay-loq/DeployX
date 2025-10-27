@@ -232,9 +232,25 @@ class ApiClient {
     });
   }
 
-  async get(endpoint) {
-    return this.request(endpoint, {
+  async get(endpoint, options = {}) {
+    // Handle query parameters
+    let url = endpoint;
+    if (options.params) {
+      const params = new URLSearchParams();
+      Object.keys(options.params).forEach(key => {
+        if (options.params[key] !== null && options.params[key] !== undefined && options.params[key] !== '') {
+          params.append(key, options.params[key]);
+        }
+      });
+      const queryString = params.toString();
+      if (queryString) {
+        url = `${endpoint}${endpoint.includes('?') ? '&' : '?'}${queryString}`;
+      }
+    }
+    
+    return this.request(url, {
       method: 'GET',
+      ...options,
     });
   }
 
