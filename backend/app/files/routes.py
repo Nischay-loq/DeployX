@@ -503,55 +503,68 @@ async def update_deployment_final_status_async(deployment_id: int, check_delay: 
             except:
                 pass
 
-async def update_deployment_final_status(deployment_id: int, db: Session, check_delay: int = 30):
+async def update_deployment_final_status(deployment_id: int, db: Session, check_delay: int = 3):
     """Check deployment results and update final status after delay"""
     try:
+        logger.info(f"⏰ Starting final status check for deployment {deployment_id} with initial delay {check_delay}s")
         await asyncio.sleep(check_delay)
         
-        # Refresh session to avoid stale data
-        db.expire_all()
-        results = crud.get_deployment_results(db, deployment_id)
+        # Check more frequently: 3s initial + up to 10 retries of 5s = ~53 seconds total
+        max_retries = 10
+        retry_count = 0
+        retry_delay = 5  # 5 seconds between retries
         
-        if not results:
-            crud.update_deployment_status(db, deployment_id, "failed", completed_at=datetime.utcnow())
-            db.commit()
-            return
-        
-        pending_count = len([r for r in results if r.status == "pending"])
-        success_count = len([r for r in results if r.status == "success"])
-        error_count = len([r for r in results if r.status == "error"])
-        
-        if pending_count > 0:
-            if check_delay > 0:  # Only retry if not already in retry mode
-                logger.info(f"Deployment {deployment_id} still has {pending_count} pending transfers, checking again in 30s")
-                # Create a new DB session for the retry
-                db.close()
-                await asyncio.sleep(30)
-                new_db = next(get_db())
-                try:
-                    await update_deployment_final_status(deployment_id, new_db, check_delay=0)
-                finally:
-                    new_db.close()
+        while retry_count <= max_retries:
+            # Refresh session to avoid stale data
+            db.expire_all()
+            results = crud.get_deployment_results(db, deployment_id)
+            
+            if not results:
+                logger.warning(f"❌ No results found for deployment {deployment_id}")
+                crud.update_deployment_status(db, deployment_id, "failed", completed_at=datetime.utcnow())
+                db.commit()
+                return
+            
+            pending_count = len([r for r in results if r.status == "pending"])
+            success_count = len([r for r in results if r.status == "success"])
+            error_count = len([r for r in results if r.status == "error"])
+            
+            logger.info(f"📊 Deployment {deployment_id} status check (attempt {retry_count + 1}/{max_retries + 1}): "
+                       f"pending={pending_count}, success={success_count}, error={error_count}")
+            
+            # If no pending transfers, finalize the status
+            if pending_count == 0:
+                if error_count == 0:
+                    final_status = "completed"
+                elif success_count == 0:
+                    final_status = "failed"
+                else:
+                    final_status = "partial_failure"
+                
+                logger.info(f"✅ Setting deployment {deployment_id} final status to: {final_status}")
+                crud.update_deployment_status(db, deployment_id, final_status, completed_at=datetime.utcnow())
+                db.commit()
+                logger.info(f"✅ Updated deployment {deployment_id} final status to {final_status}")
+                
+                # Emit socket notification
+                await emit_file_deployment_notification(deployment_id, db)
+                return
+            
+            # Still have pending transfers
+            if retry_count < max_retries:
+                logger.info(f"Deployment {deployment_id} still has {pending_count} pending transfers, checking again in {retry_delay}s")
+                await asyncio.sleep(retry_delay)
+                retry_count += 1
             else:
-                logger.warning(f"Deployment {deployment_id} timed out with {pending_count} pending transfers")
+                # Max retries reached, treat pending as partial failure
+                logger.warning(f"Deployment {deployment_id} timed out with {pending_count} pending transfers after {max_retries} retries")
                 final_status = "partial_failure" if success_count > 0 else "failed"
                 crud.update_deployment_status(db, deployment_id, final_status, completed_at=datetime.utcnow())
                 db.commit()
-            return
-        
-        if error_count == 0:
-            final_status = "completed"
-        elif success_count == 0:
-            final_status = "failed"
-        else:
-            final_status = "partial_failure"
-        
-        crud.update_deployment_status(db, deployment_id, final_status, completed_at=datetime.utcnow())
-        db.commit()
-        logger.info(f"Updated deployment {deployment_id} final status to {final_status}")
-        
-        # Emit socket notification
-        await emit_file_deployment_notification(deployment_id, db)
+                
+                # Emit socket notification even on timeout
+                await emit_file_deployment_notification(deployment_id, db)
+                return
         
     except Exception as e:
         logger.exception(f"Error updating deployment final status: {e}")
@@ -572,6 +585,8 @@ async def get_deployment_progress(
     deployment = crud.get_file_deployment(db, deployment_id, current_user.id)
     if not deployment:
         raise HTTPException(status_code=404, detail="Deployment not found")
+    
+    logger.info(f"📊 Get Progress - Deployment ID: {deployment_id}, Status: {deployment.status}")
     
     results = crud.get_deployment_results(db, deployment_id)
     

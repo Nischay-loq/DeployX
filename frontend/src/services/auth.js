@@ -9,9 +9,10 @@ class AuthService {
   }
 
   setupSessionManagement() {
+    // Update last active timestamp periodically for session tracking
     setInterval(() => {
       const sessionActive = sessionStorage.getItem('sessionActive');
-      if (sessionActive === 'true') {
+      if (sessionActive === 'true' || sessionActive === 'persistent') {
         sessionStorage.setItem('sessionLastActive', Date.now().toString());
       }
     }, 30000);
@@ -35,23 +36,8 @@ class AuthService {
       
       const sessionActive = sessionStorage.getItem('sessionActive');
       if (token && sessionActive) {
-        const isOAuthSession = sessionStorage.getItem('oauth_provider');
-        const isPersistentSession = sessionActive === 'persistent';
-        
-        if (isOAuthSession || isPersistentSession) {
-          sessionStorage.setItem('sessionLastActive', Date.now().toString());
-        } else if (sessionActive === 'true') {
-          const lastActive = sessionStorage.getItem('sessionLastActive');
-          const now = Date.now();
-          
-          if (!lastActive || (now - parseInt(lastActive)) > 30 * 60 * 1000) {
-            this.clearSessionTokens();
-            token = null;
-            username = null;
-          } else {
-            sessionStorage.setItem('sessionLastActive', now.toString());
-          }
-        }
+        // Update last active timestamp - no automatic logout
+        sessionStorage.setItem('sessionLastActive', Date.now().toString());
       }
     }
     

@@ -45,7 +45,7 @@
     {
       "id": "590209fb-bc82-4674-93f8-685872846838",
       "command": "dir",
-      "status": "running",
+      "status": "completed",
       "output": "Microsoft Windows [Version 10.0.26200.6901]\r\n(c) Microsoft Corporation. All rights reserved.\r\n\r\nD:\\DeployX> Volume in drive D is New Volume\r\n Volume in drive D is New Volume\r\n Volume Serial Number is EEDC-0DD1\r\n\r\n Directory of D:\\DeployX\r\n\r\n25-10-2025  17:17    <DIR>          .\r\n20-10-2025  19:16               444 .gitignore\r\n20-10-2025  19:18    <DIR>          agent\r\n25-10-2025  16:51    <DIR>          backend\r\n25-10-2025  17:25             3,498 FIX_405_ERROR.md\r\n25-10-2025  16:31    <DIR>          frontend\r\n25-10-2025  17:25             5,614 ISSUES_FIXED.md\r\n20-10-2025  19:16             1,113 LICENSE\r\n20-10-2025  19:16             1,582 README.md\r\n25-10-2025  17:25             3,062 SCHEDULE_BUTTONS_ADDED.md\r\n25-10-2025  17:25            11,172 SCHEDULE_BUTTONS_VISUAL_GUIDE.md\r\n25-10-2025  17:25            16,714 SCHEDULING_COMPLETE_SUMMARY.md\r\n25-10-2025  17:25             5,053 SCHEDULING_FIXES.md\r\n25-10-2025  17:25             8,977 SCHEDULING_FIXES_APPLIED.md\r\n25-10-2025  17:25             3,801 SCHEDULING_QUICK_REFERENCE.md\r\n25-10-2025  17:25             7,120 SCHEDULING_QUICK_START.md\r\n25-10-2025  17:25             9,191 SCHEDULING_SETUP_GUIDE.md\r\n25-10-2025  17:25            11,987 SCHEDULING_SUMMARY.md\r\n25-10-2025  17:25            32,260 SCHEDULING_VISUAL_ARCHITECTURE.md\r\n              15 File(s)        121,588 bytes\r\n               4 Dir(s)  186,917,683,200 bytes free\r\n Volume Serial Number is EEDC-0DD1\r\n\r\n Directory of D:\\DeployX\r\n\r\n25-10-2025  17:17    <DIR>          .\r\n20-10-2025  19:16               444 .gitignore\r\n20-10-2025  19:18    <DIR>          agent\r\n25-10-2025  16:51    <DIR>          backend\r\n25-10-2025  17:25             3,498 FIX_405_ERROR.md\r\n25-10-2025  16:31    <DIR>          frontend\r\n25-10-2025  17:25             5,614 ISSUES_FIXED.md\r\n20-10-2025  19:16             1,113 LICENSE\r\n20-10-2025  19:16             1,582 README.md\r\n25-10-2025  17:25             3,062 SCHEDULE_BUTTONS_ADDED.md\r\n25-10-2025  17:25            11,172 SCHEDULE_BUTTONS_VISUAL_GUIDE.md\r\n25-10-2025  17:25            16,714 SCHEDULING_COMPLETE_SUMMARY.md\r\n25-10-2025  17:25             5,053 SCHEDULING_FIXES.md\r\n25-10-2025  17:25             8,977 SCHEDULING_FIXES_APPLIED.md\r\n25-10-2025  17:25             3,801 SCHEDULING_QUICK_REFERENCE.md\r\n25-10-2025  17:25             7,120 SCHEDULING_QUICK_START.md\r\n25-10-2025  17:25             9,191 SCHEDULING_SETUP_GUIDE.md\r\n25-10-2025  17:25            11,987 SCHEDULING_SUMMARY.md\r\n25-10-2025  17:25            32,260 SCHEDULING_VISUAL_ARCHITECTURE.md\r\n              15 File(s)        121,588 bytes\r\n               4 Dir(s)  186,917,683,200 bytes free\r\n\r\nD:\\DeployX>\r\nD:\\DeployX> Volume in drive D is New Volume\r\n Volume Serial Number is EEDC-0DD1\r\n\r\n Directory of D:\\DeployX\r\n\r\n25-10-2025  17:17    <DIR>          .\r\n20-10-2025  19:16               444 .gitignore\r\n20-10-2025  19:18    <DIR>          agent\r\n25-10-2025  16:51    <DIR>          backend\r\n25-10-2025  17:25             3,498 FIX_405_ERROR.md\r\n25-10-2025  16:31    <DIR>          frontend\r\n25-10-2025  17:25             5,614 ISSUES_FIXED.md\r\n20-10-2025  19:16             1,113 LICENSE\r\n20-10-2025  19:16             1,582 README.md\r\n25-10-2025  17:25             3,062 SCHEDULE_BUTTONS_ADDED.md\r\n25-10-2025  17:25            11,172 SCHEDULE_BUTTONS_VISUAL_GUIDE.md\r\n25-10-2025  17:25            16,714 SCHEDULING_COMPLETE_SUMMARY.md\r\n25-10-2025  17:25             5,053 SCHEDULING_FIXES.md\r\n25-10-2025  17:25             8,977 SCHEDULING_FIXES_APPLIED.md\r\n25-10-2025  17:25             3,801 SCHEDULING_QUICK_REFERENCE.md\r\n25-10-2025  17:25             7,120 SCHEDULING_QUICK_START.md\r\n25-10-2025  17:25             9,191 SCHEDULING_SETUP_GUIDE.md\r\n25-10-2025  17:25            11,987 SCHEDULING_SUMMARY.md\r\n25-10-2025  17:25            32,260 SCHEDULING_VISUAL_ARCHITECTURE.md\r\n              15 File(s)        121,588 bytes\r\n               4 Dir(s)  186,917,683,200 bytes free\r\n\r\nD:\\DeployX>\r\nWindows IP Configuration\r\n\r\n\r\nEthernet adapter Ethernet 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::1a5c:b6e4:29b5:9d6%24\r\n   IPv4 Address. . . . . . . . . . . : 192.168.56.1\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : \r\n\r\nWireless LAN adapter Local Area Connection* 11:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Local Area Connection* 12:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Wi-Fi:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::ebf3:493c:efdb:1593%4\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.103\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nWireless LAN adapter Wi-Fi 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::3711:29cb:51d:2634%13\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.109\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nEthernet adapter Bluetooth Network Connection 2:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nEthernet adapter Ethernet 3:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : lan.dbit.in\r\n\r\nD:\\DeployX> Volume in drive D is New Volume\r\n Volume Serial Number is EEDC-0DD1\r\n\r\n Directory of D:\\DeployX\r\n\r\n25-10-2025  17:17    <DIR>          .\r\n20-10-2025  19:16               444 .gitignore\r\n20-10-2025  19:18    <DIR>          agent\r\n25-10-2025  16:51    <DIR>          backend\r\n25-10-2025  17:25             3,498 FIX_405_ERROR.md\r\n25-10-2025  16:31    <DIR>          frontend\r\n25-10-2025  17:25             5,614 ISSUES_FIXED.md\r\n20-10-2025  19:16             1,113 LICENSE\r\n20-10-2025  19:16             1,582 README.md\r\n25-10-2025  17:25             3,062 SCHEDULE_BUTTONS_ADDED.md\r\n25-10-2025  17:25            11,172 SCHEDULE_BUTTONS_VISUAL_GUIDE.md\r\n25-10-2025  17:25            16,714 SCHEDULING_COMPLETE_SUMMARY.md\r\n25-10-2025  17:25             5,053 SCHEDULING_FIXES.md\r\n25-10-2025  17:25             8,977 SCHEDULING_FIXES_APPLIED.md\r\n25-10-2025  17:25             3,801 SCHEDULING_QUICK_REFERENCE.md\r\n25-10-2025  17:25             7,120 SCHEDULING_QUICK_START.md\r\n25-10-2025  17:25             9,191 SCHEDULING_SETUP_GUIDE.md\r\n25-10-2025  17:25            11,987 SCHEDULING_SUMMARY.md\r\n25-10-2025  17:25            32,260 SCHEDULING_VISUAL_ARCHITECTURE.md\r\n              15 File(s)        121,588 bytes\r\n               4 Dir(s)  186,917,670,912 bytes free\r\n\r\nD:\\DeployX>\r\nWindows IP Configuration\r\n\r\n\r\nEthernet adapter Ethernet 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::1a5c:b6e4:29b5:9d6%24\r\n   IPv4 Address. . . . . . . . . . . : 192.168.56.1\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : \r\n\r\nWireless LAN adapter Local Area Connection* 11:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Local Area Connection* 12:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Wi-Fi:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::ebf3:493c:efdb:1593%4\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.103\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nWireless LAN adapter Wi-Fi 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::3711:29cb:51d:2634%13\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.109\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nEthernet adapter Bluetooth Network Connection 2:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nEthernet adapter Ethernet 3:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : lan.dbit.in\r\n\r\nD:\\DeployX>",
       "strategy": "transactional",
       "timestamp": "2025-10-26T00:53:02.092122",
@@ -125,7 +125,113 @@
         "execution_id": "241bb4d0-4e1a-4397-ab97-013a126d31d2",
         "device_id": 41
       }
+    },
+    {
+      "id": "9ca78c9f-86bb-48a3-a1bc-94f24083f8dd",
+      "command": "echo hello",
+      "status": "completed",
+      "output": "Microsoft Windows [Version 10.0.26200.6901]\r\n(c) Microsoft Corporation. All rights reserved.\r\n\r\nD:\\DeployX>hello\r\nhello\r\n\r\nD:\\DeployX>\r\nD:\\DeployX>hello\r\n\r\nD:\\DeployX>command\r\n\r\nD:\\DeployX>",
+      "strategy": "snapshot",
+      "timestamp": "2025-10-26T10:00:50.149622",
+      "agent_id": "agent_86d54f2b",
+      "shell": "cmd",
+      "error": null,
+      "started_at": "2025-10-26T10:00:50.152506",
+      "completed_at": "2025-10-26T10:00:51.219339",
+      "config": {
+        "original_command": "echo hello"
+      }
+    },
+    {
+      "id": "d06aa01a-06ff-4ef6-8699-bd965c4599bb",
+      "command": "echo command",
+      "status": "completed",
+      "output": "command\r\n\r\nD:\\DeployX>command\r\n\r\nD:\\DeployX>",
+      "strategy": "snapshot",
+      "timestamp": "2025-10-26T10:09:36.418758",
+      "agent_id": "agent_86d54f2b",
+      "shell": "cmd",
+      "error": null,
+      "started_at": "2025-10-26T10:09:36.422968",
+      "completed_at": "2025-10-26T10:09:36.942604",
+      "config": {
+        "original_command": "echo command"
+      }
+    },
+    {
+      "id": "431fb872-8c06-4ac0-8941-1b51308b2fbe",
+      "command": "echo hii",
+      "status": "completed",
+      "output": "Microsoft Windows [Version 10.0.26200.6901]\r\n(c) Microsoft Corporation. All rights reserved.\r\n\r\nD:\\DeployX>hii\r\nhii\r\n\r\nD:\\DeployX>\r\nD:\\DeployX>hii\r\n\r\nD:\\DeployX>",
+      "strategy": "snapshot",
+      "timestamp": "2025-10-26T10:41:55.285184",
+      "agent_id": "agent_86d54f2b",
+      "shell": "cmd",
+      "error": null,
+      "started_at": "2025-10-26T10:41:55.288977",
+      "completed_at": "2025-10-26T10:41:56.355512",
+      "config": {
+        "original_command": "echo hii"
+      }
+    },
+    {
+      "id": "280f8e1c-7358-474d-bf01-9c96d0a7c664",
+      "command": "ipconfig",
+      "status": "completed",
+      "output": "Microsoft Windows [Version 10.0.26200.6901]\r\n(c) Microsoft Corporation. All rights reserved.\r\n\r\nD:\\DeployX>\r\nWindows IP Configuration\r\n\r\n\r\nWindows IP Configuration\r\n\r\n\r\nEthernet adapter Ethernet 2:\r\n\r\n\r\nEthernet adapter Ethernet 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::1a5c:b6e4:29b5:9d6%24\r\n   IPv4 Address. . . . . . . . . . . : 192.168.56.1\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : \r\n\r\nWireless LAN adapter Local Area Connection* 11:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Local Area Connection* 12:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Wi-Fi:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::ebf3:493c:efdb:1593%4\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.103\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nWireless LAN adapter Wi-Fi 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::3711:29cb:51d:2634%13\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.104\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nEthernet adapter Bluetooth Network Connection 2:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nEthernet adapter Ethernet 3:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : lan.dbit.in\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::1a5c:b6e4:29b5:9d6%24\r\n   IPv4 Address. . . . . . . . . . . : 192.168.56.1\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : \r\n\r\nWireless LAN adapter Local Area Connection* 11:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Local Area Connection* 12:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Wi-Fi:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::ebf3:493c:efdb:1593%4\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.103\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nWireless LAN adapter Wi-Fi 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::3711:29cb:51d:2634%13\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.104\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nEthernet adapter Bluetooth Network Connection 2:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nEthernet adapter Ethernet 3:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : lan.dbit.in\r\n\r\n\r\nD:\\DeployX>D:\\DeployX>\r\nWindows IP Configuration\r\n\r\n\r\nEthernet adapter Ethernet 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::1a5c:b6e4:29b5:9d6%24\r\n   IPv4 Address. . . . . . . . . . . : 192.168.56.1\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : \r\n\r\nWireless LAN adapter Local Area Connection* 11:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Local Area Connection* 12:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Wi-Fi:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::ebf3:493c:efdb:1593%4\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.103\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nWireless LAN adapter Wi-Fi 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::3711:29cb:51d:2634%13\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.104\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nEthernet adapter Bluetooth Network Connection 2:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nEthernet adapter Ethernet 3:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : lan.dbit.in\r\n\r\nD:\\DeployX>",
+      "strategy": "snapshot",
+      "timestamp": "2025-10-26T11:11:32.964878",
+      "agent_id": "agent_86d54f2b",
+      "shell": "cmd",
+      "error": null,
+      "started_at": "2025-10-26T11:11:32.969097",
+      "completed_at": "2025-10-26T11:11:34.032807",
+      "config": {
+        "original_command": "ipconfig"
+      }
+    },
+    {
+      "id": "4625d2aa-3868-4b66-9264-d841d572ddfc",
+      "command": "echo task scheduled successfully ",
+      "status": "completed",
+      "output": "Microsoft Windows [Version 10.0.26200.6901]\r\n(c) Microsoft Corporation. All rights reserved.\r\n\r\nD:\\DeployX>task scheduled successfully \r\ntask scheduled successfully \r\n\r\nD:\\DeployX>\r\nD:\\DeployX>task scheduled successfully \r\n\r\nD:\\DeployX>",
+      "strategy": "snapshot",
+      "timestamp": "2025-10-26T14:27:01.573086",
+      "agent_id": "agent_86d54f2b",
+      "shell": "cmd",
+      "error": null,
+      "started_at": "2025-10-26T14:27:01.575869",
+      "completed_at": "2025-10-26T14:27:02.647904",
+      "config": {
+        "original_command": "echo task scheduled successfully ",
+        "group_execution": true,
+        "group_id": 0,
+        "group_name": "Scheduled: Command Task - 26/10/2025, 14:25:59",
+        "execution_id": "b7c4c9b2-d358-4d35-80c6-decc6941e93f",
+        "device_id": 41
+      }
+    },
+    {
+      "id": "d7c7ce32-e85d-46bb-b0de-982b4af5bf9c",
+      "command": "ipconfig",
+      "status": "completed",
+      "output": "Microsoft Windows [Version 10.0.26200.6901]\r\n(c) Microsoft Corporation. All rights reserved.\r\n\r\nD:\\DeployX>\r\nWindows IP Configuration\r\n\r\n\r\nWindows IP Configuration\r\n\r\n\r\nEthernet adapter Ethernet 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::1a5c:b6e4:29b5:9d6%24\r\n   IPv4 Address. . . . . . . . . . . : 192.168.56.1\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : \r\n\r\nWireless LAN adapter Local Area Connection* 11:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Local Area Connection* 12:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Wi-Fi:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::ebf3:493c:efdb:1593%4\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.103\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nWireless LAN adapter Wi-Fi 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::3711:29cb:51d:2634%13\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.104\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nEthernet adapter Bluetooth Network Connection 2:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nEthernet adapter Ethernet 3:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : lan.dbit.in\r\n\r\nEthernet adapter Ethernet 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::1a5c:b6e4:29b5:9d6%24\r\n   IPv4 Address. . . . . . . . . . . : 192.168.56.1\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : \r\n\r\nWireless LAN adapter Local Area Connection* 11:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Local Area Connection* 12:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Wi-Fi:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::ebf3:493c:efdb:1593%4\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.103\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nWireless LAN adapter Wi-Fi 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::3711:29cb:51d:2634%13\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.104\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nEthernet adapter Bluetooth Network Connection 2:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nEthernet adapter Ethernet 3:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : lan.dbit.in\r\n\r\n\r\nD:\\DeployX>D:\\DeployX>\r\nWindows IP Configuration\r\n\r\n\r\nEthernet adapter Ethernet 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::1a5c:b6e4:29b5:9d6%24\r\n   IPv4 Address. . . . . . . . . . . : 192.168.56.1\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : \r\n\r\nWireless LAN adapter Local Area Connection* 11:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Local Area Connection* 12:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nWireless LAN adapter Wi-Fi:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::ebf3:493c:efdb:1593%4\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.103\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nWireless LAN adapter Wi-Fi 2:\r\n\r\n   Connection-specific DNS Suffix  . : \r\n   Link-local IPv6 Address . . . . . : fe80::3711:29cb:51d:2634%13\r\n   IPv4 Address. . . . . . . . . . . : 192.168.0.104\r\n   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n   Default Gateway . . . . . . . . . : 192.168.0.1\r\n\r\nEthernet adapter Bluetooth Network Connection 2:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : \r\n\r\nEthernet adapter Ethernet 3:\r\n\r\n   Media State . . . . . . . . . . . : Media disconnected\r\n   Connection-specific DNS Suffix  . : lan.dbit.in\r\n\r\nD:\\DeployX>",
+      "strategy": "snapshot",
+      "timestamp": "2025-10-26T14:32:01.152941",
+      "agent_id": "agent_86d54f2b",
+      "shell": "cmd",
+      "error": null,
+      "started_at": "2025-10-26T14:32:01.155310",
+      "completed_at": "2025-10-26T14:32:04.172156",
+      "config": {
+        "original_command": "ipconfig",
+        "group_execution": true,
+        "group_id": 0,
+        "group_name": "Scheduled: Command Task - 26/10/2025, 14:31:49",
+        "execution_id": "435dc76c-5f9a-466d-8776-81cdf7662577",
+        "device_id": 41
+      }
     }
   ],
-  "last_updated": "2025-10-26T00:54:03.954491"
+  "last_updated": "2025-10-26T14:32:04.172245"
 }

@@ -286,15 +286,39 @@ class TaskScheduler:
             task.last_result = json.dumps(result)
             task.error_message = None
             
-            # Update next execution time for recurring tasks
+            # Update next execution time for recurring tasks, clear for one-time tasks
             if task.recurrence_type != RecurrenceType.ONCE:
                 next_run = self.get_next_run_time(task_id)
                 if next_run:
                     task.next_execution = next_run
+            else:
+                # Clear next_execution for completed one-time tasks
+                task.next_execution = None
             
             db.commit()
             
             logger.info(f"Task {task_id} executed successfully - Deployment ID: {deployment_id}")
+            
+            # Emit Socket.IO notification for successful execution
+            # Note: File and Software deployments have their own detailed notifications
+            # Only send generic notification for command executions
+            if task.task_type == TaskType.COMMAND:
+                try:
+                    from app.main import sio
+                    if sio:
+                        notification_data = {
+                            'task_id': task_id,
+                            'task_name': task.task_name,
+                            'task_type': 'command',
+                            'deployment_id': deployment_id,
+                            'execution_time': execution.execution_time.isoformat() if execution.execution_time else None,
+                            'status': 'completed',
+                            'message': f'Scheduled command "{task.task_name}" executed successfully'
+                        }
+                        await sio.emit('scheduled_task_completed', notification_data, room='frontends')
+                        logger.info(f"Emitted scheduled_task_completed notification for command task {task_id}")
+                except Exception as emit_error:
+                    logger.error(f"Failed to emit socket notification for task {task_id}: {emit_error}")
             
         except Exception as e:
             logger.error(f"Error executing task {task_id}: {e}", exc_info=True)
@@ -310,8 +334,29 @@ class TaskScheduler:
             if task:
                 task.status = TaskStatus.FAILED
                 task.error_message = str(e)
+                
+                # Clear next_execution for failed one-time tasks
+                if task.recurrence_type == RecurrenceType.ONCE:
+                    task.next_execution = None
             
             db.commit()
+            
+            # Emit Socket.IO notification for failed execution
+            try:
+                from app.main import sio
+                if sio and task:
+                    notification_data = {
+                        'task_id': task_id,
+                        'task_name': task.task_name if task else f'Task {task_id}',
+                        'task_type': task.task_type.value if task and hasattr(task.task_type, 'value') else 'unknown',
+                        'status': 'failed',
+                        'error_message': str(e),
+                        'message': f'Scheduled task "{task.task_name if task else task_id}" failed: {str(e)}'
+                    }
+                    await sio.emit('scheduled_task_failed', notification_data, room='frontends')
+                    logger.info(f"Emitted scheduled_task_failed notification for task {task_id}")
+            except Exception as emit_error:
+                logger.error(f"Failed to emit socket notification for failed task {task_id}: {emit_error}")
             
         finally:
             db.close()

@@ -52,6 +52,7 @@ from app.auth.database import engine, get_db, Base
 from app.command_deployment.routes import router as deployment_router
 from app.dashboard.routes import router as dashboard_router
 from app.schedule.routes import router as schedule_router
+from app.logs.routes import router as logs_router
 from app.command_deployment.executor import command_executor
 from app.grouping import models as grouping_models  # Import grouping models
 from app.Deployments import models as deployment_models  # Import deployment models
@@ -113,6 +114,7 @@ app.include_router(software_router)
 app.include_router(files_router)
 app.include_router(dashboard_router)
 app.include_router(schedule_router)
+app.include_router(logs_router)
 
 # Health check endpoint
 @app.get("/health")
@@ -829,16 +831,38 @@ async def file_transfer_result(sid, data):
             status = "success" if success else "error"
             result_message = message if success else error
             
-            crud.create_deployment_result(
-                db, 
-                deployment_id, 
-                device.id, 
-                file_id, 
-                status,
-                result_message,
-                path_created=path_created,
-                error_details=error if not success else None
-            )
+            # Find and update existing result instead of creating a new one
+            from app.files.models import FileDeploymentResult
+            existing_result = db.query(FileDeploymentResult).filter(
+                FileDeploymentResult.deployment_id == deployment_id,
+                FileDeploymentResult.device_id == device.id,
+                FileDeploymentResult.file_id == file_id
+            ).first()
+            
+            if existing_result:
+                # Update existing result
+                existing_result.status = status
+                existing_result.message = result_message
+                existing_result.path_created = path_created
+                if not success:
+                    existing_result.error_details = error
+                if status == "success":
+                    existing_result.deployed_at = datetime.utcnow()
+                db.commit()
+                logger.info(f"Updated existing deployment result for device {device.id}, file {file_id}")
+            else:
+                # Create new result if not found (shouldn't happen normally)
+                logger.warning(f"No existing result found, creating new one for device {device.id}, file {file_id}")
+                crud.create_deployment_result(
+                    db, 
+                    deployment_id, 
+                    device.id, 
+                    file_id, 
+                    status,
+                    result_message,
+                    path_created=path_created,
+                    error_details=error if not success else None
+                )
             
             logger.info(f"Updated deployment result for device {device.id}")
             

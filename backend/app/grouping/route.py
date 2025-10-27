@@ -671,3 +671,24 @@ async def cleanup_batch(
     except Exception as e:
         logger.error(f"Error cleaning up batch: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/commands/executions/{execution_id}", response_model=schemas.GroupCommandExecutionResponse)
+async def get_execution_status_by_id(
+    execution_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Get status of a specific execution by ID (for scheduled tasks or direct access)"""
+    try:
+        execution_status = group_command_executor.get_execution_status(execution_id)
+        
+        if not execution_status:
+            raise HTTPException(status_code=404, detail="Execution not found")
+        
+        return schemas.GroupCommandExecutionResponse(**execution_status)
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting execution status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

@@ -56,7 +56,11 @@ export default function DeploymentManager({
   currentShell, 
   onSelectShell,
   isConnected = false,
-  connectionError = null
+  connectionError = null,
+  showAlert = (msg) => alert(msg),
+  showConfirm = (msg, title, onConfirm) => window.confirm(msg) && onConfirm(),
+  showError = (msg) => alert(msg),
+  showSuccess = (msg) => alert(msg)
 }) {
   console.log('DeploymentManager: Received agents:', agents);
   console.log('DeploymentManager: Current agent:', currentAgent);
@@ -295,7 +299,7 @@ export default function DeploymentManager({
   const openSchedulingModal = async () => {
     const hasTarget = currentAgent || selectedGroups.length > 0;
     if (!hasTarget) {
-      alert('Please select an agent or group first');
+      showAlert('Please select an agent or group first', 'No Target Selected', 'warning');
       return;
     }
 
@@ -308,7 +312,7 @@ export default function DeploymentManager({
         console.log('Devices loaded:', devicesToUse);
       } catch (error) {
         console.error('Failed to load devices:', error);
-        alert('Failed to load devices. Please try again.');
+        showError('Failed to load devices. Please try again.');
         return;
       }
     }
@@ -328,7 +332,7 @@ export default function DeploymentManager({
       const connectedAgent = agents.find(a => a.agent_id === currentAgent);
       if (!connectedAgent) {
         console.error('CRITICAL: Agent is not connected:', currentAgent);
-        alert(`Cannot schedule: Agent ${currentAgent} is not connected. Please select a connected agent.`);
+        showError(`Cannot schedule: Agent ${currentAgent} is not connected. Please select a connected agent.`, 'Agent Not Connected');
         return;
       }
       
@@ -355,7 +359,7 @@ export default function DeploymentManager({
       } else {
         // Device not found - reload devices and show error
         console.error('CRITICAL: Device not found for agent_id:', currentAgent);
-        alert(`Cannot schedule: Device not found in database for agent ${currentAgent}. Please wait for the agent to fully register or select a different agent.`);
+        showError(`Cannot schedule: Device not found in database for agent ${currentAgent}. Please wait for the agent to fully register or select a different agent.`, 'Device Not Found');
         loadDevices(); // Reload devices to refresh the list
         return;
       }
@@ -395,7 +399,7 @@ export default function DeploymentManager({
   const handleSchedule = async (schedulePayload) => {
     try {
       await schedulingService.createScheduledTask(schedulePayload);
-      alert('Command scheduled successfully!');
+      showSuccess('Command scheduled successfully!');
       setShowSchedulingModal(false);
     } catch (error) {
       console.error('Scheduling error:', error);
@@ -417,7 +421,7 @@ export default function DeploymentManager({
     if (!newCommand.trim() || !hasTarget || !isConnected) {
       const message = !isConnected ? 'Backend connection required' : 
                      !hasTarget ? 'Please select an agent or group' : 'Please enter a command';
-      alert(message);
+      showAlert(message, 'Cannot Execute', 'warning');
       return;
     }
 
@@ -453,7 +457,7 @@ export default function DeploymentManager({
             loadCommands();
           } else {
             const error = await response.json();
-            alert(`Error executing on group ${groupId}: ${error.detail || 'Unknown error'}`);
+            showError(`Error executing on group ${groupId}: ${error.detail || 'Unknown error'}`, 'Execution Failed');
           }
         }
       } else {
@@ -479,7 +483,7 @@ export default function DeploymentManager({
       loadStats();
     } catch (error) {
       console.error('Error executing command:', error);
-      alert('Error executing command: ' + error.message);
+      showError('Error executing command: ' + error.message);
     }
     setIsLoading(false);
   };
@@ -536,7 +540,7 @@ export default function DeploymentManager({
     if (validCommands.length === 0 || !hasTarget || !isConnected) {
       const message = !isConnected ? 'Backend connection required' : 
                      !hasTarget ? 'Please select an agent or group' : 'Please enter commands';
-      alert(message);
+      showAlert(message, 'Cannot Execute Batch', 'warning');
       return;
     }
 
@@ -578,7 +582,7 @@ export default function DeploymentManager({
           } else {
             const error = await response.json();
             console.error(`Error executing batch on group ${groupId}:`, error);
-            alert(`Error executing batch on group ${groupId}: ${error.detail || 'Unknown error'}`);
+            showError(`Error executing batch on group ${groupId}: ${error.detail || 'Unknown error'}`, 'Batch Execution Failed');
           }
         }
       } else {
@@ -605,7 +609,7 @@ export default function DeploymentManager({
       loadStats();
     } catch (error) {
       console.error('Error executing batch commands:', error);
-      alert('Error executing batch commands: ' + error.message);
+      showError('Error executing batch commands: ' + error.message);
     }
     setIsLoading(false);
   };
@@ -1332,6 +1336,10 @@ export default function DeploymentManager({
         socket={socket} 
         selectedAgent={currentAgent}
         isConnected={isConnected}
+        showAlert={showAlert}
+        showConfirm={showConfirm}
+        showError={showError}
+        showSuccess={showSuccess}
       />
 
       {/* Scheduling Modal */}

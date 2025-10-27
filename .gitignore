@@ -40,3 +40,8 @@ coverage/
 
 frontend/.vite
 agent/AgentTesting
+
+# Ignore all database dump files
+*.dump
+*.sql
+*.db

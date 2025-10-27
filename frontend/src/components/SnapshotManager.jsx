@@ -1,7 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './css/SnapshotManager.css';
 
-const SnapshotManager = ({ socket, selectedAgent, isConnected }) => {
+const SnapshotManager = ({ 
+  socket, 
+  selectedAgent, 
+  isConnected,
+  showAlert = (msg) => alert(msg),
+  showConfirm = (msg, title, onConfirm) => window.confirm(msg) && onConfirm(),
+  showError = (msg) => alert(msg),
+  showSuccess = (msg) => alert(msg)
+}) => {
   const [snapshots, setSnapshots] = useState([]);
   const [batches, setBatches] = useState({});
   const [isExpanded, setIsExpanded] = useState(false);
@@ -17,12 +25,16 @@ const SnapshotManager = ({ socket, selectedAgent, isConnected }) => {
 
   // Clear all snapshots
   const handleClearSnapshots = useCallback(() => {
-    if (window.confirm('Are you sure you want to clear all snapshots? This action cannot be undone.')) {
-      setSnapshots([]);
-      setBatches({});
-      showNotification('All snapshots cleared', 'success');
-    }
-  }, [showNotification]);
+    showConfirm(
+      'Are you sure you want to clear all snapshots? This action cannot be undone.',
+      'Clear All Snapshots',
+      () => {
+        setSnapshots([]);
+        setBatches({});
+        showNotification('All snapshots cleared', 'success');
+      }
+    );
+  }, [showConfirm, showNotification]);
 
   // Handle batch command completed - add snapshot to list
   useEffect(() => {
@@ -129,18 +141,22 @@ const SnapshotManager = ({ socket, selectedAgent, isConnected }) => {
       return;
     }
 
-    if (window.confirm(`Are you sure you want to rollback this command?\n\nCommand: ${snapshot.command}\n\nThis will undo all changes made by this command.`)) {
-      setIsRollingBack(prev => new Set([...prev, snapshot.id]));
-      
-      console.log('Requesting rollback for snapshot:', snapshot.id);
-      socket.emit('rollback_command', {
-        agent_id: snapshot.agent_id || selectedAgent,
-        snapshot_id: snapshot.id
-      });
+    showConfirm(
+      `Are you sure you want to rollback this command?\n\nCommand: ${snapshot.command}\n\nThis will undo all changes made by this command.`,
+      'Rollback Command',
+      () => {
+        setIsRollingBack(prev => new Set([...prev, snapshot.id]));
+        
+        console.log('Requesting rollback for snapshot:', snapshot.id);
+        socket.emit('rollback_command', {
+          agent_id: snapshot.agent_id || selectedAgent,
+          snapshot_id: snapshot.id
+        });
 
-      showNotification(`Rolling back: ${snapshot.command.substring(0, 40)}...`, 'info');
-    }
-  }, [socket, selectedAgent, showNotification]);
+        showNotification(`Rolling back: ${snapshot.command.substring(0, 40)}...`, 'info');
+      }
+    );
+  }, [socket, selectedAgent, showNotification, showConfirm]);
 
   // Rollback entire batch
   const handleRollbackBatch = useCallback((batchId) => {
@@ -152,23 +168,27 @@ const SnapshotManager = ({ socket, selectedAgent, isConnected }) => {
     const batchSnapshots = snapshots.filter(s => s.batch_id === batchId);
     const commandCount = batchSnapshots.length;
 
-    if (window.confirm(`Are you sure you want to rollback this entire batch?\n\nBatch ID: ${batchId}\nCommands: ${commandCount}\n\nThis will undo all ${commandCount} commands in reverse order.`)) {
-      // Mark all batch snapshots as rolling back
-      setIsRollingBack(prev => {
-        const newSet = new Set(prev);
-        batchSnapshots.forEach(s => newSet.add(s.id));
-        return newSet;
-      });
+    showConfirm(
+      `Are you sure you want to rollback this entire batch?\n\nBatch ID: ${batchId}\nCommands: ${commandCount}\n\nThis will undo all ${commandCount} commands in reverse order.`,
+      'Rollback Batch',
+      () => {
+        // Mark all batch snapshots as rolling back
+        setIsRollingBack(prev => {
+          const newSet = new Set(prev);
+          batchSnapshots.forEach(s => newSet.add(s.id));
+          return newSet;
+        });
 
-      console.log('Requesting batch rollback:', batchId);
+        console.log('Requesting batch rollback:', batchId);
       socket.emit('rollback_batch', {
         agent_id: selectedAgent,
         batch_id: batchId
       });
 
       showNotification(`Rolling back batch (${commandCount} commands)...`, 'info');
-    }
-  }, [socket, selectedAgent, snapshots, showNotification]);
+      }
+    );
+  }, [socket, selectedAgent, snapshots, showNotification, showConfirm]);
 
   // Get time ago string
   const getTimeAgo = (timestamp) => {
