@@ -10,9 +10,6 @@ import requests
 from . import schemas, utils
 from .database import get_db, User
 
-# Global storage for email change requests (in production, use database)
-email_change_requests = {}
-
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 # In-memory OTP store (temp solution) - stores {email: {"otp": code, "purpose": "signup"|"reset", "user_data": {...}}}
@@ -648,23 +645,18 @@ def request_password_change(
     """Request password change - sends reset link to current email"""
     print(f"Password change requested for user: {current_user.username} ({current_user.email})")
     try:
-        # Generate reset token
-        import secrets
-        token = secrets.token_urlsafe(32)
+        # Generate reset token using JWT (not in-memory storage)
+        token = utils.create_password_reset_token(current_user.email)
         
-        # Store reset request (in production, use database)
-        password_reset_requests = getattr(request_password_change, 'requests', {})
-        password_reset_requests[token] = {
-            "user_id": current_user.id,
-            "email": current_user.email,
-            "created_at": datetime.utcnow(),
-            "expires_at": datetime.utcnow().timestamp() + 3600  # 1 hour
-        }
-        request_password_change.requests = password_reset_requests
+        # Generate password reset link - use environment-aware URL
+        environment = os.environ.get("ENVIRONMENT", "production")
+        if environment == "development":
+            frontend_url = os.environ.get("FRONTEND_LOCAL_URL", "http://localhost:5173")
+        else:
+            frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
         
-        # Send reset email
-        # Generate password reset link
-        frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+        # Remove trailing slash if present
+        frontend_url = frontend_url.rstrip('/')
         reset_link = f"{frontend_url}/reset-password?token={token}"
         
         try:
@@ -782,23 +774,20 @@ def request_email_change(
                 detail="Email already in use"
             )
         
-        # Generate verification token
-        import secrets
-        token = secrets.token_urlsafe(32)
+        # Generate verification token using JWT with user_id and new_email
+        token = utils.create_email_change_token(current_user.id, request.new_email)
         
-        # Store email change request (in production, use database)
-        email_change_requests[token] = {
-            "user_id": current_user.id,
-            "new_email": request.new_email,
-            "created_at": datetime.utcnow(),
-            "expires_at": datetime.utcnow().timestamp() + 3600  # 1 hour
-        }
+        print(f"Generated email change token for user {current_user.id}")
         
-        print(f"Stored email change request with token: {token}")
-        print(f"Current stored requests: {list(email_change_requests.keys())}")
+        # Send verification email - use environment-aware URL
+        environment = os.environ.get("ENVIRONMENT", "production")
+        if environment == "development":
+            frontend_url = os.environ.get("FRONTEND_LOCAL_URL", "http://localhost:5173")
+        else:
+            frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
         
-        # Send verification email
-        frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+        # Remove trailing slash if present
+        frontend_url = frontend_url.rstrip('/')
         verification_link = f"{frontend_url}/verify-email-change?token={token}"
         
         try:
@@ -860,49 +849,37 @@ def verify_email_change(
     """Verify email change using token from email"""
     try:
         print(f"Verifying email change with token: {request.token}")
-        print(f"Available tokens: {list(email_change_requests.keys())}")
         
-        # Clean up expired tokens first
-        current_time = datetime.utcnow().timestamp()
-        expired_tokens = [token for token, data in email_change_requests.items() 
-                         if current_time > data["expires_at"]]
-        for token in expired_tokens:
-            del email_change_requests[token]
-            print(f"Cleaned up expired token: {token}")
+        # Verify token and extract user_id and new_email
+        user_id, new_email = utils.verify_email_change_token(request.token)
         
-        if request.token not in email_change_requests:
-            print(f"Token {request.token} not found in stored requests")
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid or expired verification token"
-            )
-        
-        change_request = email_change_requests[request.token]
-        
-        # Check if token is expired (double check)
-        if current_time > change_request["expires_at"]:
-            del email_change_requests[request.token]
-            raise HTTPException(
-                status_code=400,
-                detail="Verification token has expired"
-            )
-        
-        # Get user and update email
-        user = db.query(User).filter(User.id == change_request["user_id"]).first()
+        # Get user
+        user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(
                 status_code=404,
                 detail="User not found"
             )
         
+        # Check if new email is still available
+        existing_user = db.query(User).filter(
+            User.email == new_email,
+            User.id != user_id
+        ).first()
+        
+        if existing_user:
+            raise HTTPException(
+                status_code=400,
+                detail="Email address is no longer available"
+            )
+        
         # Update email
         old_email = user.email
-        user.email = change_request["new_email"]
+        user.email = new_email
         db.commit()
         db.refresh(user)
         
-        # Clean up the request
-        del email_change_requests[request.token]
+        print(f"Email updated successfully for user {user_id}: {old_email} -> {new_email}")
         
         return {
             "status": "success",
@@ -915,6 +892,7 @@ def verify_email_change(
         raise
     except Exception as e:
         db.rollback()
+        print(f"Error verifying email change: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to verify email change: {str(e)}"
