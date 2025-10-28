@@ -231,7 +231,28 @@
         "execution_id": "435dc76c-5f9a-466d-8776-81cdf7662577",
         "device_id": 41
       }
+    },
+    {
+      "id": "e0c37f17-e7de-4679-be37-ebb599ed9e54",
+      "command": "echo hello",
+      "status": "completed",
+      "output": "Microsoft Windows [Version 10.0.26200.6901]\r\n(c) Microsoft Corporation. All rights reserved.\r\n\r\nD:\\DeployX>hello\r\nhello\r\n\r\nD:\\DeployX>\r\nD:\\DeployX>hello\r\n\r\nD:\\DeployX>",
+      "strategy": "snapshot",
+      "timestamp": "2025-10-28T09:21:04.397346",
+      "agent_id": "agent_86d54f2b",
+      "shell": "cmd",
+      "error": null,
+      "started_at": "2025-10-28T09:21:04.401329",
+      "completed_at": "2025-10-28T09:21:05.482208",
+      "config": {
+        "original_command": "echo hello",
+        "group_execution": true,
+        "group_id": 0,
+        "group_name": "Scheduled: Command Task - 28/10/2025, 09:19:35",
+        "execution_id": "5be57f7c-7441-47a3-8385-36c6b10c1c65",
+        "device_id": 41
+      }
     }
   ],
-  "last_updated": "2025-10-26T14:32:04.172245"
+  "last_updated": "2025-10-28T09:21:05.482514"
 }
