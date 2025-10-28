@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Calendar,
   Clock,
@@ -49,7 +49,8 @@ const ManageSchedules = ({
   showAlert = (msg) => alert(msg),
   showConfirm = (msg, title, onConfirm) => window.confirm(msg) && onConfirm(),
   showError = (msg) => alert(msg),
-  showSuccess = (msg) => alert(msg)
+  showSuccess = (msg) => alert(msg),
+  socket = null  // Accept socket as prop
 }) => {
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -70,15 +71,6 @@ const ManageSchedules = ({
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
 
-  useEffect(() => {
-    fetchDevices();
-    fetchGroups();
-  }, []);
-
-  useEffect(() => {
-    fetchSchedules();
-  }, [currentPage, pageSize, filterStatus, filterType]);
-
   const getAuthHeaders = () => {
     const token = authService.getToken() || 
                    localStorage.getItem('access_token') || 
@@ -92,7 +84,7 @@ const ManageSchedules = ({
     };
   };
 
-  const fetchSchedules = async () => {
+  const fetchSchedules = useCallback(async () => {
     try {
       setLoading(true);
       const apiUrl = getApiUrl();
@@ -147,7 +139,7 @@ const ManageSchedules = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, filterStatus, filterType]); // Dependencies for useCallback
 
   const fetchDevices = async () => {
     try {
@@ -180,6 +172,43 @@ const ManageSchedules = ({
       console.error('Error fetching groups:', err);
     }
   };
+
+  useEffect(() => {
+    fetchDevices();
+    fetchGroups();
+  }, []);
+
+  useEffect(() => {
+    fetchSchedules();
+  }, [fetchSchedules]);
+
+  // Socket.IO listeners for real-time updates
+  useEffect(() => {
+    if (!socket) return;
+
+    // Listen for scheduled task completion
+    const handleTaskCompleted = (taskInfo) => {
+      console.log('[ManageSchedules] Scheduled task completed:', taskInfo);
+      // Refresh the schedules list to show updated status
+      fetchSchedules();
+    };
+
+    // Listen for scheduled task failure
+    const handleTaskFailed = (taskInfo) => {
+      console.log('[ManageSchedules] Scheduled task failed:', taskInfo);
+      // Refresh the schedules list to show updated status
+      fetchSchedules();
+    };
+
+    socket.on('scheduled_task_completed', handleTaskCompleted);
+    socket.on('scheduled_task_failed', handleTaskFailed);
+
+    // Cleanup listeners on unmount
+    return () => {
+      socket.off('scheduled_task_completed', handleTaskCompleted);
+      socket.off('scheduled_task_failed', handleTaskFailed);
+    };
+  }, [socket, fetchSchedules]); // Added fetchSchedules dependency to prevent stale closure
 
   const handleDeleteSchedule = async (scheduleId) => {
     showConfirm(

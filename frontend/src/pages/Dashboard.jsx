@@ -3352,6 +3352,7 @@ export default function Dashboard({ onLogout }) {
               showConfirm={showConfirm}
               showError={showError}
               showSuccess={showSuccess}
+              socket={socketRef.current}
             />
           )}
 
