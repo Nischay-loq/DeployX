@@ -500,7 +500,16 @@ export default function FileSystemManager() {
           file_ids: fileIds,
           target_path: deploymentPath,
           create_path_if_not_exists: true,
-          deployment_name: `File Deployment - ${new Date().toLocaleString()}`
+          deployment_name: `File Deployment - ${new Date().toLocaleString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+          })}`
         }
       };
 

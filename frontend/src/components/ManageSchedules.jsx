@@ -58,7 +58,7 @@ const ManageSchedules = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterType, setFilterType] = useState('all');
-  const [sortBy, setSortBy] = useState('next_execution');
+  const [sortBy, setSortBy] = useState('recently_added');
   const [expandedSchedule, setExpandedSchedule] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState(null);
@@ -349,6 +349,9 @@ const ManageSchedules = ({
     })
     .sort((a, b) => {
       switch (sortBy) {
+        case 'recently_added':
+          // Sort by created_at descending (newest first)
+          return new Date(b.created_at || 0) - new Date(a.created_at || 0);
         case 'next_execution':
           // Handle null/undefined next_execution times
           const aTime = a.next_execution ? new Date(a.next_execution).getTime() : Infinity;
@@ -475,6 +478,12 @@ const ManageSchedules = ({
         <div className="mt-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-gray-400 text-sm">Sort by:</span>
+            <button
+              onClick={() => setSortBy('recently_added')}
+              className={`px-3 py-1 text-sm rounded ${sortBy === 'recently_added' ? 'bg-primary-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+            >
+              Recently Added
+            </button>
             <button
               onClick={() => setSortBy('next_execution')}
               className={`px-3 py-1 text-sm rounded ${sortBy === 'next_execution' ? 'bg-primary-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}

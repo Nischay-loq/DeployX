@@ -140,7 +140,8 @@ async def get_scheduled_tasks(
         # Get total count before pagination
         total_count = query.count()
         
-        tasks = query.order_by(ScheduledTask.next_execution.asc()).offset(skip).limit(limit).all()
+        # Order by created_at descending (most recent first)
+        tasks = query.order_by(ScheduledTask.created_at.desc()).offset(skip).limit(limit).all()
         
         result = []
         for task in tasks:
