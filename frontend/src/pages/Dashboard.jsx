@@ -2343,14 +2343,17 @@ export default function Dashboard({ onLogout }) {
               <button
                 key={section.id}
                 onClick={() => setActiveSection(section.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${
+                className={`w-full flex items-start gap-3 px-4 py-3 rounded-xl transition-all ${
                   activeSection === section.id
                     ? 'bg-primary-500/20 border border-primary-500/30 text-primary-400 shadow-lg'
                     : 'text-gray-400 hover:bg-gray-800/50 hover:text-white'
                 }`}
               >
-                <section.icon className={`w-5 h-5 ${section.color}`} />
-                <span>{section.name}</span>
+                <section.icon className={`w-5 h-5 ${section.color} mt-0.5 flex-shrink-0`} />
+                <div className="text-left flex-1">
+                  <div className="font-medium">{section.name}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{section.description}</div>
+                </div>
               </button>
             ))}
           </nav>
@@ -3283,19 +3286,18 @@ export default function Dashboard({ onLogout }) {
 
           {activeSection === 'shell' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-cyan-500/20 rounded-lg">
+              <div className="flex items-center justify-between flex-nowrap">
+                <div className="flex items-center gap-3 flex-nowrap min-w-0">
+                  <div className="p-2 bg-cyan-500/20 rounded-lg flex-shrink-0">
                     <TerminalIcon className="w-6 h-6 text-cyan-400" />
                   </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-white">Interactive Remote Shell</h2>
-                    <p className="text-gray-400">Execute commands on remote systems in real-time</p>
-                  </div>
+                  <h2 className="text-2xl font-bold text-white whitespace-nowrap">Interactive Remote Shell</h2>
+                  <span className="text-gray-400 whitespace-nowrap">•</span>
+                  <p className="text-gray-400 whitespace-nowrap">Execute commands on remote systems in real-time</p>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-2 bg-green-500/20 border border-green-500/30 rounded-lg">
+                <div className="flex items-center gap-2 px-3 py-2 bg-green-500/20 border border-green-500/30 rounded-lg flex-shrink-0">
                   <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span className="text-green-400 text-sm font-medium">Live</span>
+                  <span className="text-green-400 text-sm font-medium whitespace-nowrap">Live</span>
                 </div>
               </div>
               
@@ -3307,15 +3309,14 @@ export default function Dashboard({ onLogout }) {
 
           {activeSection === 'deployment' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-teal-500/20 rounded-lg">
+              <div className="flex items-center justify-between flex-nowrap">
+                <div className="flex items-center gap-3 flex-nowrap min-w-0">
+                  <div className="p-2 bg-teal-500/20 rounded-lg flex-shrink-0">
                     <Command className="w-6 h-6 text-teal-400" />
                   </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-white">Deployment Manager</h2>
-                    <p className="text-gray-400">Execute commands with deployment strategies and safety checks</p>
-                  </div>
+                  <h2 className="text-2xl font-bold text-white whitespace-nowrap">Command Execution</h2>
+                  <span className="text-gray-400 whitespace-nowrap">•</span>
+                  <p className="text-gray-400 whitespace-nowrap">Deploy and execute commands across multiple devices</p>
                 </div>
               </div>
               
@@ -3358,9 +3359,16 @@ export default function Dashboard({ onLogout }) {
 
           {activeSection === 'groups' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-white">Device Groups</h2>
-                <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between flex-nowrap">
+                <div className="flex items-center gap-3 flex-nowrap min-w-0">
+                  <div className="p-2 bg-orange-500/20 rounded-lg flex-shrink-0">
+                    <Monitor className="w-6 h-6 text-orange-400" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-white whitespace-nowrap">Device Groups</h2>
+                  <span className="text-gray-400 whitespace-nowrap">•</span>
+                  <p className="text-gray-400 whitespace-nowrap">Organize and manage device collections</p>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
                   <button
                     onClick={async () => {
                       // Ensure devices are loaded before opening modal
@@ -3369,7 +3377,7 @@ export default function Dashboard({ onLogout }) {
                       }
                       setShowGroupCreateModal(true);
                     }}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors whitespace-nowrap"
                   >
                     <Plus className="w-4 h-4" />
                     Add Group
@@ -3377,7 +3385,7 @@ export default function Dashboard({ onLogout }) {
                   <button
                     onClick={fetchGroupsData}
                     disabled={groupsLoading}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg transition-colors whitespace-nowrap"
                   >
                     <RotateCcw className={`w-4 h-4 ${groupsLoading ? 'animate-spin' : ''}`} />
                     Refresh
@@ -3423,49 +3431,6 @@ export default function Dashboard({ onLogout }) {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Summary Statistics */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div className="bg-gradient-to-r from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-xl p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                          <Monitor className="w-5 h-5 text-blue-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-400">Total Groups</p>
-                          <p className="text-xl font-semibold text-white">{filteredGroups.length}</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-gradient-to-r from-green-500/20 to-green-600/20 border border-green-500/30 rounded-xl p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
-                          <Server className="w-5 h-5 text-green-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-400">Total Devices</p>
-                          <p className="text-xl font-semibold text-white">
-                            {filteredGroups.reduce((sum, group) => sum + (group.device_count || 0), 0)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-gradient-to-r from-purple-500/20 to-purple-600/20 border border-purple-500/30 rounded-xl p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
-                          <Users className="w-5 h-5 text-purple-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-400">Active Groups</p>
-                          <p className="text-xl font-semibold text-white">
-                            {filteredGroups.length}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
                   {/* Groups Grid */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                     {groupsLoading ? (
@@ -3731,12 +3696,19 @@ export default function Dashboard({ onLogout }) {
 
           {activeSection === 'devices' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-white">Devices Management</h2>
+              <div className="flex items-center justify-between flex-nowrap">
+                <div className="flex items-center gap-3 flex-nowrap min-w-0">
+                  <div className="p-2 bg-teal-500/20 rounded-lg flex-shrink-0">
+                    <Server className="w-6 h-6 text-teal-400" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-white whitespace-nowrap">Devices Management</h2>
+                  <span className="text-gray-400 whitespace-nowrap">•</span>
+                  <p className="text-gray-400 whitespace-nowrap">Monitor and control connected devices</p>
+                </div>
                 <button
                   onClick={fetchDevicesData}
                   disabled={devicesLoading}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg transition-colors flex-shrink-0 whitespace-nowrap"
                 >
                   <RotateCcw className={`w-4 h-4 ${devicesLoading ? 'animate-spin' : ''}`} />
                   Refresh
@@ -3817,7 +3789,7 @@ export default function Dashboard({ onLogout }) {
               ) : (
                 <div className="space-y-4">
                   {/* Summary Statistics */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <div className="bg-gradient-to-r from-green-500/20 to-green-600/20 border border-green-500/30 rounded-xl p-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
@@ -3842,18 +3814,6 @@ export default function Dashboard({ onLogout }) {
                           <p className="text-xl font-semibold text-white">
                             {filteredDevices.filter(d => d.status === 'offline').length}
                           </p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-gradient-to-r from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-xl p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                          <Server className="w-5 h-5 text-blue-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-400">Filtered</p>
-                          <p className="text-xl font-semibold text-white">{filteredDevices.length}</p>
                         </div>
                       </div>
                     </div>

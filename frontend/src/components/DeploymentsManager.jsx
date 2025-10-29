@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar } from 'lucide-react';
+import { Calendar, Play } from 'lucide-react';
 import deploymentsService from '../services/deployments';
 import groupsService from '../services/groups';
 import devicesService from '../services/devices';
@@ -389,14 +389,17 @@ export default function DeploymentsManager() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-purple-400 text-2xl">●</span>
-          <h2 className="text-xl font-bold">Software Deployments</h2>
-          <span className="text-sm text-gray-400">({deployments.length} deployments)</span>
+      <div className="flex items-center justify-between flex-nowrap">
+        <div className="flex items-center gap-3 flex-nowrap min-w-0">
+          <div className="p-2 bg-purple-500/20 rounded-lg flex-shrink-0">
+            <Play className="w-6 h-6 text-purple-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white whitespace-nowrap">Software Deployments</h2>
+          <span className="text-gray-400 whitespace-nowrap">•</span>
+          <p className="text-gray-400 whitespace-nowrap">Install and manage software across your fleet</p>
         </div>
-        <div className="text-sm text-gray-500">
-          Manage and deploy software across your devices
+        <div className="text-sm text-gray-500 flex-shrink-0 whitespace-nowrap">
+          {deployments.length} deployment{deployments.length !== 1 ? 's' : ''}
         </div>
       </div>
 

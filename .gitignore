@@ -20,6 +20,7 @@ pip-log.txt
 # OS/system files
 .DS_Store
 Thumbs.db
+*.dump
 
 # IDEs/editors
 .vscode/
@@ -45,3 +46,5 @@ agent/AgentTesting
 *.dump
 *.sql
 *.db
+backend/data/
+backend/uploads/
