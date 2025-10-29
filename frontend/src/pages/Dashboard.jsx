@@ -1892,8 +1892,8 @@ export default function Dashboard({ onLogout }) {
         if (device.group && device.group.id === group.id) {
           return true;
         }
-        // Check group mappings
-        if (device.groups && device.groups.some(g => g.id === group.id)) {
+        // Check group mappings (additional groups)
+        if (device.groups && Array.isArray(device.groups) && device.groups.some(g => g.id === group.id)) {
           return true;
         }
         return false;
@@ -1901,7 +1901,7 @@ export default function Dashboard({ onLogout }) {
       
       console.log('✅ Found', matchingDevices.length, 'devices for group', group.group_name);
       return matchingDevices.length;
-    }, [devicesData, group.id, refreshKey]);
+    }, [devicesData, group.id, group.group_name, refreshKey]);
 
     const handleEditGroup = async (e) => {
       e.stopPropagation();
@@ -3457,12 +3457,9 @@ export default function Dashboard({ onLogout }) {
                           <Users className="w-5 h-5 text-purple-400" />
                         </div>
                         <div>
-                          <p className="text-sm text-gray-400">Avg Devices/Group</p>
+                          <p className="text-sm text-gray-400">Active Groups</p>
                           <p className="text-xl font-semibold text-white">
-                            {filteredGroups.length > 0 
-                              ? Math.round(filteredGroups.reduce((sum, group) => sum + (group.device_count || 0), 0) / filteredGroups.length)
-                              : 0
-                            }
+                            {filteredGroups.length}
                           </p>
                         </div>
                       </div>
@@ -3844,20 +3841,6 @@ export default function Dashboard({ onLogout }) {
                           <p className="text-sm text-gray-400">Offline</p>
                           <p className="text-xl font-semibold text-white">
                             {filteredDevices.filter(d => d.status === 'offline').length}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-gradient-to-r from-yellow-500/20 to-yellow-600/20 border border-yellow-500/30 rounded-xl p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-yellow-500/20 rounded-lg flex items-center justify-center">
-                          <AlertTriangle className="w-5 h-5 text-yellow-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-400">Maintenance</p>
-                          <p className="text-xl font-semibold text-white">
-                            {filteredDevices.filter(d => d.status === 'maintenance').length}
                           </p>
                         </div>
                       </div>

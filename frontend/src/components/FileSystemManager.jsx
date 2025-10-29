@@ -276,11 +276,24 @@ export default function FileSystemManager() {
     setPreviewContent('');
 
     try {
+      // Check if file object exists
+      if (!uploadedFile.file) {
+        setPreviewContent('Preview not available. File has been uploaded to server.');
+        setPreviewLoading(false);
+        return;
+      }
+
       // Check if file can be previewed
       const fileType = uploadedFile.type || 'application/octet-stream';
       const fileName = uploadedFile.name.toLowerCase();
       
-      if (fileType.startsWith('text/') || 
+      // Handle PDF files
+      if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
+        const objectUrl = URL.createObjectURL(uploadedFile.file);
+        setPreviewContent(objectUrl);
+      }
+      // Handle text files
+      else if (fileType.startsWith('text/') || 
           fileName.endsWith('.txt') || 
           fileName.endsWith('.json') || 
           fileName.endsWith('.xml') ||
@@ -299,11 +312,23 @@ export default function FileSystemManager() {
         // Read text content
         const text = await readFileAsText(uploadedFile.file);
         setPreviewContent(text);
-      } else if (fileType.startsWith('image/')) {
-        // For images, create data URL
+      } 
+      // Handle images
+      else if (fileType.startsWith('image/')) {
         const dataUrl = await readFileAsDataURL(uploadedFile.file);
         setPreviewContent(dataUrl);
-      } else {
+      } 
+      // Handle video files
+      else if (fileType.startsWith('video/') || fileName.match(/\.(mp4|webm|ogg|mov|avi)$/)) {
+        const objectUrl = URL.createObjectURL(uploadedFile.file);
+        setPreviewContent(objectUrl);
+      }
+      // Handle audio files
+      else if (fileType.startsWith('audio/') || fileName.match(/\.(mp3|wav|ogg|m4a)$/)) {
+        const objectUrl = URL.createObjectURL(uploadedFile.file);
+        setPreviewContent(objectUrl);
+      }
+      else {
         setPreviewContent('Preview not available for this file type.');
       }
     } catch (error) {
@@ -313,6 +338,16 @@ export default function FileSystemManager() {
     } finally {
       setPreviewLoading(false);
     }
+  };
+
+  const closeFilePreview = () => {
+    // Cleanup blob URLs to prevent memory leaks
+    if (previewContent && previewContent.startsWith('blob:')) {
+      URL.revokeObjectURL(previewContent);
+    }
+    setShowFilePreview(false);
+    setPreviewFile(null);
+    setPreviewContent('');
   };
 
   const readFileAsText = (file) => {
@@ -909,13 +944,6 @@ export default function FileSystemManager() {
                           <ExternalLink className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => downloadFile(uploadedFile)}
-                          className="text-green-400 hover:text-green-300 transition-colors p-1"
-                          title="Download file"
-                        >
-                          <Download className="w-4 h-4" />
-                        </button>
-                        <button
                           onClick={() => removeFile(uploadedFile.id)}
                           className="text-red-400 hover:text-red-300 transition-colors p-1"
                           title="Remove file"
@@ -1382,15 +1410,7 @@ export default function FileSystemManager() {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => downloadFile(previewFile)}
-                  className="btn-secondary btn-sm"
-                  title="Download file"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Download
-                </button>
-                <button
-                  onClick={() => setShowFilePreview(false)}
+                  onClick={closeFilePreview}
                   className="text-gray-400 hover:text-white transition-colors p-1"
                 >
                   <X className="w-5 h-5" />
@@ -1407,8 +1427,42 @@ export default function FileSystemManager() {
                 </div>
               ) : previewContent ? (
                 <div className="space-y-4">
-                  {previewFile?.type?.startsWith('image/') && previewContent.startsWith('data:') ? (
-                    // Image preview
+                  {/* PDF Preview */}
+                  {(previewFile?.type === 'application/pdf' || previewFile?.name?.toLowerCase().endsWith('.pdf')) && previewContent.startsWith('blob:') ? (
+                    <div className="w-full h-[600px]">
+                      <iframe
+                        src={previewContent}
+                        className="w-full h-full border-0 rounded-lg"
+                        title="PDF Preview"
+                      />
+                    </div>
+                  ) : 
+                  /* Video Preview */
+                  (previewFile?.type?.startsWith('video/') || previewFile?.name?.match(/\.(mp4|webm|ogg|mov|avi)$/)) && previewContent.startsWith('blob:') ? (
+                    <div className="text-center">
+                      <video
+                        src={previewContent}
+                        controls
+                        className="max-w-full max-h-96 mx-auto rounded-lg shadow-lg"
+                      >
+                        Your browser does not support video playback.
+                      </video>
+                    </div>
+                  ) : 
+                  /* Audio Preview */
+                  (previewFile?.type?.startsWith('audio/') || previewFile?.name?.match(/\.(mp3|wav|ogg|m4a)$/)) && previewContent.startsWith('blob:') ? (
+                    <div className="text-center py-8">
+                      <audio
+                        src={previewContent}
+                        controls
+                        className="mx-auto"
+                      >
+                        Your browser does not support audio playback.
+                      </audio>
+                    </div>
+                  ) : 
+                  /* Image Preview */
+                  previewFile?.type?.startsWith('image/') && previewContent.startsWith('data:') ? (
                     <div className="text-center">
                       <img
                         src={previewContent}
@@ -1421,7 +1475,7 @@ export default function FileSystemManager() {
                     <div className="bg-gray-900 rounded-lg p-4 overflow-auto">
                       <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono">
                         {previewContent.length > 10000 
-                          ? previewContent.slice(0, 10000) + '\n\n... (Content truncated. Download file to view complete content)'
+                          ? previewContent.slice(0, 10000) + '\n\n... (Content truncated due to size)'
                           : previewContent
                         }
                       </pre>
@@ -1432,7 +1486,6 @@ export default function FileSystemManager() {
                 <div className="text-center py-12 text-gray-400">
                   <File className="w-16 h-16 mx-auto mb-4 text-gray-600" />
                   <p>Preview not available for this file type.</p>
-                  <p className="text-sm mt-2">You can still download the file to view it.</p>
                 </div>
               )}
             </div>
