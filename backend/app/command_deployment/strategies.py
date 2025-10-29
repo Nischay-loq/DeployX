@@ -48,29 +48,6 @@ class BatchDeploymentStrategy(BaseStrategy):
         return self.active_batches
 
 
-class SnapshotStrategy(BaseStrategy):
-    """Minimal snapshot strategy."""
-    
-    def create_snapshot(self, target_path: str, description: str = ""):
-        """Create snapshot stub."""
-        import uuid
-        snapshot_id = str(uuid.uuid4())
-        logger.info(f"Created snapshot {snapshot_id} for {target_path}")
-        return True, f"Snapshot created: {snapshot_id}", snapshot_id
-    
-    def list_snapshots(self):
-        """List snapshots stub."""
-        return []
-    
-    def restore_snapshot(self, snapshot_id: str, target_path: str = None):
-        """Restore snapshot stub."""
-        return True, f"Snapshot {snapshot_id} restored"
-    
-    def delete_snapshot(self, snapshot_id: str):
-        """Delete snapshot stub."""
-        return True, f"Snapshot {snapshot_id} deleted"
-
-
 class BlueGreenStrategy(BaseStrategy):
     """Minimal blue-green strategy."""
     
@@ -112,7 +89,6 @@ class HybridDeploymentStrategy:
         self.strategies = {
             "transactional": BaseStrategy(),
             "blue_green": BlueGreenStrategy(),
-            "snapshot": SnapshotStrategy(),
             "canary": CanaryStrategy(),
             "batch": BatchDeploymentStrategy(),
         }
@@ -128,19 +104,6 @@ class HybridDeploymentStrategy:
     def choose_strategy_for_command(self, command: str) -> str:
         """Choose the best strategy based on command analysis."""
         cmd = command.strip().lower()
-        
-        # Detect destructive operations that need snapshot strategy
-        destructive_patterns = [
-            "rmdir /s", "rmdir /S", "rd /s", "rd /S",
-            "del /s", "rm -rf", "rm -r",
-            "format", "fdisk",
-            "drop database", "truncate table",
-            "git reset --hard", "git clean -fd"
-        ]
-        
-        for pattern in destructive_patterns:
-            if pattern in cmd:
-                return "snapshot"
         
         # Service operations benefit from blue-green
         service_patterns = [

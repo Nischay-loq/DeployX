@@ -15,10 +15,10 @@ import {
   Layers,
   ChevronDown,
   ChevronRight,
-  Calendar
+  Calendar,
+  Undo
 } from 'lucide-react';
 import io from 'socket.io-client';
-import SnapshotManager from './SnapshotManager';
 import SchedulingModal from './SchedulingModal';
 import groupsService from '../services/groups';
 import devicesService from '../services/devices';
@@ -27,10 +27,6 @@ import schedulingService from '../services/scheduling';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
-const DEPLOYMENT_STRATEGIES = [
-  { value: 'snapshot', label: 'Snapshot Rollback', icon: '�', description: 'Creates system snapshots before each command for easy rollback' }
-];
 
 const STATUS_ICONS = {
   pending: <Clock className="w-4 h-4 text-yellow-400" />,
@@ -66,7 +62,6 @@ export default function DeploymentManager({
   console.log('DeploymentManager: Current agent:', currentAgent);
   const [commands, setCommands] = useState([]);
   const [newCommand, setNewCommand] = useState('');
-  const [selectedStrategy, setSelectedStrategy] = useState('snapshot');
   const [isLoading, setIsLoading] = useState(false);
   const [socket, setSocket] = useState(null);
   const [stats, setStats] = useState({ total: 0, pending: 0, running: 0, completed: 0, failed: 0, paused: 0 });
@@ -376,8 +371,7 @@ export default function DeploymentManager({
           }
         : {
             command: newCommand,
-            shell: currentShell || 'cmd',
-            strategy: selectedStrategy
+            shell: currentShell || 'cmd'
           }
     };
 
@@ -445,7 +439,6 @@ export default function DeploymentManager({
             body: JSON.stringify({
               command: newCommand,
               shell: currentShell || 'cmd',
-              strategy: selectedStrategy,
               config: {}
             })
           });
@@ -468,8 +461,7 @@ export default function DeploymentManager({
           body: JSON.stringify({
             command: newCommand,
             agent_id: currentAgent,
-            shell: currentShell || 'cmd',
-            strategy: selectedStrategy
+            shell: currentShell || 'cmd'
           })
         });
 
@@ -593,8 +585,7 @@ export default function DeploymentManager({
           body: JSON.stringify({
             commands: validCommands,
             agent_id: currentAgent,
-            shell: currentShell || 'cmd',
-            strategy: selectedStrategy
+            shell: currentShell || 'cmd'
           })
         });
 
@@ -653,6 +644,28 @@ export default function DeploymentManager({
       }
     } catch (error) {
       console.error('Error deleting command:', error);
+    }
+  };
+
+  const rollbackCommand = async (cmdId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/deployment/commands/${cmdId}/rollback`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        const rollbackCmd = await response.json();
+        setCommands(prev => [rollbackCmd, ...prev]);
+        loadStats();
+        showSuccess('Rollback command created and executing');
+      } else {
+        const error = await response.json();
+        showError(error.detail || 'Cannot rollback this command');
+      }
+    } catch (error) {
+      console.error('Error rolling back command:', error);
+      showError('Error rolling back command: ' + error.message);
     }
   };
 
@@ -1136,16 +1149,30 @@ export default function DeploymentManager({
                                         </span>
                                       )}
                                     </div>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        deleteCommand(cmd.id);
-                                      }}
-                                      className="p-1.5 text-red-400 hover:bg-red-500/20 rounded transition-all"
-                                      title="Delete"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
+                                    <div className="flex items-center gap-1">
+                                      {cmd.status === 'completed' && !cmd.config?.is_rollback && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            rollbackCommand(cmd.id);
+                                          }}
+                                          className="p-1.5 text-yellow-400 hover:bg-yellow-500/20 rounded transition-all"
+                                          title="Rollback"
+                                        >
+                                          <Undo className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          deleteCommand(cmd.id);
+                                        }}
+                                        className="p-1.5 text-red-400 hover:bg-red-500/20 rounded transition-all"
+                                        title="Delete"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
                                   </div>
                                   
                                   {/* Output */}
@@ -1189,6 +1216,8 @@ export default function DeploymentManager({
                 {standalone.map((cmd) => {
               const isGroupExecution = cmd.config?.group_execution;
               const groupName = cmd.config?.group_name;
+              const isRollback = cmd.config?.is_rollback;
+              const originalCommandId = cmd.config?.original_command_id;
               const executionTime = cmd.completed_at && cmd.started_at 
                 ? ((new Date(cmd.completed_at) - new Date(cmd.started_at)) / 1000).toFixed(2) 
                 : null;
@@ -1213,6 +1242,12 @@ export default function DeploymentManager({
                             GROUP
                           </span>
                         )}
+                        {isRollback && (
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 flex items-center gap-1">
+                            <Undo className="w-3 h-3" />
+                            ROLLBACK
+                          </span>
+                        )}
                         {executionTime && (
                           <span className="text-xs text-gray-400">
                             ⏱ {executionTime}s
@@ -1233,10 +1268,32 @@ export default function DeploymentManager({
                           📦 Group: <span className="font-semibold">{groupName}</span>
                         </div>
                       )}
+                      
+                      {/* Rollback Info */}
+                      {isRollback && cmd.config?.original_command && (
+                        <div className="text-sm text-yellow-300 mb-2 bg-yellow-900/20 border border-yellow-500/30 rounded p-2">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Undo className="w-3 h-3" />
+                            <span className="font-semibold">Rolling back:</span>
+                          </div>
+                          <code className="text-xs text-gray-300 font-mono break-all">
+                            {cmd.config.original_command}
+                          </code>
+                        </div>
+                      )}
                     </div>
                     
                     {/* Action Buttons */}
                     <div className="flex items-center gap-1 ml-4">
+                      {cmd.status === 'completed' && !cmd.config?.is_rollback && (
+                        <button
+                          onClick={() => rollbackCommand(cmd.id)}
+                          className="p-2 text-yellow-400 hover:bg-yellow-500/20 rounded transition-all"
+                          title="Rollback Command"
+                        >
+                          <Undo className="w-4 h-4" />
+                        </button>
+                      )}
                       {cmd.status === 'running' && (
                         <button
                           onClick={() => pauseCommand(cmd.id)}
@@ -1330,17 +1387,6 @@ export default function DeploymentManager({
           })()}
         </div>
       </div>
-
-      {/* Snapshot Manager */}
-      <SnapshotManager 
-        socket={socket} 
-        selectedAgent={currentAgent}
-        isConnected={isConnected}
-        showAlert={showAlert}
-        showConfirm={showConfirm}
-        showError={showError}
-        showSuccess={showSuccess}
-      />
 
       {/* Scheduling Modal */}
       {showSchedulingModal && (
