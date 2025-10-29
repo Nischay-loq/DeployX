@@ -901,47 +901,11 @@ const TerminalComponent = ({ height = '70vh' }) => {
       <div className="terminal-header">
         <div className="terminal-controls">
           <div className="control-group">
-            <label>Groups:</label>
-            <select
-              value={selectedGroups.length > 0 ? 'selected' : ''}
-              onChange={(e) => {
-                const groupId = parseInt(e.target.value);
-                if (groupId && !selectedGroups.includes(groupId)) {
-                  setSelectedGroups([...selectedGroups, groupId]);
-                }
-              }}
-              disabled={groups.length === 0 || !isConnected}
-            >
-              <option value="">
-                {loadingGroups ? 'Loading...' : `Select Groups (${groups.length} available)`}
-              </option>
-              {groups.map(group => (
-                <option key={group.id} value={group.id}>
-                  {group.group_name} ({group.devices?.length || 0} devices)
-                </option>
-              ))}
-            </select>
-            {selectedGroups.length > 0 && (
-              <div className="selected-groups">
-                {selectedGroups.map(groupId => {
-                  const group = groups.find(g => g.id === groupId);
-                  return group ? (
-                    <span key={groupId} className="group-tag">
-                      {group.group_name}
-                      <button onClick={() => setSelectedGroups(selectedGroups.filter(id => id !== groupId))}>×</button>
-                    </span>
-                  ) : null;
-                })}
-              </div>
-            )}
-          </div>
-          
-          <div className="control-group">
             <label>Agent:</label>
             <select
               value={selectedAgent}
               onChange={(e) => handleAgentChange(e.target.value)}
-              disabled={connectedAgents.length === 0 || !isConnected || selectedGroups.length > 0}
+              disabled={connectedAgents.length === 0 || !isConnected}
             >
               <option value="">
                 {isLoading ? 'Loading...' : `Select Active Agent (${connectedAgents.length} online)`}
@@ -950,11 +914,6 @@ const TerminalComponent = ({ height = '70vh' }) => {
                 <option key={agent.agent_id} value={agent.agent_id}>{agent.hostname} ({agent.agent_id})</option>
               ))}
             </select>
-            {selectedGroups.length > 0 && (
-              <small style={{color: '#888', display: 'block', marginTop: '4px'}}>
-                Agent selection disabled when groups are selected
-              </small>
-            )}
           </div>
           
           <div className="control-group">
