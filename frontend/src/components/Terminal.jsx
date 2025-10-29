@@ -906,7 +906,7 @@ const TerminalComponent = ({ height = '70vh' }) => {
             <select
               value={selectedAgent}
               onChange={(e) => handleAgentChange(e.target.value)}
-              disabled={connectedAgents.length === 0 || !isConnected || selectedGroups.length > 0}
+              disabled={connectedAgents.length === 0 || !isConnected}
             >
               <option value="">
                 {isLoading ? 'Loading...' : `Select Active Agent (${connectedAgents.length} online)`}
@@ -915,11 +915,6 @@ const TerminalComponent = ({ height = '70vh' }) => {
                 <option key={agent.agent_id} value={agent.agent_id}>{agent.hostname} ({agent.agent_id})</option>
               ))}
             </select>
-            {selectedGroups.length > 0 && (
-              <small style={{color: '#888', display: 'block', marginTop: '4px'}}>
-                Agent selection disabled when groups are selected
-              </small>
-            )}
           </div>
           
           <div className="control-group">
