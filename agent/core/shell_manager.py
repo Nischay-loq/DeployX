@@ -46,7 +46,9 @@ class ShellManager:
                     "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue';"
                 ]
             elif shell_name == "bash":
-                env["PS1"] = "\\w\\$ "
+                # Set simple prompt for bash (works on both Windows Git Bash and Linux)
+                # Use single backslash for the prompt character to avoid Windows path display
+                env["PS1"] = "$ "
                 if platform.system().lower() == "windows":
                     if "system32" in shell_path.lower() or "windowsapps" in shell_path.lower():
                         git_bash = r"C:\Program Files\Git\bin\bash.exe"

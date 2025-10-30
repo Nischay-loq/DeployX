@@ -100,6 +100,8 @@ const TerminalComponent = ({ height = '70vh' }) => {
 
   const TERMINAL_CONFIG = {
     cursorBlink: true,
+    // Convert lone \n (LF) to \r\n (CRLF) so the web terminal moves cursor to column 0 on newlines
+    convertEol: true,
     cursorStyle: 'block',
     fontSize: 15,
     lineHeight: 1.2,
