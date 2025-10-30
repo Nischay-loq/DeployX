@@ -77,12 +77,12 @@ class ShellManager:
                     startupinfo=startup_info
                 )
             else:
+                # Use binary mode for Linux/Unix to avoid buffering issues with interactive shells
                 self.current_process = subprocess.Popen(
                     cmd,
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
-                    text=True,
                     bufsize=0,
                     env=env,
                     preexec_fn=os.setsid
@@ -113,17 +113,28 @@ class ShellManager:
             while self.running and self.current_process and self.current_process.poll() is None:
                 try:
                     if platform.system().lower() != "windows":
+                        # Use select to check if data is available
                         import select
                         ready, _, _ = select.select([self.current_process.stdout], [], [], 0.1)
                         if ready:
-                            data = self.current_process.stdout.read(4096)
-                            if not data:
-                                time.sleep(0.01)
-                                continue
+                            # Read binary data to avoid buffering issues
+                            try:
+                                data = os.read(self.current_process.stdout.fileno(), 4096)
+                                if isinstance(data, bytes):
+                                    data = data.decode('utf-8', errors='replace')
+                                if not data:
+                                    time.sleep(0.01)
+                                    continue
+                            except OSError as e:
+                                if e.errno == 11:  # Resource temporarily unavailable
+                                    time.sleep(0.01)
+                                    continue
+                                raise
                         else:
                             time.sleep(0.01)
                             continue
                     else:
+                        # Windows handling
                         try:
                             data = os.read(self.current_process.stdout.fileno(), 4096)
                             if isinstance(data, bytes):
@@ -201,8 +212,14 @@ class ShellManager:
                 self.history_index = len(self.command_history)
 
             if self.current_process.stdin:
-                self.current_process.stdin.write(command)
-                self.current_process.stdin.flush()
+                system = platform.system().lower()
+                if system != "windows":
+                    # For Linux/Unix, write binary data
+                    os.write(self.current_process.stdin.fileno(), command.encode('utf-8'))
+                else:
+                    # For Windows, write text data
+                    self.current_process.stdin.write(command)
+                    self.current_process.stdin.flush()
                 logger.debug(f"Sent command to shell: {repr(command)}")
                 return True
 
