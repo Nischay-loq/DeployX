@@ -143,7 +143,9 @@ class CommandExecutor:
         except Exception as e:
             logger.error(f"Error handling command output for {cmd_id}: {e}")
     
-    async def handle_command_completion(self, cmd_id: str, success: bool, final_output: str = "", error: str = ""):
+    async def handle_command_completion(self, cmd_id: str, success: bool, final_output: str = "", error: str = "", 
+                                       backup_id: str = None, is_destructive: bool = False, backup_created: bool = False,
+                                       display_command: str = None):
         """Handle command completion notification from agent."""
         try:
             # Cancel timeout if it exists
@@ -160,6 +162,25 @@ class CommandExecutor:
                 output=final_output,
                 error=error if not success else None
             )
+            
+            # Update command text if agent provided a better display name
+            if display_command:
+                command_queue.update_command_text(cmd_id, display_command)
+                logger.info(f"Updated display command for {cmd_id}: {display_command}")
+            
+            # Store backup information in command config
+            if backup_id or is_destructive:
+                cmd = command_queue.get_command(cmd_id)
+                if cmd:
+                    if is_destructive:
+                        cmd.config['is_destructive'] = is_destructive
+                    if backup_id:
+                        cmd.config['backup_id'] = backup_id
+                    if backup_created:
+                        cmd.config['backup_created'] = backup_created
+                    # Save updated config
+                    command_queue._save_to_file()
+                    logger.info(f"Stored backup info for command {cmd_id}: backup_id={backup_id}, is_destructive={is_destructive}")
             
             # Remove from active executions
             command_queue.remove_active_execution(cmd_id)

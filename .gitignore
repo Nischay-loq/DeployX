@@ -48,3 +48,8 @@ agent/AgentTesting
 *.db
 backend/data/
 backend/uploads/
+
+# Agent backups
+agent/backups/
+agent/test_backup_data/
+agent/test_integration_data/

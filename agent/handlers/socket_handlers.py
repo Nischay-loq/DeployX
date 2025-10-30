@@ -202,75 +202,54 @@ class SocketEventHandler:
             
             logger.info(f"Executing deployment command: {command}")
             
-            original_callback = self.shell_manager.output_callback
+            # Check if this is a backup restore command
+            is_backup_restore = command.startswith("RESTORE_BACKUP:")
             
-            async def deployment_specific_callback(output: str):
-                # Call original callback if it exists
-                if original_callback:
-                    await original_callback(output)
-                
-                # Also send deployment-specific output
+            # Use CommandExecutor for automatic backup support
+            async def deployment_output_callback(output: str):
                 if self._connection and self._connection.connected:
                     await self._connection.emit('deployment_command_output', {
                         'command_id': cmd_id,
                         'output': output
                     })
-            
-            self.shell_manager.output_callback = deployment_specific_callback
-            
-            command_output = ""
-            command_success = True
-            
-            async def enhanced_deployment_callback(output: str):
-                nonlocal command_output, command_success
-                command_output += output
-                
-                if original_callback:
-                    await original_callback(output)
-                
-                # Also send deployment-specific output
-                if self._connection and self._connection.connected:
-                    await self._connection.emit('deployment_command_output', {
-                        'command_id': cmd_id,
-                        'output': output
-                    })
-                
-                error_indicators = [
-                    "Access is denied",
-                    "The system cannot find",
-                    "Permission denied",
-                    "No such file or directory",
-                    "command not found",
-                    "is not recognized as an internal or external command",
-                    "The filename, directory name, or volume label syntax is incorrect",
-                    "Cannot remove",
-                    "Failed to",
-                    "Error:",
-                    "FATAL:",
-                    "syntax error"
-                ]
-                
-                for indicator in error_indicators:
-                    if indicator.lower() in output.lower():
-                        command_success = False
-                        break
-            
-            self.shell_manager.output_callback = enhanced_deployment_callback
             
             try:
-                result = await self.shell_manager.execute_command(command + '\n')
+                # Handle backup restoration
+                if is_backup_restore:
+                    backup_id = command.split(":", 1)[1].strip()
+                    logger.info(f"Restoring from backup: {backup_id}")
+                    
+                    # Use command executor's restore_from_backup method
+                    result = await self.command_executor.restore_from_backup(
+                        backup_id=backup_id,
+                        output_callback=deployment_output_callback
+                    )
+                else:
+                    # Execute using CommandExecutor (includes backup functionality)
+                    result = await self.command_executor.execute_command(
+                        command=command,
+                        command_id=cmd_id,
+                        output_callback=deployment_output_callback
+                    )
                 
-                await asyncio.sleep(0.5)
+                logger.info(f"Deployment command {cmd_id} completed with success: {result.success}")
                 
-                logger.info(f"Deployment command {cmd_id} completed with success: {command_success}")
+                # Emit backup info if created
+                if result.is_destructive and result.backup_id:
+                    logger.info(f"Backup created for deployment command: {result.backup_id}")
+                
                 if self._connection and self._connection.connected:
                     completion_data = {
                         'command_id': cmd_id,
-                        'success': command_success,
-                        'output': command_output,
-                        'error': '' if command_success else 'Command execution failed (see output for details)',
+                        'success': result.success,
+                        'output': result.output,
+                        'error': result.error or '',
                         'execution_id': execution_id,
-                        'group_execution': is_group_execution
+                        'group_execution': is_group_execution,
+                        'is_destructive': result.is_destructive,
+                        'backup_id': result.backup_id,
+                        'backup_created': result.backup_id is not None,
+                        'display_command': result.command if is_backup_restore else None  # Send better command name for restores
                     }
                     logger.info(f"Sending deployment_command_completed with data: {completion_data}")
                     await self._connection.emit('deployment_command_completed', completion_data)
@@ -282,13 +261,11 @@ class SocketEventHandler:
                     await self._connection.emit('deployment_command_completed', {
                         'command_id': cmd_id,
                         'success': False,
-                        'output': command_output,
+                        'output': '',
                         'error': error_msg,
                         'execution_id': execution_id,
                         'group_execution': is_group_execution
                     })
-            finally:
-                self.shell_manager.output_callback = original_callback
                     
         except Exception as e:
             error_msg = f"Error handling deployment command: {str(e)}"
@@ -412,59 +389,51 @@ class SocketEventHandler:
     async def handle_rollback_command(self, data: Dict[str, Any]):
         """Handle rollback request for a single command."""
         try:
-            snapshot_id = data.get('snapshot_id')
+            command_id = data.get('command_id')
             
-            if not snapshot_id:
-                error_msg = "Snapshot ID is required for rollback"
+            if not command_id:
+                error_msg = "Command ID is required for rollback"
                 logger.error(error_msg)
                 if self._connection and self._connection.connected:
                     await self._connection.emit('rollback_result', {
-                        'snapshot_id': snapshot_id,
+                        'command_id': command_id,
                         'success': False,
                         'error': error_msg
                     })
                 return
             
-            logger.info(f"Received rollback request for snapshot {snapshot_id}")
+            logger.info(f"Received rollback request for command {command_id}")
             
             if not self.command_executor:
                 error_msg = "Command executor not initialized"
                 logger.error(error_msg)
                 if self._connection and self._connection.connected:
                     await self._connection.emit('rollback_result', {
-                        'snapshot_id': snapshot_id,
+                        'command_id': command_id,
                         'success': False,
                         'error': error_msg
                     })
                 return
             
-            # Notify start of rollback
-            if self._connection and self._connection.connected:
-                await self._connection.emit('rollback_status', {
-                    'snapshot_id': snapshot_id,
-                    'status': 'in_progress',
-                    'message': 'Starting rollback...'
-                })
-            
             # Perform rollback
-            success = await self.command_executor.rollback_command(snapshot_id)
+            success = await self.command_executor.rollback_command(command_id)
             
             # Send result
             if self._connection and self._connection.connected:
                 await self._connection.emit('rollback_result', {
-                    'snapshot_id': snapshot_id,
+                    'command_id': command_id,
                     'success': success,
                     'message': 'Rollback completed successfully' if success else 'Rollback failed'
                 })
             
-            logger.info(f"Rollback for snapshot {snapshot_id}: {'success' if success else 'failed'}")
+            logger.info(f"Rollback for command {command_id}: {'success' if success else 'failed'}")
             
         except Exception as e:
             error_msg = f"Error handling rollback request: {str(e)}"
             logger.exception(error_msg)
             if self._connection and self._connection.connected:
                 await self._connection.emit('rollback_result', {
-                    'snapshot_id': data.get('snapshot_id'),
+                    'command_id': data.get('command_id'),
                     'success': False,
                     'error': error_msg
                 })
@@ -498,14 +467,6 @@ class SocketEventHandler:
                     })
                 return
             
-            # Notify start of rollback
-            if self._connection and self._connection.connected:
-                await self._connection.emit('batch_rollback_status', {
-                    'batch_id': batch_id,
-                    'status': 'in_progress',
-                    'message': 'Starting batch rollback...'
-                })
-            
             # Perform batch rollback
             success = await self.command_executor.rollback_batch(batch_id)
             
@@ -529,17 +490,17 @@ class SocketEventHandler:
                     'error': error_msg
                 })
     
-    async def handle_get_snapshot_info(self, data: Dict[str, Any]):
-        """Handle request to get snapshot information."""
+    async def handle_get_backup_info(self, data: Dict[str, Any]):
+        """Handle request to get backup information."""
         try:
-            snapshot_id = data.get('snapshot_id')
+            backup_id = data.get('backup_id')
             
-            if not snapshot_id:
-                error_msg = "Snapshot ID is required"
+            if not backup_id:
+                error_msg = "Backup ID is required"
                 logger.error(error_msg)
                 if self._connection and self._connection.connected:
-                    await self._connection.emit('snapshot_info_result', {
-                        'snapshot_id': snapshot_id,
+                    await self._connection.emit('backup_info_result', {
+                        'backup_id': backup_id,
                         'success': False,
                         'error': error_msg
                     })
@@ -549,168 +510,66 @@ class SocketEventHandler:
                 error_msg = "Command executor not initialized"
                 logger.error(error_msg)
                 if self._connection and self._connection.connected:
-                    await self._connection.emit('snapshot_info_result', {
-                        'snapshot_id': snapshot_id,
+                    await self._connection.emit('backup_info_result', {
+                        'backup_id': backup_id,
                         'success': False,
                         'error': error_msg
                     })
                 return
             
-            info = self.command_executor.get_snapshot_info(snapshot_id)
+            info = self.command_executor.get_backup_info(backup_id)
             
             if info:
                 if self._connection and self._connection.connected:
-                    await self._connection.emit('snapshot_info_result', {
-                        'snapshot_id': snapshot_id,
+                    await self._connection.emit('backup_info_result', {
+                        'backup_id': backup_id,
                         'success': True,
                         'info': info
                     })
             else:
                 if self._connection and self._connection.connected:
-                    await self._connection.emit('snapshot_info_result', {
-                        'snapshot_id': snapshot_id,
+                    await self._connection.emit('backup_info_result', {
+                        'backup_id': backup_id,
                         'success': False,
-                        'error': 'Snapshot not found'
+                        'error': 'Backup not found'
                     })
             
         except Exception as e:
-            error_msg = f"Error getting snapshot info: {str(e)}"
+            error_msg = f"Error getting backup info: {str(e)}"
             logger.exception(error_msg)
             if self._connection and self._connection.connected:
-                await self._connection.emit('snapshot_info_result', {
-                    'snapshot_id': data.get('snapshot_id'),
+                await self._connection.emit('backup_info_result', {
+                    'backup_id': data.get('backup_id'),
                     'success': False,
                     'error': error_msg
                 })
     
-    async def handle_get_batch_snapshots(self, data: Dict[str, Any]):
-        """Handle request to get batch snapshot information."""
-        try:
-            batch_id = data.get('batch_id')
-            
-            if not batch_id:
-                error_msg = "Batch ID is required"
-                logger.error(error_msg)
-                if self._connection and self._connection.connected:
-                    await self._connection.emit('batch_snapshots_result', {
-                        'batch_id': batch_id,
-                        'success': False,
-                        'error': error_msg
-                    })
-                return
-            
-            if not self.command_executor:
-                error_msg = "Command executor not initialized"
-                logger.error(error_msg)
-                if self._connection and self._connection.connected:
-                    await self._connection.emit('batch_snapshots_result', {
-                        'batch_id': batch_id,
-                        'success': False,
-                        'error': error_msg
-                    })
-                return
-            
-            info = self.command_executor.get_batch_snapshots(batch_id)
-            
-            if info:
-                if self._connection and self._connection.connected:
-                    await self._connection.emit('batch_snapshots_result', {
-                        'batch_id': batch_id,
-                        'success': True,
-                        'info': info
-                    })
-            else:
-                if self._connection and self._connection.connected:
-                    await self._connection.emit('batch_snapshots_result', {
-                        'batch_id': batch_id,
-                        'success': False,
-                        'error': 'Batch not found'
-                    })
-            
-        except Exception as e:
-            error_msg = f"Error getting batch snapshots: {str(e)}"
-            logger.exception(error_msg)
-            if self._connection and self._connection.connected:
-                await self._connection.emit('batch_snapshots_result', {
-                    'batch_id': data.get('batch_id'),
-                    'success': False,
-                    'error': error_msg
-                })
-    
-    async def handle_cleanup_snapshot(self, data: Dict[str, Any]):
-        """Handle request to manually cleanup a snapshot."""
-        try:
-            snapshot_id = data.get('snapshot_id')
-            
-            if not snapshot_id:
-                error_msg = "Snapshot ID is required"
-                logger.error(error_msg)
-                if self._connection and self._connection.connected:
-                    await self._connection.emit('cleanup_result', {
-                        'snapshot_id': snapshot_id,
-                        'success': False,
-                        'error': error_msg
-                    })
-                return
-            
-            if not self.command_executor:
-                error_msg = "Command executor not initialized"
-                logger.error(error_msg)
-                if self._connection and self._connection.connected:
-                    await self._connection.emit('cleanup_result', {
-                        'snapshot_id': snapshot_id,
-                        'success': False,
-                        'error': error_msg
-                    })
-                return
-            
-            success = await self.command_executor.cleanup_snapshot(snapshot_id)
-            
-            if self._connection and self._connection.connected:
-                await self._connection.emit('cleanup_result', {
-                    'snapshot_id': snapshot_id,
-                    'success': success,
-                    'message': 'Snapshot cleaned up successfully' if success else 'Failed to cleanup snapshot'
-                })
-            
-        except Exception as e:
-            error_msg = f"Error cleaning up snapshot: {str(e)}"
-            logger.exception(error_msg)
-            if self._connection and self._connection.connected:
-                await self._connection.emit('cleanup_result', {
-                    'snapshot_id': data.get('snapshot_id'),
-                    'success': False,
-                    'error': error_msg
-                })
-    
-    async def handle_list_snapshots(self, data: Dict[str, Any]):
-        """Handle request to list all snapshots."""
+    async def handle_list_backups(self, data: Dict[str, Any]):
+        """Handle request to list all backups."""
         try:
             if not self.command_executor:
                 error_msg = "Command executor not initialized"
                 logger.error(error_msg)
                 if self._connection and self._connection.connected:
-                    await self._connection.emit('snapshots_list_result', {
+                    await self._connection.emit('backups_list_result', {
                         'success': False,
                         'error': error_msg
                     })
                 return
             
-            snapshots = self.command_executor.snapshot_manager.list_snapshots()
-            batches = self.command_executor.snapshot_manager.list_batches()
+            backups_info = self.command_executor.list_all_backups()
             
             if self._connection and self._connection.connected:
-                await self._connection.emit('snapshots_list_result', {
+                await self._connection.emit('backups_list_result', {
                     'success': True,
-                    'snapshots': snapshots,
-                    'batches': batches
+                    'backups': backups_info
                 })
             
         except Exception as e:
-            error_msg = f"Error listing snapshots: {str(e)}"
+            error_msg = f"Error listing backups: {str(e)}"
             logger.exception(error_msg)
             if self._connection and self._connection.connected:
-                await self._connection.emit('snapshots_list_result', {
+                await self._connection.emit('backups_list_result', {
                     'success': False,
                     'error': error_msg
                 })
@@ -739,10 +598,8 @@ class SocketEventHandler:
             'install_custom_software': self.handle_install_custom_software,
             'rollback_command': self.handle_rollback_command,
             'rollback_batch': self.handle_rollback_batch,
-            'get_snapshot_info': self.handle_get_snapshot_info,
-            'get_batch_snapshots': self.handle_get_batch_snapshots,
-            'cleanup_snapshot': self.handle_cleanup_snapshot,
-            'list_snapshots': self.handle_list_snapshots
+            'get_backup_info': self.handle_get_backup_info,
+            'list_backups': self.handle_list_backups
         }
 
     async def _handle_stop_shell_request(self, data: Dict[str, Any]):
@@ -819,149 +676,71 @@ class SocketEventHandler:
                         })
                     return
             
-            all_output = ""
-            successful_commands = 0
-            failed_commands = 0
-            execution_results = []
+            # Use CommandExecutor.execute_batch for automatic backup support
+            async def batch_output_callback(output: str):
+                """Callback for batch command output."""
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('batch_command_output', {
+                        'batch_id': batch_id,
+                        'output': output
+                    })
             
-            for i, command in enumerate(commands):
-                command = command.strip()
-                if not command:
-                    continue
-                    
-                logger.info(f"Executing command {i+1}/{len(commands)} in batch {batch_id}: {command}")
+            try:
+                # Execute batch using CommandExecutor (includes backup functionality)
+                batch_result = await self.command_executor.execute_batch(
+                    batch_id=batch_id,
+                    commands=commands,
+                    stop_on_failure=stop_on_failure,
+                    shell=shell,
+                    output_callback=batch_output_callback
+                )
                 
-                command_output = ""
-                command_success = True
-                command_start_time = asyncio.get_event_loop().time()
+                # Send final batch completion status
+                logger.info(f"Batch {batch_id} completed: {batch_result.successful_commands} successful, {batch_result.failed_commands} failed")
                 
-                original_callback = self.shell_manager.output_callback
+                # Check if any backups were created
+                batch_backups = self.command_executor.get_batch_backups(batch_id)
+                if batch_backups:
+                    logger.info(f"Batch {batch_id} created {len(batch_backups)} backup(s)")
                 
-                async def command_specific_callback(output: str):
-                    """Enhanced callback that captures output for this specific command."""
-                    nonlocal command_output, command_success, all_output
-                    command_output += output
-                    all_output += output
-                    
-                    if original_callback:
-                        await original_callback(output)
-                    
-                    if self._connection and self._connection.connected:
-                        await self._connection.emit('batch_command_progress', {
-                            'batch_id': batch_id,
-                            'command_index': i,
-                            'command': command,
-                            'output': output,
-                            'status': 'running'
-                        })
-                    
-                    error_indicators = [
-                        "Access is denied",
-                        "The system cannot find",
-                        "Permission denied", 
-                        "No such file or directory",
-                        "command not found",
-                        "is not recognized as an internal or external command",
-                        "The filename, directory name, or volume label syntax is incorrect",
-                        "Cannot remove",
-                        "Failed to",
-                        "Error:",
-                        "FATAL:",
-                        "syntax error"
-                    ]
-                    
-                    for indicator in error_indicators:
-                        if indicator.lower() in output.lower():
-                            command_success = False
-                            break
-                
-                self.shell_manager.output_callback = command_specific_callback
-                
-                try:
-                    result = await self.shell_manager.execute_command(command + '\n')
-                    
-                    await self._wait_for_command_completion(command, timeout=0)
-                    
-                    command_end_time = asyncio.get_event_loop().time()
-                    execution_time = command_end_time - command_start_time
-                    
-                    command_result = {
-                        'command': command,
-                        'index': i,
-                        'success': command_success,
-                        'output': command_output,
-                        'execution_time': execution_time,
-                        'error': '' if command_success else 'Command execution failed (see output for details)'
+                # Build execution results for frontend
+                execution_results = []
+                for cmd_result in batch_result.command_results:
+                    result_dict = {
+                        'command': cmd_result.command,
+                        'index': cmd_result.command_index,
+                        'success': cmd_result.success,
+                        'output': cmd_result.output,
+                        'execution_time': cmd_result.execution_time,
+                        'error': cmd_result.error or '',
+                        'is_destructive': cmd_result.is_destructive,
+                        'backup_id': cmd_result.backup_id
                     }
-                    execution_results.append(command_result)
-                    
-                    if command_success:
-                        successful_commands += 1
-                        logger.info(f"Command {i+1} completed successfully")
-                    else:
-                        failed_commands += 1
-                        logger.warning(f"Command {i+1} failed: {command}")
+                    execution_results.append(result_dict)
+                
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('batch_execution_completed', {
+                        'batch_id': batch_id,
+                        'success': batch_result.overall_success,
+                        'total_commands': batch_result.total_commands,
+                        'successful_commands': batch_result.successful_commands,
+                        'failed_commands': batch_result.failed_commands,
+                        'execution_results': execution_results,
+                        'output': '',  # Individual outputs sent via batch_command_output
+                        'error': '' if batch_result.overall_success else f'{batch_result.failed_commands} command(s) failed',
+                        'backup_created': batch_backups is not None and len(batch_backups) > 0,
+                        'backup_count': len(batch_backups) if batch_backups else 0
+                    })
                         
-                        if stop_on_failure:
-                            logger.info(f"Stopping batch {batch_id} due to failure at command {i+1}")
-                            for j in range(i + 1, len(commands)):
-                                execution_results.append({
-                                    'command': commands[j].strip(),
-                                    'index': j,
-                                    'success': False,
-                                    'output': '',
-                                    'execution_time': 0,
-                                    'error': 'Skipped due to previous failure'
-                                })
-                            break
-                    
-                    if self._connection and self._connection.connected:
-                        await self._connection.emit('batch_command_completed', {
-                            'batch_id': batch_id,
-                            'command_index': i,
-                            'command': command,
-                            'success': command_success,
-                            'output': command_output,
-                            'error': command_result['error']
-                        })
-                        
-                except Exception as e:
-                    failed_commands += 1
-                    error_msg = f"Command execution failed: {str(e)}"
-                    logger.error(f"Command {i+1} in batch {batch_id} failed: {error_msg}")
-                    
-                    execution_results.append({
-                        'command': command,
-                        'index': i,
+            except Exception as e:
+                error_msg = f"Batch execution failed: {str(e)}"
+                logger.exception(error_msg)
+                if self._connection and self._connection.connected:
+                    await self._connection.emit('batch_execution_completed', {
+                        'batch_id': batch_id,
                         'success': False,
-                        'output': command_output,
-                        'execution_time': asyncio.get_event_loop().time() - command_start_time,
                         'error': error_msg
                     })
-                    
-                    if stop_on_failure:
-                        logger.info(f"Stopping batch {batch_id} due to error at command {i+1}")
-                        break
-                        
-                finally:
-                    # Restore original callback
-                    self.shell_manager.output_callback = original_callback
-            
-            # Send final batch completion status
-            overall_success = failed_commands == 0
-            logger.info(f"Batch {batch_id} completed: {successful_commands} successful, {failed_commands} failed")
-            
-            if self._connection and self._connection.connected:
-                await self._connection.emit('batch_execution_completed', {
-                    'batch_id': batch_id,
-                    'success': overall_success,
-                    'total_commands': len(commands),
-                    'successful_commands': successful_commands,
-                    'failed_commands': failed_commands,
-                    'execution_results': execution_results,
-                    'output': all_output,
-                    'error': '' if overall_success else f'{failed_commands} command(s) failed'
-                })
                     
         except Exception as e:
             error_msg = f"Error handling persistent batch execution: {str(e)}"

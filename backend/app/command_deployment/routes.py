@@ -496,6 +496,58 @@ async def rollback_command(cmd_id: str, background_tasks: BackgroundTasks):
         logger.error(f"Error rolling back command {cmd_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/commands/{cmd_id}/restore-backup", response_model=CommandResponse)
+async def restore_from_backup(cmd_id: str, background_tasks: BackgroundTasks):
+    """Restore files from backup by sending a restore command to the agent."""
+    try:
+        # Get the original command
+        original_cmd = command_queue.get_command(cmd_id)
+        if not original_cmd:
+            raise HTTPException(status_code=404, detail="Command not found")
+        
+        # Check if command has a backup
+        backup_id = original_cmd.config.get('backup_id')
+        if not backup_id:
+            raise HTTPException(status_code=400, detail="No backup available for this command")
+        
+        # Only allow restore of completed commands
+        if original_cmd.status != CommandStatus.COMPLETED:
+            raise HTTPException(status_code=400, detail="Can only restore backups from completed commands")
+        
+        # Create a meaningful display name for the restore command
+        # Extract a simple description from the original command
+        original_cmd_short = original_cmd.command[:50] if len(original_cmd.command) > 50 else original_cmd.command
+        display_command = f"Restore backup from: {original_cmd_short}"
+        
+        # Create a restore command that will be sent to the agent
+        # The agent will handle the actual restoration using the backup_id
+        restore_cmd_id = command_queue.add_command(
+            command=f"RESTORE_BACKUP:{backup_id}",  # Special command format for agent (internal use)
+            agent_id=original_cmd.agent_id,
+            shell=original_cmd.shell,
+            strategy=original_cmd.strategy,
+            config={
+                "is_rollback": True,
+                "is_backup_restore": True,
+                "original_command_id": cmd_id,
+                "original_command": original_cmd.command,
+                "backup_id": backup_id,
+                "display_command": display_command  # Human-readable command name
+            }
+        )
+        
+        # Execute restore command in background
+        background_tasks.add_task(execute_command_async, restore_cmd_id)
+        
+        cmd = command_queue.get_command(restore_cmd_id)
+        return CommandResponse(**cmd.dict())
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error restoring backup for command {cmd_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 def generate_rollback_command(command: str, shell: str = "cmd") -> Optional[str]:
     """Generate a rollback command based on the original command."""
     cmd = command.strip().lower()

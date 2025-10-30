@@ -753,6 +753,10 @@ async def deployment_command_completed(sid, data):
         error = data.get('error', '')
         execution_id = data.get('execution_id')
         is_group_execution = data.get('group_execution', False)
+        is_destructive = data.get('is_destructive', False)
+        backup_id = data.get('backup_id')
+        backup_created = data.get('backup_created', False)
+        display_command = data.get('display_command')  # Get better command name from agent
         
         # Log what we received for debugging
         logger.info(f"=== deployment_command_completed received ===")
@@ -760,6 +764,8 @@ async def deployment_command_completed(sid, data):
         logger.info(f"success: {success}")
         logger.info(f"execution_id: {execution_id}")
         logger.info(f"group_execution: {is_group_execution}")
+        logger.info(f"is_destructive: {is_destructive}, backup_id: {backup_id}")
+        logger.info(f"display_command: {display_command}")
         logger.info(f"Full data: {data}")
         
         if cmd_id:
@@ -781,7 +787,9 @@ async def deployment_command_completed(sid, data):
                 # Handle individual agent command
                 logger.info(f"This is an INDIVIDUAL agent command")
                 await command_executor.handle_command_completion(
-                    cmd_id, success, final_output, error
+                    cmd_id, success, final_output, error,
+                    backup_id=backup_id, is_destructive=is_destructive, backup_created=backup_created,
+                    display_command=display_command
                 )
             
             # Emit completion event to frontend
@@ -791,7 +799,11 @@ async def deployment_command_completed(sid, data):
                 'output': final_output,
                 'error': error,
                 'execution_id': execution_id,
-                'group_execution': is_group_execution
+                'group_execution': is_group_execution,
+                'is_destructive': is_destructive,
+                'backup_id': backup_id,
+                'backup_created': backup_created,
+                'display_command': display_command  # Send display command to frontend
             })
     except Exception as e:
         logger.error(f"Error handling deployment command completion: {e}")

@@ -16,7 +16,15 @@ import {
   ChevronDown,
   ChevronRight,
   Calendar,
-  Undo
+  Undo,
+  Save,
+  FileText,
+  Package,
+  Timer,
+  Monitor,
+  Server,
+  ArrowUpRight,
+  X
 } from 'lucide-react';
 import io from 'socket.io-client';
 import SchedulingModal from './SchedulingModal';
@@ -205,7 +213,16 @@ export default function DeploymentManager({
     });
 
     newSocket.on('deployment_command_completed', (data) => {
-      updateCommandStatus(data.command_id, data.success ? 'completed' : 'failed', data.output, data.error);
+      updateCommandStatus(
+        data.command_id, 
+        data.success ? 'completed' : 'failed', 
+        data.output, 
+        data.error,
+        data.is_destructive,
+        data.backup_id,
+        data.backup_created,
+        data.display_command  // Pass display command from agent
+      );
     });
 
     // Listen for new commands added to queue
@@ -241,7 +258,7 @@ export default function DeploymentManager({
     });
   };
 
-  const updateCommandStatus = (commandId, status, output, error) => {
+  const updateCommandStatus = (commandId, status, output, error, isDestructive, backupId, backupCreated, displayCommand) => {
     setCommands(prev => {
       const existingCmd = prev.find(cmd => cmd.id === commandId);
       if (existingCmd) {
@@ -253,7 +270,14 @@ export default function DeploymentManager({
                 status, 
                 output: output || cmd.output,
                 error: error || cmd.error,
-                completed_at: status === 'completed' || status === 'failed' ? new Date().toISOString() : cmd.completed_at
+                completed_at: status === 'completed' || status === 'failed' ? new Date().toISOString() : cmd.completed_at,
+                command: displayCommand || cmd.command,  // Update command text if provided
+                config: {
+                  ...cmd.config,
+                  is_destructive: isDestructive,
+                  backup_id: backupId,
+                  backup_created: backupCreated
+                }
               }
             : cmd
         );
@@ -669,6 +693,39 @@ export default function DeploymentManager({
     }
   };
 
+  const rollbackUsingBackup = async (cmdId) => {
+    try {
+      // Get the command to check if it has backup
+      const cmd = commands.find(c => c.id === cmdId);
+      if (!cmd || !cmd.config?.backup_id) {
+        showError('No backup available for this command');
+        return;
+      }
+
+      if (!confirm(`Restore from backup?\n\nThis will restore files from backup: ${cmd.config.backup_id}`)) {
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/deployment/commands/${cmdId}/restore-backup`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        showSuccess('Backup restore command created and executing');
+        loadCommands(); // Reload to show the restore command
+        loadStats();
+      } else {
+        const error = await response.json();
+        showError(error.detail || 'Failed to restore from backup');
+      }
+    } catch (error) {
+      console.error('Error restoring from backup:', error);
+      showError('Error restoring from backup: ' + error.message);
+    }
+  };
+
   const clearCompleted = async () => {
     if (!confirm('Clear all completed and failed commands?')) return;
 
@@ -1014,7 +1071,9 @@ export default function DeploymentManager({
         <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
           {commands.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
-              <div className="text-4xl mb-3">📋</div>
+              <div className="mb-3">
+                <FileText className="w-16 h-16 mx-auto text-gray-600" />
+              </div>
               <div className="text-lg font-medium mb-1">No commands in queue</div>
               <div className="text-sm">Execute a command to get started</div>
             </div>
@@ -1142,25 +1201,48 @@ export default function DeploymentManager({
                                       <span className={`px-2 py-1 rounded-full text-xs font-medium border ${STATUS_COLORS[cmd.status]}`}>
                                         {cmd.status.toUpperCase()}
                                       </span>
+                                      {cmd.config?.backup_created && (
+                                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-300 border border-green-500/30 flex items-center gap-1">
+                                          <Save className="w-3 h-3" />
+                                          BACKUP
+                                        </span>
+                                      )}
                                       <span className="text-white font-mono text-sm">{cmd.agent_id}</span>
                                       {executionTime && (
-                                        <span className="text-xs text-gray-400">
-                                          ⏱ {executionTime}s
+                                        <span className="text-xs text-gray-400 flex items-center gap-1">
+                                          <Timer className="w-3 h-3" />
+                                          {executionTime}s
                                         </span>
                                       )}
                                     </div>
                                     <div className="flex items-center gap-1">
-                                      {cmd.status === 'completed' && !cmd.config?.is_rollback && (
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            rollbackCommand(cmd.id);
-                                          }}
-                                          className="p-1.5 text-yellow-400 hover:bg-yellow-500/20 rounded transition-all"
-                                          title="Rollback"
-                                        >
-                                          <Undo className="w-3.5 h-3.5" />
-                                        </button>
+                                      {cmd.status === 'completed' && !cmd.config?.is_rollback && !cmd.config?.is_backup_restore && (
+                                        <>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              rollbackCommand(cmd.id);
+                                            }}
+                                            className="p-1.5 text-yellow-400 hover:bg-yellow-500/20 rounded transition-all"
+                                            title="Rollback (undo command)"
+                                          >
+                                            <Undo className="w-3.5 h-3.5" />
+                                          </button>
+                                          {cmd.config?.backup_created && (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                rollbackUsingBackup(cmd.id);
+                                              }}
+                                              className="p-1.5 text-green-400 hover:bg-green-500/20 rounded transition-all"
+                                              title="Restore from backup"
+                                            >
+                                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                              </svg>
+                                            </button>
+                                          )}
+                                        </>
                                       )}
                                       <button
                                         onClick={(e) => {
@@ -1217,6 +1299,7 @@ export default function DeploymentManager({
               const isGroupExecution = cmd.config?.group_execution;
               const groupName = cmd.config?.group_name;
               const isRollback = cmd.config?.is_rollback;
+              const isBackupRestore = cmd.config?.is_backup_restore;
               const originalCommandId = cmd.config?.original_command_id;
               const executionTime = cmd.completed_at && cmd.started_at 
                 ? ((new Date(cmd.completed_at) - new Date(cmd.started_at)) / 1000).toFixed(2) 
@@ -1242,15 +1325,30 @@ export default function DeploymentManager({
                             GROUP
                           </span>
                         )}
-                        {isRollback && (
+                        {isBackupRestore && (
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-300 border border-green-500/30 flex items-center gap-1">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            BACKUP RESTORE
+                          </span>
+                        )}
+                        {isRollback && !isBackupRestore && (
                           <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 flex items-center gap-1">
                             <Undo className="w-3 h-3" />
                             ROLLBACK
                           </span>
                         )}
+                        {cmd.config?.backup_created && !isRollback && !isBackupRestore && (
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-300 border border-green-500/30 flex items-center gap-1">
+                            <Save className="w-3 h-3" />
+                            BACKUP
+                          </span>
+                        )}
                         {executionTime && (
-                          <span className="text-xs text-gray-400">
-                            ⏱ {executionTime}s
+                          <span className="text-xs text-gray-400 flex items-center gap-1">
+                            <Timer className="w-3 h-3" />
+                            {executionTime}s
                           </span>
                         )}
                       </div>
@@ -1264,13 +1362,34 @@ export default function DeploymentManager({
                       
                       {/* Group Info */}
                       {isGroupExecution && groupName && (
-                        <div className="text-sm text-purple-300 mb-2">
-                          📦 Group: <span className="font-semibold">{groupName}</span>
+                        <div className="text-sm text-purple-300 mb-2 flex items-center gap-2">
+                          <Package className="w-4 h-4" />
+                          Group: <span className="font-semibold">{groupName}</span>
+                        </div>
+                      )}
+                      
+                      {/* Backup Restore Info */}
+                      {isBackupRestore && cmd.config?.original_command && (
+                        <div className="text-sm text-green-300 mb-2 bg-green-900/20 border border-green-500/30 rounded p-2">
+                          <div className="flex items-center gap-2 mb-1">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            <span className="font-semibold">Restored from backup:</span>
+                          </div>
+                          <code className="text-xs text-gray-300 font-mono break-all">
+                            {cmd.config.original_command}
+                          </code>
+                          {cmd.config.backup_id && (
+                            <div className="text-xs text-gray-400 mt-1">
+                              Backup ID: {cmd.config.backup_id}
+                            </div>
+                          )}
                         </div>
                       )}
                       
                       {/* Rollback Info */}
-                      {isRollback && cmd.config?.original_command && (
+                      {isRollback && !isBackupRestore && cmd.config?.original_command && (
                         <div className="text-sm text-yellow-300 mb-2 bg-yellow-900/20 border border-yellow-500/30 rounded p-2">
                           <div className="flex items-center gap-2 mb-1">
                             <Undo className="w-3 h-3" />
@@ -1285,14 +1404,27 @@ export default function DeploymentManager({
                     
                     {/* Action Buttons */}
                     <div className="flex items-center gap-1 ml-4">
-                      {cmd.status === 'completed' && !cmd.config?.is_rollback && (
-                        <button
-                          onClick={() => rollbackCommand(cmd.id)}
-                          className="p-2 text-yellow-400 hover:bg-yellow-500/20 rounded transition-all"
-                          title="Rollback Command"
-                        >
-                          <Undo className="w-4 h-4" />
-                        </button>
+                      {cmd.status === 'completed' && !cmd.config?.is_rollback && !cmd.config?.is_backup_restore && (
+                        <>
+                          <button
+                            onClick={() => rollbackCommand(cmd.id)}
+                            className="p-2 text-yellow-400 hover:bg-yellow-500/20 rounded transition-all"
+                            title="Rollback (undo command)"
+                          >
+                            <Undo className="w-4 h-4" />
+                          </button>
+                          {cmd.config?.backup_created && (
+                            <button
+                              onClick={() => rollbackUsingBackup(cmd.id)}
+                              className="p-2 text-green-400 hover:bg-green-500/20 rounded transition-all"
+                              title="Restore from backup"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                              </svg>
+                            </button>
+                          )}
+                        </>
                       )}
                       {cmd.status === 'running' && (
                         <button
@@ -1323,23 +1455,22 @@ export default function DeploymentManager({
                   </div>
 
                   {/* Details Grid */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm mb-3 bg-gray-900/50 p-3 rounded">
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 text-sm mb-3 bg-gray-900/50 p-3 rounded">
                     <div className="flex items-center gap-2">
-                      <span className="text-gray-400">🖥️ Agent:</span>
+                      <Monitor className="w-4 h-4 text-gray-400" />
+                      <span className="text-gray-400">Agent:</span>
                       <span className="text-white font-mono text-xs truncate" title={cmd.agent_id}>
                         {cmd.agent_id}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-gray-400">💻 Shell:</span>
+                      <Terminal className="w-4 h-4 text-gray-400" />
+                      <span className="text-gray-400">Shell:</span>
                       <span className="text-cyan-300 font-medium">{cmd.shell}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-gray-400">⚙️ Strategy:</span>
-                      <span className="text-blue-300 font-medium">{cmd.strategy}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-400">🕐 Started:</span>
+                      <Clock className="w-4 h-4 text-gray-400" />
+                      <span className="text-gray-400">Started:</span>
                       <span className="text-white">
                         {cmd.started_at ? new Date(cmd.started_at).toLocaleTimeString() : 'Pending'}
                       </span>
@@ -1350,7 +1481,8 @@ export default function DeploymentManager({
                   {cmd.output && (
                     <div className="mt-3">
                       <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
-                        <span>📤 Output:</span>
+                        <ArrowUpRight className="w-4 h-4" />
+                        <span>Output:</span>
                         <span className="text-xs text-gray-500">
                           ({cmd.output.split('\n').length} lines)
                         </span>
@@ -1365,7 +1497,8 @@ export default function DeploymentManager({
                   {cmd.error && (
                     <div className="mt-3">
                       <div className="text-sm text-red-400 mb-2 flex items-center gap-2">
-                        <span>❌ Error:</span>
+                        <XCircle className="w-4 h-4" />
+                        <span>Error:</span>
                       </div>
                       <pre className="bg-red-900/20 border border-red-500/30 p-3 rounded text-sm text-red-400 font-mono">
 {cmd.error}
@@ -1375,8 +1508,9 @@ export default function DeploymentManager({
                   
                   {/* Completed Timestamp */}
                   {cmd.completed_at && (
-                    <div className="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-400">
-                      ✅ Completed at {new Date(cmd.completed_at).toLocaleString()}
+                    <div className="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-400 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-green-400" />
+                      Completed at {new Date(cmd.completed_at).toLocaleString()}
                     </div>
                   )}
                 </div>

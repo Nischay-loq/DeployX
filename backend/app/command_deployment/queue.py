@@ -168,6 +168,28 @@ class CommandQueue:
         
         return True
 
+    def update_command_text(self, cmd_id: str, new_command: str) -> bool:
+        """Update the command text for display purposes.
+        
+        Args:
+            cmd_id: Command ID to update
+            new_command: New command text to display
+            
+        Returns:
+            True if update succeeded, False otherwise
+        """
+        if cmd_id not in self._commands:
+            logger.error(f"Command {cmd_id} not found")
+            return False
+        
+        cmd = self._commands[cmd_id]
+        old_command = cmd.command
+        cmd.command = new_command
+        self._save_to_file()
+        
+        logger.info(f"Updated command {cmd_id} text: '{old_command[:50]}...' -> '{new_command[:50]}...'")
+        return True
+
     def validate_and_fix_statuses(self) -> int:
         """Validate and fix inconsistent command statuses. Returns number of fixes made."""
         fixes = 0
