@@ -8,6 +8,7 @@ import os
 import threading
 import time
 import logging
+import asyncio
 
 # Add parent directory to path to import agent
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -64,7 +65,7 @@ def main():
     try:
         # Import and run the actual agent
         from agent.main import main as agent_main
-        agent_main()
+        asyncio.run(agent_main())
     except KeyboardInterrupt:
         logger.info("Agent stopped by user")
     except Exception as e:
