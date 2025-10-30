@@ -1,0 +1,23 @@
+{
+  "win32": {
+    "version": "1.0.0",
+    "checksum": "your-sha256-checksum-here",
+    "release_notes": "Initial release",
+    "release_date": "2025-10-26",
+    "file_size": "50MB"
+  },
+  "linux": {
+    "version": "1.0.0",
+    "checksum": "your-sha256-checksum-here",
+    "release_notes": "Initial release",
+    "release_date": "2025-10-26",
+    "file_size": "45MB"
+  },
+  "darwin": {
+    "version": "1.0.0",
+    "checksum": "your-sha256-checksum-here",
+    "release_notes": "Initial release",
+    "release_date": "2025-10-26",
+    "file_size": "48MB"
+  }
+}

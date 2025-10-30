@@ -86,15 +86,11 @@ async def recommend_strategy(command: str, current_strategy: str = "transactiona
         
         recommended = deployment_strategy.choose_strategy_for_command(command)
         
-        warning = None
-        if current_strategy == 'transactional' and recommended == 'snapshot':
-            warning = f"WARNING: Command '{command}' is destructive and may cause data loss. Consider using 'snapshot' strategy for better safety."
-        
         return {
             "command": command,
             "recommended_strategy": recommended,
             "current_strategy": current_strategy,
-            "warning": warning,
+            "warning": None,
             "reason": f"Recommended '{recommended}' strategy for this type of operation"
         }
     except Exception as e:
@@ -119,8 +115,8 @@ async def add_command(request: CommandRequest, background_tasks: BackgroundTasks
             request.shell = 'cmd'
         
         # Validate strategy
-        valid_strategies = ['transactional', 'blue_green', 'snapshot', 'canary']
-        if request.strategy not in valid_strategies:
+        valid_strategies = ['transactional', 'blue_green', 'canary']
+        if request.strategy and request.strategy not in valid_strategies:
             logger.warning(f"Unknown strategy: {request.strategy}, using 'transactional' as fallback")
             request.strategy = 'transactional'
         
@@ -355,62 +351,6 @@ async def resume_command(cmd_id: str, background_tasks: BackgroundTasks):
         logger.error(f"Error resuming command {cmd_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/snapshots")
-async def list_snapshots():
-    """List all available snapshots."""
-    try:
-        snapshot_strategy = deployment_strategy.strategies.get("snapshot")
-        if not snapshot_strategy:
-            raise HTTPException(status_code=500, detail="Snapshot strategy not available")
-        
-        snapshots = snapshot_strategy.list_snapshots()
-        return {"snapshots": snapshots}
-    
-    except Exception as e:
-        logger.error(f"Error listing snapshots: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/snapshots/{snapshot_id}/restore")
-async def restore_snapshot(snapshot_id: str, target_path: str = None):
-    """Restore from a specific snapshot."""
-    try:
-        snapshot_strategy = deployment_strategy.strategies.get("snapshot")
-        if not snapshot_strategy:
-            raise HTTPException(status_code=500, detail="Snapshot strategy not available")
-        
-        success, message = snapshot_strategy.restore_snapshot(snapshot_id, target_path)
-        
-        return {
-            "snapshot_id": snapshot_id,
-            "success": success,
-            "message": message,
-            "target_path": target_path
-        }
-    
-    except Exception as e:
-        logger.error(f"Error restoring snapshot {snapshot_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.delete("/snapshots/{snapshot_id}")
-async def delete_snapshot(snapshot_id: str):
-    """Delete a specific snapshot."""
-    try:
-        snapshot_strategy = deployment_strategy.strategies.get("snapshot")
-        if not snapshot_strategy:
-            raise HTTPException(status_code=500, detail="Snapshot strategy not available")
-        
-        success, message = snapshot_strategy.delete_snapshot(snapshot_id)
-        
-        return {
-            "snapshot_id": snapshot_id,
-            "success": success,
-            "message": message
-        }
-    
-    except Exception as e:
-        logger.error(f"Error deleting snapshot {snapshot_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 @router.get("/blue-green/status")
 async def get_blue_green_status():
     """Get blue-green deployment status."""
@@ -512,6 +452,421 @@ async def delete_command(cmd_id: str):
     except Exception as e:
         logger.error(f"Error deleting command {cmd_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/commands/{cmd_id}/rollback", response_model=CommandResponse)
+async def rollback_command(cmd_id: str, background_tasks: BackgroundTasks):
+    """Rollback a completed command by executing an inverse operation."""
+    try:
+        # Get the original command
+        original_cmd = command_queue.get_command(cmd_id)
+        if not original_cmd:
+            raise HTTPException(status_code=404, detail="Command not found")
+        
+        # Only allow rollback of completed commands
+        if original_cmd.status != CommandStatus.COMPLETED:
+            raise HTTPException(status_code=400, detail="Can only rollback completed commands")
+        
+        # Generate rollback command
+        rollback_cmd_text = generate_rollback_command(original_cmd.command, original_cmd.shell)
+        if not rollback_cmd_text:
+            raise HTTPException(status_code=400, detail="Cannot generate rollback for this command type")
+        
+        # Create new command for rollback
+        rollback_cmd_id = command_queue.add_command(
+            command=rollback_cmd_text,
+            agent_id=original_cmd.agent_id,
+            shell=original_cmd.shell,
+            strategy=original_cmd.strategy,
+            config={
+                "is_rollback": True,
+                "original_command_id": cmd_id,
+                "original_command": original_cmd.command
+            }
+        )
+        
+        # Execute rollback command in background
+        background_tasks.add_task(execute_command_async, rollback_cmd_id)
+        
+        cmd = command_queue.get_command(rollback_cmd_id)
+        return CommandResponse(**cmd.dict())
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error rolling back command {cmd_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/commands/{cmd_id}/restore-backup", response_model=CommandResponse)
+async def restore_from_backup(cmd_id: str, background_tasks: BackgroundTasks):
+    """Restore files from backup by sending a restore command to the agent."""
+    try:
+        # Get the original command
+        original_cmd = command_queue.get_command(cmd_id)
+        if not original_cmd:
+            raise HTTPException(status_code=404, detail="Command not found")
+        
+        # Check if command has a backup
+        backup_id = original_cmd.config.get('backup_id')
+        if not backup_id:
+            raise HTTPException(status_code=400, detail="No backup available for this command")
+        
+        # Only allow restore of completed commands
+        if original_cmd.status != CommandStatus.COMPLETED:
+            raise HTTPException(status_code=400, detail="Can only restore backups from completed commands")
+        
+        # Create a meaningful display name for the restore command
+        # Extract a simple description from the original command
+        original_cmd_short = original_cmd.command[:50] if len(original_cmd.command) > 50 else original_cmd.command
+        display_command = f"Restore backup from: {original_cmd_short}"
+        
+        # Create a restore command that will be sent to the agent
+        # The agent will handle the actual restoration using the backup_id
+        restore_cmd_id = command_queue.add_command(
+            command=f"RESTORE_BACKUP:{backup_id}",  # Special command format for agent (internal use)
+            agent_id=original_cmd.agent_id,
+            shell=original_cmd.shell,
+            strategy=original_cmd.strategy,
+            config={
+                "is_rollback": True,
+                "is_backup_restore": True,
+                "original_command_id": cmd_id,
+                "original_command": original_cmd.command,
+                "backup_id": backup_id,
+                "display_command": display_command  # Human-readable command name
+            }
+        )
+        
+        # Execute restore command in background
+        background_tasks.add_task(execute_command_async, restore_cmd_id)
+        
+        cmd = command_queue.get_command(restore_cmd_id)
+        return CommandResponse(**cmd.dict())
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error restoring backup for command {cmd_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+def generate_rollback_command(command: str, shell: str = "cmd") -> Optional[str]:
+    """Generate a rollback command based on the original command."""
+    cmd = command.strip().lower()
+    original = command.strip()
+    
+    # File/Directory operations (Windows)
+    if shell in ['cmd', 'powershell', 'pwsh']:
+        # Copy file
+        if cmd.startswith('copy '):
+            parts = original.split()
+            if len(parts) >= 3:
+                dest = parts[-1].strip('"').strip("'")
+                return f'del /f /q "{dest}"'
+        
+        # Move file
+        if cmd.startswith('move '):
+            parts = original.split()
+            if len(parts) >= 3:
+                src = parts[1].strip('"').strip("'")
+                dest = parts[-1].strip('"').strip("'")
+                return f'move /y "{dest}" "{src}"'
+        
+        # Rename
+        if cmd.startswith('ren ') or cmd.startswith('rename '):
+            parts = original.split()
+            if len(parts) >= 3:
+                old_name = parts[1].strip('"').strip("'")
+                new_name = parts[-1].strip('"').strip("'")
+                return f'ren "{new_name}" "{old_name}"'
+        
+        # Create directory
+        if cmd.startswith('mkdir ') or cmd.startswith('md '):
+            parts = original.split()
+            if len(parts) >= 2:
+                dir_name = ' '.join(parts[1:]).strip('"').strip("'")
+                return f'rmdir /s /q "{dir_name}"'
+        
+        # Echo to file (redirect)
+        if cmd.startswith('echo ') and '>' in cmd:
+            import re
+            # Match: echo content > file or echo content >> file
+            match = re.search(r'>\s*([^\s]+)', original)
+            if match:
+                file_path = match.group(1).strip('"').strip("'")
+                return f'del /f /q "{file_path}"'
+        
+        # Type file content to new file
+        if cmd.startswith('type ') and '>' in cmd:
+            import re
+            match = re.search(r'>\s*([^\s]+)', original)
+            if match:
+                file_path = match.group(1).strip('"').strip("'")
+                return f'del /f /q "{file_path}"'
+        
+        # XCOPY (advanced copy)
+        if cmd.startswith('xcopy '):
+            parts = original.split()
+            if len(parts) >= 3:
+                # Find destination (last non-flag argument)
+                dest = None
+                for i in range(len(parts) - 1, 0, -1):
+                    if not parts[i].startswith('/'):
+                        dest = parts[i].strip('"').strip("'")
+                        break
+                if dest:
+                    return f'rmdir /s /q "{dest}" 2>nul || del /f /q "{dest}"'
+        
+        # ROBOCOPY
+        if cmd.startswith('robocopy '):
+            parts = original.split()
+            if len(parts) >= 3:
+                dest = parts[2].strip('"').strip("'")
+                return f'rmdir /s /q "{dest}"'
+        
+        # Delete file (cannot rollback without backup)
+        if cmd.startswith('del ') or cmd.startswith('erase '):
+            return None  # Cannot rollback file deletion
+        
+        # Remove directory (cannot rollback without backup)
+        if cmd.startswith('rmdir ') or cmd.startswith('rd '):
+            return None  # Cannot rollback directory deletion
+        
+        # PowerShell specific
+        if 'new-item' in cmd:
+            import re
+            # Check if it's a directory
+            if '-itemtype' in cmd and ('directory' in cmd or 'dir' in cmd):
+                match = re.search(r'-path\s+["\']?([^"\';\s]+)["\']?', original, re.IGNORECASE)
+                if match:
+                    path = match.group(1)
+                    return f'Remove-Item -Path "{path}" -Force -Recurse -ErrorAction SilentlyContinue'
+            # Check if it's a file
+            elif '-itemtype' in cmd and 'file' in cmd:
+                match = re.search(r'-path\s+["\']?([^"\';\s]+)["\']?', original, re.IGNORECASE)
+                if match:
+                    path = match.group(1)
+                    return f'Remove-Item -Path "{path}" -Force -ErrorAction SilentlyContinue'
+            # Default New-Item creates file
+            else:
+                match = re.search(r'-path\s+["\']?([^"\';\s]+)["\']?', original, re.IGNORECASE)
+                if not match:
+                    match = re.search(r'new-item\s+["\']?([^"\';\s]+)["\']?', original, re.IGNORECASE)
+                if match:
+                    path = match.group(1)
+                    return f'Remove-Item -Path "{path}" -Force -ErrorAction SilentlyContinue'
+        
+        if 'copy-item' in cmd:
+            import re
+            match = re.search(r'-destination\s+["\']?([^"\';\s]+)["\']?', original, re.IGNORECASE)
+            if match:
+                dest = match.group(1)
+                return f'Remove-Item -Path "{dest}" -Force -Recurse -ErrorAction SilentlyContinue'
+        
+        if 'move-item' in cmd:
+            import re
+            src_match = re.search(r'-path\s+["\']?([^"\';\s]+)["\']?', original, re.IGNORECASE)
+            dest_match = re.search(r'-destination\s+["\']?([^"\';\s]+)["\']?', original, re.IGNORECASE)
+            if src_match and dest_match:
+                src = src_match.group(1)
+                dest = dest_match.group(1)
+                return f'Move-Item -Path "{dest}" -Destination "{src}" -Force'
+        
+        # Out-File / Set-Content (create file)
+        if 'out-file' in cmd or 'set-content' in cmd:
+            import re
+            match = re.search(r'-path\s+["\']?([^"\';\s]+)["\']?', original, re.IGNORECASE)
+            if not match:
+                match = re.search(r'>\s*["\']?([^"\';\s]+)["\']?', original)
+            if match:
+                path = match.group(1)
+                return f'Remove-Item -Path "{path}" -Force -ErrorAction SilentlyContinue'
+        
+        # Add-Content (append to file) - can't rollback without knowing what was added
+        if 'add-content' in cmd:
+            return None
+        
+        # Remove-Item (delete) - can't rollback
+        if 'remove-item' in cmd:
+            return None
+    
+    # File/Directory operations (Linux/Unix)
+    elif shell in ['bash', 'sh']:
+        # Copy file
+        if cmd.startswith('cp '):
+            import re
+            # Handle flags like -r, -a, etc.
+            parts = original.split()
+            if len(parts) >= 3:
+                dest = parts[-1].strip('"').strip("'")
+                # If copying directory (with -r flag), use rm -rf
+                if '-r' in cmd or '-a' in cmd:
+                    return f'rm -rf "{dest}"'
+                else:
+                    return f'rm -f "{dest}"'
+        
+        # Move file
+        if cmd.startswith('mv '):
+            parts = original.split()
+            if len(parts) >= 3:
+                src = parts[-2].strip('"').strip("'")
+                dest = parts[-1].strip('"').strip("'")
+                return f'mv "{dest}" "{src}"'
+        
+        # Create directory
+        if cmd.startswith('mkdir '):
+            import re
+            parts = original.split()
+            # Handle mkdir -p flag
+            dirs = []
+            for part in parts[1:]:
+                if not part.startswith('-'):
+                    dirs.append(part.strip('"').strip("'"))
+            if dirs:
+                # Remove all created directories
+                dir_name = dirs[-1] if len(dirs) == 1 else ' '.join(dirs)
+                return f'rm -rf {dir_name}'
+        
+        # Create file
+        if cmd.startswith('touch '):
+            parts = original.split()
+            if len(parts) >= 2:
+                file_name = parts[-1].strip('"').strip("'")
+                return f'rm -f "{file_name}"'
+        
+        # Echo to file
+        if cmd.startswith('echo ') and '>' in cmd:
+            import re
+            match = re.search(r'>\s*([^\s]+)', original)
+            if match:
+                file_path = match.group(1).strip('"').strip("'")
+                return f'rm -f "{file_path}"'
+        
+        # Cat to file
+        if cmd.startswith('cat ') and '>' in cmd:
+            import re
+            match = re.search(r'>\s*([^\s]+)', original)
+            if match:
+                file_path = match.group(1).strip('"').strip("'")
+                return f'rm -f "{file_path}"'
+        
+        # Tee command (write to file)
+        if 'tee' in cmd:
+            import re
+            # Extract filename after tee
+            match = re.search(r'tee\s+([^\s|]+)', original)
+            if match:
+                file_path = match.group(1).strip('"').strip("'")
+                return f'rm -f "{file_path}"'
+        
+        # Remove file or directory (cannot rollback)
+        if cmd.startswith('rm '):
+            return None  # Cannot rollback file/directory deletion
+        
+        # Remove directory (cannot rollback)
+        if cmd.startswith('rmdir '):
+            return None  # Cannot rollback directory deletion
+    
+    # Service operations (Windows)
+    if shell in ['cmd', 'powershell', 'pwsh']:
+        if 'start-service' in cmd or 'net start' in cmd or 'sc start' in cmd:
+            import re
+            match = re.search(r'start-service\s+["\']?-?name\s+["\']?([^"\';\s]+)["\']?', original, re.IGNORECASE)
+            if not match:
+                match = re.search(r'start-service\s+["\']?([^"\';\s]+)["\']?', original, re.IGNORECASE)
+            if match:
+                service = match.group(1)
+                return f'Stop-Service -Name "{service}" -Force -ErrorAction SilentlyContinue'
+            
+            match = re.search(r'net start\s+["\']?([^"\']+)["\']?', original, re.IGNORECASE)
+            if match:
+                service = match.group(1).strip()
+                return f'net stop "{service}"'
+            
+            match = re.search(r'sc start\s+([^\s]+)', original, re.IGNORECASE)
+            if match:
+                service = match.group(1)
+                return f'sc stop {service}'
+        
+        if 'stop-service' in cmd or 'net stop' in cmd or 'sc stop' in cmd:
+            import re
+            match = re.search(r'stop-service\s+["\']?-?name\s+["\']?([^"\';\s]+)["\']?', original, re.IGNORECASE)
+            if not match:
+                match = re.search(r'stop-service\s+["\']?([^"\';\s]+)["\']?', original, re.IGNORECASE)
+            if match:
+                service = match.group(1)
+                return f'Start-Service -Name "{service}" -ErrorAction SilentlyContinue'
+            
+            match = re.search(r'net stop\s+["\']?([^"\']+)["\']?', original, re.IGNORECASE)
+            if match:
+                service = match.group(1).strip()
+                return f'net start "{service}"'
+            
+            match = re.search(r'sc stop\s+([^\s]+)', original, re.IGNORECASE)
+            if match:
+                service = match.group(1)
+                return f'sc start {service}'
+        
+        # Restart service - rollback would be another restart (not very useful)
+        if 'restart-service' in cmd:
+            import re
+            match = re.search(r'restart-service\s+["\']?-?name\s+["\']?([^"\';\s]+)["\']?', original, re.IGNORECASE)
+            if not match:
+                match = re.search(r'restart-service\s+["\']?([^"\';\s]+)["\']?', original, re.IGNORECASE)
+            if match:
+                service = match.group(1)
+                return f'Restart-Service -Name "{service}" -Force -ErrorAction SilentlyContinue'
+    
+    # Service operations (Linux)
+    elif shell in ['bash', 'sh']:
+        if 'systemctl start' in cmd or ('service' in cmd and 'start' in cmd):
+            import re
+            match = re.search(r'systemctl start\s+([^\s;|&]+)', original)
+            if match:
+                service = match.group(1)
+                return f'systemctl stop {service}'
+            match = re.search(r'service\s+([^\s]+)\s+start', original)
+            if match:
+                service = match.group(1)
+                return f'service {service} stop'
+        
+        if 'systemctl stop' in cmd or ('service' in cmd and 'stop' in cmd):
+            import re
+            match = re.search(r'systemctl stop\s+([^\s;|&]+)', original)
+            if match:
+                service = match.group(1)
+                return f'systemctl start {service}'
+            match = re.search(r'service\s+([^\s]+)\s+stop', original)
+            if match:
+                service = match.group(1)
+                return f'service {service} start'
+        
+        if 'systemctl restart' in cmd or ('service' in cmd and 'restart' in cmd):
+            import re
+            match = re.search(r'systemctl restart\s+([^\s;|&]+)', original)
+            if match:
+                service = match.group(1)
+                return f'systemctl restart {service}'
+            match = re.search(r'service\s+([^\s]+)\s+restart', original)
+            if match:
+                service = match.group(1)
+                return f'service {service} restart'
+        
+        # Enable/Disable service
+        if 'systemctl enable' in cmd:
+            import re
+            match = re.search(r'systemctl enable\s+([^\s;|&]+)', original)
+            if match:
+                service = match.group(1)
+                return f'systemctl disable {service}'
+        
+        if 'systemctl disable' in cmd:
+            import re
+            match = re.search(r'systemctl disable\s+([^\s;|&]+)', original)
+            if match:
+                service = match.group(1)
+                return f'systemctl enable {service}'
+                return f'service {service} start'
+    
+    return None  # Cannot generate rollback for this command
 
 @router.get("/stats", response_model=QueueStatsResponse)
 async def get_queue_stats():

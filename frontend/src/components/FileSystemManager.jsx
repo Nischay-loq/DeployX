@@ -23,6 +23,7 @@ import {
   ExternalLink,
   Calendar
 } from 'lucide-react';
+import { io } from 'socket.io-client';
 import groupsService from '../services/groups';
 import devicesService from '../services/devices';
 import filesService from '../services/files';
@@ -72,10 +73,76 @@ export default function FileSystemManager() {
   // Refs
   const fileInputRef = useRef(null);
   const dropZoneRef = useRef(null);
+  const socketRef = useRef(null);
+  const pollIntervalRef = useRef(null);
 
   useEffect(() => {
     loadGroups();
     loadDevices();
+
+    // Initialize Socket.IO connection
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    socketRef.current = io(API_URL, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5
+    });
+
+    socketRef.current.on('connect', () => {
+      console.log('FileSystemManager: Socket.IO connected');
+    });
+
+    socketRef.current.on('disconnect', () => {
+      console.log('FileSystemManager: Socket.IO disconnected');
+    });
+
+    // Listen for file deployment completion
+    socketRef.current.on('file_deployment_completed', (data) => {
+      console.log('File deployment completed:', data);
+      // Refresh deployment progress if we have a deployment ID
+      setCurrentDeploymentId(prevId => {
+        if (prevId && data.deployment_id === prevId) {
+          refreshDeploymentProgress(data.deployment_id);
+        }
+        return prevId;
+      });
+    });
+
+    // Listen for individual file transfer updates
+    socketRef.current.on('file_transfer_update', (data) => {
+      console.log('File transfer update:', data);
+      // Update the specific result if we're tracking this deployment
+      setCurrentDeploymentId(prevId => {
+        if (prevId && data.deployment_id === prevId) {
+          setDeploymentResults(prev => {
+            const updated = [...prev];
+            const index = updated.findIndex(r => 
+              r.deviceId === data.device_id && r.fileName === data.file_name
+            );
+            if (index >= 0) {
+              updated[index] = {
+                ...updated[index],
+                status: data.success ? 'success' : 'error',
+                message: data.message,
+                pathCreated: data.path_created
+              };
+            }
+            return updated;
+          });
+        }
+        return prevId;
+      });
+    });
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+      if (pollIntervalRef.current) {
+        clearTimeout(pollIntervalRef.current);
+      }
+    };
   }, []);
 
   const addNotification = (message, type = 'info') => {
@@ -85,6 +152,40 @@ export default function FileSystemManager() {
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, type === 'error' ? 6000 : 4000);
+  };
+
+  const refreshDeploymentProgress = async (deploymentId) => {
+    try {
+      const progressResponse = await filesService.getDeploymentProgress(deploymentId);
+      setDeploymentResults(progressResponse.results || []);
+      
+      const deploymentStatus = progressResponse.status;
+      const isComplete = ['completed', 'failed', 'partial_failure'].includes(deploymentStatus);
+      
+      if (isComplete) {
+        setIsDeploying(false);
+        setShowResults(true);
+        
+        // Stop polling
+        if (pollIntervalRef.current) {
+          clearTimeout(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        
+        const successCount = progressResponse.results.filter(r => r.status === 'success').length;
+        const totalCount = progressResponse.results.length;
+        
+        if (deploymentStatus === 'completed') {
+          addNotification(`✅ All ${totalCount} deployments completed successfully!`, 'success');
+        } else if (deploymentStatus === 'failed') {
+          addNotification(`❌ All ${totalCount} deployments failed`, 'error');
+        } else if (deploymentStatus === 'partial_failure') {
+          addNotification(`⚠️ ${successCount}/${totalCount} deployments successful`, 'warning');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to refresh deployment progress:', error);
+    }
   };
 
   const loadGroups = async () => {
@@ -175,11 +276,24 @@ export default function FileSystemManager() {
     setPreviewContent('');
 
     try {
+      // Check if file object exists
+      if (!uploadedFile.file) {
+        setPreviewContent('Preview not available. File has been uploaded to server.');
+        setPreviewLoading(false);
+        return;
+      }
+
       // Check if file can be previewed
       const fileType = uploadedFile.type || 'application/octet-stream';
       const fileName = uploadedFile.name.toLowerCase();
       
-      if (fileType.startsWith('text/') || 
+      // Handle PDF files
+      if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
+        const objectUrl = URL.createObjectURL(uploadedFile.file);
+        setPreviewContent(objectUrl);
+      }
+      // Handle text files
+      else if (fileType.startsWith('text/') || 
           fileName.endsWith('.txt') || 
           fileName.endsWith('.json') || 
           fileName.endsWith('.xml') ||
@@ -198,11 +312,23 @@ export default function FileSystemManager() {
         // Read text content
         const text = await readFileAsText(uploadedFile.file);
         setPreviewContent(text);
-      } else if (fileType.startsWith('image/')) {
-        // For images, create data URL
+      } 
+      // Handle images
+      else if (fileType.startsWith('image/')) {
         const dataUrl = await readFileAsDataURL(uploadedFile.file);
         setPreviewContent(dataUrl);
-      } else {
+      } 
+      // Handle video files
+      else if (fileType.startsWith('video/') || fileName.match(/\.(mp4|webm|ogg|mov|avi)$/)) {
+        const objectUrl = URL.createObjectURL(uploadedFile.file);
+        setPreviewContent(objectUrl);
+      }
+      // Handle audio files
+      else if (fileType.startsWith('audio/') || fileName.match(/\.(mp3|wav|ogg|m4a)$/)) {
+        const objectUrl = URL.createObjectURL(uploadedFile.file);
+        setPreviewContent(objectUrl);
+      }
+      else {
         setPreviewContent('Preview not available for this file type.');
       }
     } catch (error) {
@@ -212,6 +338,16 @@ export default function FileSystemManager() {
     } finally {
       setPreviewLoading(false);
     }
+  };
+
+  const closeFilePreview = () => {
+    // Cleanup blob URLs to prevent memory leaks
+    if (previewContent && previewContent.startsWith('blob:')) {
+      URL.revokeObjectURL(previewContent);
+    }
+    setShowFilePreview(false);
+    setPreviewFile(null);
+    setPreviewContent('');
   };
 
   const readFileAsText = (file) => {
@@ -326,6 +462,19 @@ export default function FileSystemManager() {
     return devices.filter(device => allTargetDeviceIds.includes(device.id));
   };
 
+  // Handle closing results modal and resetting to upload step
+  const handleCloseResults = () => {
+    setShowResults(false);
+    setCurrentStep(0); // Go back to upload files step
+    setUploadedFiles([]); // Clear uploaded files
+    setSelectedDevices([]); // Clear device selection
+    setSelectedGroups([]); // Clear group selection
+    setCustomPath(''); // Clear custom path
+    setDeploymentResults([]); // Clear results
+    setCurrentDeploymentId(null); // Clear deployment ID
+    addNotification('Ready for new deployment', 'info');
+  };
+
   // Scheduling functions
   const canDeploy = () => {
     return uploadedFiles.length > 0 && 
@@ -386,7 +535,16 @@ export default function FileSystemManager() {
           file_ids: fileIds,
           target_path: deploymentPath,
           create_path_if_not_exists: true,
-          deployment_name: `File Deployment - ${new Date().toLocaleString()}`
+          deployment_name: `File Deployment - ${new Date().toLocaleString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+          })}`
         }
       };
 
@@ -471,34 +629,52 @@ export default function FileSystemManager() {
         const pollProgress = async () => {
           try {
             const progressResponse = await filesService.getDeploymentProgress(deploymentId);
+            console.log('📊 Progress Response:', progressResponse);
+            console.log('📊 Deployment Status:', progressResponse.status);
+            console.log('📊 Results:', progressResponse.results);
+            
             setDeploymentResults(progressResponse.results || []);
             
-            // Check if deployment is complete
-            const isComplete = progressResponse.results?.every(r => 
-              r.status === 'success' || r.status === 'error'
-            );
+            // Check if deployment is complete based on deployment status
+            const deploymentStatus = progressResponse.status;
+            const isComplete = ['completed', 'failed', 'partial_failure'].includes(deploymentStatus);
+            
+            console.log('✅ Is Complete?', isComplete, '| Status:', deploymentStatus);
             
             if (!isComplete) {
-              setTimeout(pollProgress, 2000); // Poll every 2 seconds
+              pollIntervalRef.current = setTimeout(pollProgress, 2000); // Poll every 2 seconds
             } else {
               // Deployment complete - re-enable button and show results
+              console.log('🎉 Deployment complete! Setting isDeploying to false');
               setIsDeploying(false);
               setShowResults(true);
+              
+              // Clear polling ref
+              if (pollIntervalRef.current) {
+                clearTimeout(pollIntervalRef.current);
+                pollIntervalRef.current = null;
+              }
               
               const successCount = progressResponse.results.filter(r => r.status === 'success').length;
               const totalCount = progressResponse.results.length;
               
-              if (successCount === totalCount) {
+              console.log('📈 Success Count:', successCount, '| Total:', totalCount);
+              
+              if (deploymentStatus === 'completed') {
                 addNotification(`✅ All ${totalCount} deployments completed successfully!`, 'success');
-              } else if (successCount === 0) {
+              } else if (deploymentStatus === 'failed') {
                 addNotification(`❌ All ${totalCount} deployments failed`, 'error');
-              } else {
+              } else if (deploymentStatus === 'partial_failure') {
                 addNotification(`⚠️ ${successCount}/${totalCount} deployments successful`, 'warning');
               }
             }
           } catch (error) {
             console.error('Failed to get progress:', error);
             setIsDeploying(false);
+            if (pollIntervalRef.current) {
+              clearTimeout(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+            }
             addNotification('Failed to fetch deployment progress', 'error');
           }
         };
@@ -765,13 +941,6 @@ export default function FileSystemManager() {
                           title="Preview file"
                         >
                           <ExternalLink className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => downloadFile(uploadedFile)}
-                          className="text-green-400 hover:text-green-300 transition-colors p-1"
-                          title="Download file"
-                        >
-                          <Download className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => removeFile(uploadedFile.id)}
@@ -1069,7 +1238,7 @@ export default function FileSystemManager() {
                 </div>
               </div>
               <button
-                onClick={() => setShowResults(false)}
+                onClick={handleCloseResults}
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 <X className="w-6 h-6" />
@@ -1201,23 +1370,14 @@ export default function FileSystemManager() {
                   </div>
                   <div className="flex gap-3">
                     <button
-                      onClick={() => {
-                        // Clear current results and prepare for new deployment
-                        setDeploymentResults([]);
-                        setShowResults(false);
-                        setCurrentStep(0);
-                        setUploadedFiles([]);
-                        setSelectedGroups([]);
-                        setSelectedDevices([]);
-                        setCustomPath('');
-                      }}
+                      onClick={handleCloseResults}
                       className="btn-secondary"
                     >
                       <Plus className="w-4 h-4 mr-2" />
                       New Deployment
                     </button>
                     <button
-                      onClick={() => setShowResults(false)}
+                      onClick={handleCloseResults}
                       className="btn-primary"
                     >
                       Close
@@ -1249,15 +1409,7 @@ export default function FileSystemManager() {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => downloadFile(previewFile)}
-                  className="btn-secondary btn-sm"
-                  title="Download file"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Download
-                </button>
-                <button
-                  onClick={() => setShowFilePreview(false)}
+                  onClick={closeFilePreview}
                   className="text-gray-400 hover:text-white transition-colors p-1"
                 >
                   <X className="w-5 h-5" />
@@ -1274,8 +1426,42 @@ export default function FileSystemManager() {
                 </div>
               ) : previewContent ? (
                 <div className="space-y-4">
-                  {previewFile?.type?.startsWith('image/') && previewContent.startsWith('data:') ? (
-                    // Image preview
+                  {/* PDF Preview */}
+                  {(previewFile?.type === 'application/pdf' || previewFile?.name?.toLowerCase().endsWith('.pdf')) && previewContent.startsWith('blob:') ? (
+                    <div className="w-full h-[600px]">
+                      <iframe
+                        src={previewContent}
+                        className="w-full h-full border-0 rounded-lg"
+                        title="PDF Preview"
+                      />
+                    </div>
+                  ) : 
+                  /* Video Preview */
+                  (previewFile?.type?.startsWith('video/') || previewFile?.name?.match(/\.(mp4|webm|ogg|mov|avi)$/)) && previewContent.startsWith('blob:') ? (
+                    <div className="text-center">
+                      <video
+                        src={previewContent}
+                        controls
+                        className="max-w-full max-h-96 mx-auto rounded-lg shadow-lg"
+                      >
+                        Your browser does not support video playback.
+                      </video>
+                    </div>
+                  ) : 
+                  /* Audio Preview */
+                  (previewFile?.type?.startsWith('audio/') || previewFile?.name?.match(/\.(mp3|wav|ogg|m4a)$/)) && previewContent.startsWith('blob:') ? (
+                    <div className="text-center py-8">
+                      <audio
+                        src={previewContent}
+                        controls
+                        className="mx-auto"
+                      >
+                        Your browser does not support audio playback.
+                      </audio>
+                    </div>
+                  ) : 
+                  /* Image Preview */
+                  previewFile?.type?.startsWith('image/') && previewContent.startsWith('data:') ? (
                     <div className="text-center">
                       <img
                         src={previewContent}
@@ -1288,7 +1474,7 @@ export default function FileSystemManager() {
                     <div className="bg-gray-900 rounded-lg p-4 overflow-auto">
                       <pre className="text-sm text-gray-300 whitespace-pre-wrap font-mono">
                         {previewContent.length > 10000 
-                          ? previewContent.slice(0, 10000) + '\n\n... (Content truncated. Download file to view complete content)'
+                          ? previewContent.slice(0, 10000) + '\n\n... (Content truncated due to size)'
                           : previewContent
                         }
                       </pre>
@@ -1299,7 +1485,6 @@ export default function FileSystemManager() {
                 <div className="text-center py-12 text-gray-400">
                   <File className="w-16 h-16 mx-auto mb-4 text-gray-600" />
                   <p>Preview not available for this file type.</p>
-                  <p className="text-sm mt-2">You can still download the file to view it.</p>
                 </div>
               )}
             </div>

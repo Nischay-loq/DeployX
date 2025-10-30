@@ -4,6 +4,7 @@ Uses APScheduler for background task execution
 """
 import logging
 import json
+import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import pytz
@@ -282,19 +283,54 @@ class TaskScheduler:
             execution.result = json.dumps(result)
             
             # Update task
-            task.status = TaskStatus.COMPLETED if task.recurrence_type == RecurrenceType.ONCE else TaskStatus.PENDING
+            new_task_status = TaskStatus.COMPLETED if task.recurrence_type == RecurrenceType.ONCE else TaskStatus.PENDING
+            logger.info(f"[SCHEDULER] Updating task {task_id} status from {task.status} to {new_task_status} (recurrence: {task.recurrence_type})")
+            task.status = new_task_status
             task.last_result = json.dumps(result)
             task.error_message = None
             
-            # Update next execution time for recurring tasks
+            # Update next execution time for recurring tasks, clear for one-time tasks
             if task.recurrence_type != RecurrenceType.ONCE:
                 next_run = self.get_next_run_time(task_id)
                 if next_run:
                     task.next_execution = next_run
+                    logger.info(f"[SCHEDULER] Task {task_id} is recurring, next execution: {next_run}")
+            else:
+                # Clear next_execution for completed one-time tasks
+                task.next_execution = None
+                logger.info(f"[SCHEDULER] Task {task_id} is one-time, cleared next_execution")
             
             db.commit()
+            logger.info(f"[SCHEDULER] Task {task_id} status committed to database: {task.status}")
             
             logger.info(f"Task {task_id} executed successfully - Deployment ID: {deployment_id}")
+            
+            # Emit Socket.IO notification for successful execution for ALL task types
+            # This ensures the frontend's "Manage Schedules" page can refresh and show the updated status
+            try:
+                from app.main import sio
+                if sio:
+                    task_type_display = {
+                        TaskType.COMMAND: 'command',
+                        TaskType.SOFTWARE_DEPLOYMENT: 'software',
+                        TaskType.FILE_DEPLOYMENT: 'file'
+                    }.get(task.task_type, str(task.task_type))
+                    
+                    notification_data = {
+                        'task_id': task_id,
+                        'task_name': task.task_name,
+                        'task_type': task_type_display,
+                        'deployment_id': deployment_id,
+                        'execution_time': execution.execution_time.isoformat() if execution.execution_time else None,
+                        'completed_time': execution.completed_time.isoformat() if execution.completed_time else None,
+                        'status': 'completed',
+                        'recurrence_type': task.recurrence_type.value if hasattr(task.recurrence_type, 'value') else str(task.recurrence_type),
+                        'message': f'Scheduled {task_type_display} task "{task.task_name}" executed successfully'
+                    }
+                    await sio.emit('scheduled_task_completed', notification_data, room='frontends')
+                    logger.info(f"Emitted scheduled_task_completed notification for {task_type_display} task {task_id}")
+            except Exception as emit_error:
+                logger.error(f"Failed to emit socket notification for task {task_id}: {emit_error}")
             
         except Exception as e:
             logger.error(f"Error executing task {task_id}: {e}", exc_info=True)
@@ -310,8 +346,29 @@ class TaskScheduler:
             if task:
                 task.status = TaskStatus.FAILED
                 task.error_message = str(e)
+                
+                # Clear next_execution for failed one-time tasks
+                if task.recurrence_type == RecurrenceType.ONCE:
+                    task.next_execution = None
             
             db.commit()
+            
+            # Emit Socket.IO notification for failed execution
+            try:
+                from app.main import sio
+                if sio and task:
+                    notification_data = {
+                        'task_id': task_id,
+                        'task_name': task.task_name if task else f'Task {task_id}',
+                        'task_type': task.task_type.value if task and hasattr(task.task_type, 'value') else 'unknown',
+                        'status': 'failed',
+                        'error_message': str(e),
+                        'message': f'Scheduled task "{task.task_name if task else task_id}" failed: {str(e)}'
+                    }
+                    await sio.emit('scheduled_task_failed', notification_data, room='frontends')
+                    logger.info(f"Emitted scheduled_task_failed notification for task {task_id}")
+            except Exception as emit_error:
+                logger.error(f"Failed to emit socket notification for failed task {task_id}: {emit_error}")
             
         finally:
             db.close()
@@ -320,7 +377,7 @@ class TaskScheduler:
                                    payload: Dict, device_ids: list, group_ids: list) -> Optional[int]:
         """Execute a command deployment task"""
         try:
-            from app.grouping.command_executor import group_command_executor
+            from app.grouping.command_executor import group_command_executor, GroupCommandStatus
             from app.grouping.models import Device, DeviceGroup, DeviceGroupMap
             
             # Get all target devices
@@ -374,6 +431,41 @@ class TaskScheduler:
                     stop_on_failure=payload.get('stop_on_failure', True)
                 )
                 logger.info(f"Started batch command execution for scheduled task {task.id}: {batch_id}")
+                
+                # Wait for batch to complete with timeout
+                timeout = 600  # 10 minutes timeout
+                start_time = datetime.utcnow()
+                logger.info(f"[SCHEDULER] Waiting for batch {batch_id} to complete (timeout: {timeout}s)")
+                
+                completed_successfully = False
+                while True:
+                    batch_status = group_command_executor.get_batch_status(batch_id)
+                    if not batch_status:
+                        logger.warning(f"[SCHEDULER] Batch {batch_id} not found in active batches")
+                        raise ValueError(f"Batch execution {batch_id} not found - execution may have failed to start")
+                    
+                    status = batch_status.get('status')
+                    # Status can be either enum or string, handle both cases
+                    status_str = status.value if hasattr(status, 'value') else str(status)
+                    logger.debug(f"[SCHEDULER] Batch {batch_id} status: {status_str} (type: {type(status).__name__})")
+                    
+                    if status_str in ['completed', 'failed', 'partial_success'] or \
+                       status in [GroupCommandStatus.COMPLETED, GroupCommandStatus.FAILED, GroupCommandStatus.PARTIAL_SUCCESS]:
+                        logger.info(f"[SCHEDULER] Batch {batch_id} completed with status: {status}")
+                        completed_successfully = True
+                        break
+                    
+                    # Check timeout
+                    elapsed = (datetime.utcnow() - start_time).total_seconds()
+                    if elapsed > timeout:
+                        logger.error(f"[SCHEDULER] Batch {batch_id} timed out after {timeout}s")
+                        raise TimeoutError(f"Batch execution timed out after {timeout} seconds")
+                    
+                    await asyncio.sleep(2)  # Poll every 2 seconds
+                
+                if not completed_successfully:
+                    raise RuntimeError(f"Batch {batch_id} did not complete successfully")
+                
                 return batch_id
             else:
                 # Execute single command
@@ -386,6 +478,41 @@ class TaskScheduler:
                     strategy=strategy
                 )
                 logger.info(f"Started command execution for scheduled task {task.id}: {execution_id}")
+                
+                # Wait for execution to complete with timeout
+                timeout = 300  # 5 minutes timeout for single command
+                start_time = datetime.utcnow()
+                logger.info(f"[SCHEDULER] Waiting for execution {execution_id} to complete (timeout: {timeout}s)")
+                
+                completed_successfully = False
+                while True:
+                    exec_status = group_command_executor.get_execution_status(execution_id)
+                    if not exec_status:
+                        logger.warning(f"[SCHEDULER] Execution {execution_id} not found in active executions")
+                        raise ValueError(f"Command execution {execution_id} not found - execution may have failed to start")
+                    
+                    status = exec_status.get('status')
+                    # Status can be either enum or string, handle both cases
+                    status_str = status.value if hasattr(status, 'value') else str(status)
+                    logger.debug(f"[SCHEDULER] Execution {execution_id} status: {status_str} (type: {type(status).__name__})")
+                    
+                    if status_str in ['completed', 'failed', 'partial_success'] or \
+                       status in [GroupCommandStatus.COMPLETED, GroupCommandStatus.FAILED, GroupCommandStatus.PARTIAL_SUCCESS]:
+                        logger.info(f"[SCHEDULER] Execution {execution_id} completed with status: {status}")
+                        completed_successfully = True
+                        break
+                    
+                    # Check timeout
+                    elapsed = (datetime.utcnow() - start_time).total_seconds()
+                    if elapsed > timeout:
+                        logger.error(f"[SCHEDULER] Execution {execution_id} timed out after {timeout}s")
+                        raise TimeoutError(f"Command execution timed out after {timeout} seconds")
+                    
+                    await asyncio.sleep(2)  # Poll every 2 seconds
+                
+                if not completed_successfully:
+                    raise RuntimeError(f"Execution {execution_id} did not complete successfully")
+                
                 return execution_id
             
         except Exception as e:

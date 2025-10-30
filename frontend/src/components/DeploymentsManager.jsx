@@ -189,7 +189,16 @@ export default function DeploymentsManager() {
         custom_software: useCustomSoftware ? customSoftware.trim() : null,
         deployment_name: useCustomSoftware ? 
           `Custom Software: ${customSoftware.trim()}` : 
-          `Software Installation - ${new Date().toLocaleString()}`
+          `Software Installation - ${new Date().toLocaleString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+          })}`
       }
     };
 
@@ -243,7 +252,16 @@ export default function DeploymentsManager() {
         device_ids: selectedDevices,
         deployment_name: useCustomSoftware ? 
           `Custom Software: ${customSoftware.trim()}` : 
-          `Software Installation - ${new Date().toLocaleString()}`,
+          `Software Installation - ${new Date().toLocaleString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+          })}`,
         custom_software: useCustomSoftware ? customSoftware.trim() : null
       };
 

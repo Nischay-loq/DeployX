@@ -155,6 +155,9 @@ class ScheduledTaskUpdate(BaseModel):
     status: Optional[TaskStatus] = None
     device_ids: Optional[List[int]] = None
     group_ids: Optional[List[int]] = None
+    command_payload: Optional[CommandPayload] = None
+    software_payload: Optional[SoftwareDeploymentPayload] = None
+    file_payload: Optional[FileDeploymentPayload] = None
 
 
 class ScheduledTaskResponse(BaseModel):

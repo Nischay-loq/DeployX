@@ -10,11 +10,13 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from .database import get_db, User
 
-SECRET_KEY = "your-secret-key"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-REFRESH_TOKEN_EXPIRE_DAYS = 7
+# Get JWT secret from environment variable
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "your-secret-key-here")
+ALGORITHM = os.environ.get("JWT_ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
+REFRESH_TOKEN_EXPIRE_DAYS = 30  # 30 days
 RESET_TOKEN_EXPIRE_MINUTES = int(os.environ.get("PASSWORD_RESET_TOKEN_MINUTES", "30"))
+EMAIL_CHANGE_TOKEN_EXPIRE_MINUTES = 30  # 30 minutes for email change verification
 FRONTEND_RESET_URL = os.environ.get("FRONTEND_RESET_URL", "http://localhost:5173/reset-password")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -95,24 +97,82 @@ def create_password_reset_token(email: str, expires_minutes: int = RESET_TOKEN_E
 
 def verify_password_reset_token(token: str) -> str:
     try:
+        print(f"[DEBUG] Verifying password reset token")
+        print(f"[DEBUG] Token length: {len(token)}")
+        print(f"[DEBUG] SECRET_KEY: {SECRET_KEY[:10]}... (truncated)")
+        
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        print(f"[DEBUG] Token decoded successfully: {payload}")
+        
         if payload.get("type") != "password_reset":
+            print(f"[DEBUG] Invalid token type: {payload.get('type')}")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid reset token")
 
         email = payload.get("sub")
         if not email:
+            print(f"[DEBUG] No email found in token")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid reset token")
 
+        print(f"[DEBUG] Password reset token valid for email: {email}")
         return email
-    except JWTError:
+    except JWTError as e:
+        print(f"[ERROR] JWT verification failed: {str(e)}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reset link has expired or is invalid")
 
+def create_email_change_token(user_id: int, new_email: str, expires_minutes: int = EMAIL_CHANGE_TOKEN_EXPIRE_MINUTES) -> str:
+    """Create JWT token for email change verification"""
+    to_encode = {
+        "user_id": user_id,
+        "new_email": new_email,
+        "type": "email_change"
+    }
+    expire = datetime.utcnow() + timedelta(minutes=expires_minutes)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def verify_email_change_token(token: str) -> tuple:
+    """Verify email change token and return (user_id, new_email)"""
+    try:
+        print(f"[DEBUG] Verifying email change token")
+        print(f"[DEBUG] Token length: {len(token)}")
+        print(f"[DEBUG] SECRET_KEY: {SECRET_KEY[:10]}... (truncated)")
+        
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        print(f"[DEBUG] Token decoded successfully: {payload}")
+        
+        if payload.get("type") != "email_change":
+            print(f"[DEBUG] Invalid token type: {payload.get('type')}")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid verification token")
+
+        user_id = payload.get("user_id")
+        new_email = payload.get("new_email")
+        
+        print(f"[DEBUG] Extracted user_id: {user_id}, new_email: {new_email}")
+        
+        if not user_id or not new_email:
+            print(f"[DEBUG] Missing user_id or new_email in token")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid verification token")
+
+        return user_id, new_email
+    except JWTError as e:
+        print(f"[ERROR] JWT verification failed: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification link has expired or is invalid")
+
 def build_password_reset_link(token: str) -> str:
-    base_url = FRONTEND_RESET_URL.rstrip('/')
+    """Build password reset link using environment-aware frontend URL"""
+    environment = os.environ.get("ENVIRONMENT", "production")
+    if environment == "development":
+        base_url = os.environ.get("FRONTEND_LOCAL_URL", "http://localhost:5173")
+    else:
+        base_url = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+    
+    # Remove trailing slash
+    base_url = base_url.rstrip('/')
+    
+    # Check if we need to use existing query params
     if '?' in base_url:
-        # Assume consumer provided query placeholder
         return f"{base_url}&token={token}"
-    return f"{base_url}?token={token}"
+    return f"{base_url}/reset-password?token={token}"
 
 def send_password_reset_email(to_email: str, reset_link: str):
     msg = EmailMessage()

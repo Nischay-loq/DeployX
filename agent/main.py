@@ -14,7 +14,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agent.core.connection import ConnectionManager
 from agent.core.shell_manager import ShellManager
-from agent.core.snapshot_manager import SnapshotManager
 from agent.core.command_executor import CommandExecutor
 from agent.handlers.socket_handlers import SocketEventHandler
 from agent.network.service_advertiser import ServiceAdvertiser
@@ -97,7 +96,7 @@ async def main():
     parser = argparse.ArgumentParser(description="DeployX Remote Command Execution Agent")
     parser.add_argument(
         "--server", 
-        default="http://localhost:8000",
+        default="https://deployx-server.onrender.com",
         help="Backend server URL"
     )
     parser.add_argument(
@@ -109,34 +108,14 @@ async def main():
         action="store_true",
         help="Advertise agent on local network"
     )
-    parser.add_argument(
-        "--snapshot-cleanup-interval",
-        type=int,
-        default=1,
-        help="Snapshot cleanup interval in hours (default: 1)"
-    )
-    parser.add_argument(
-        "--snapshot-max-age",
-        type=int,
-        default=24,
-        help="Maximum age of snapshots in hours (default: 24)"
-    )
     
     args = parser.parse_args()
     
     # Initialize core components
     shell_manager = ShellManager()
-    snapshot_manager = SnapshotManager()
     connection = ConnectionManager(args.server, args.agent_id)
-    command_executor = CommandExecutor(shell_manager, snapshot_manager, connection)
+    command_executor = CommandExecutor(shell_manager, connection)
     socket_handler = SocketEventHandler(shell_manager, connection, command_executor)
-    
-    # Start snapshot cleanup task
-    await snapshot_manager.start_cleanup_task(
-        interval_hours=args.snapshot_cleanup_interval,
-        max_age_hours=args.snapshot_max_age
-    )
-    logger.info(f"Snapshot cleanup: interval={args.snapshot_cleanup_interval}h, max_age={args.snapshot_max_age}h")
     
     running = asyncio.Event()
     running.set()
@@ -212,7 +191,6 @@ async def main():
         logger.error(f"Agent error: {e}")
     finally:
         logger.info("Cleaning up...")
-        await snapshot_manager.stop_cleanup_task()
         await connection.disconnect()
         if advertiser:
             advertiser.stop_advertising()
