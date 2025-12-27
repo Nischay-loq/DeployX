@@ -53,12 +53,14 @@ from app.command_deployment.routes import router as deployment_router
 from app.dashboard.routes import router as dashboard_router
 from app.schedule.routes import router as schedule_router
 from app.logs.routes import router as logs_router
+from app.activation.routes import router as activation_router
 from app.command_deployment.executor import command_executor
 from app.grouping import models as grouping_models  # Import grouping models
 from app.Deployments import models as deployment_models  # Import deployment models
 from app.software import models as software_models  # Import software models
 from app.files import models as file_models  # Import file models
 from app.schedule import models as schedule_models  # Import schedule models
+from app.activation import models as activation_models  # Import activation models
 from app.auth.database import get_db
 from app.agents import crud as agent_crud, schemas as agent_schemas
 from app.agents import schemas as agent_schemas, crud as agent_crud
@@ -115,6 +117,7 @@ app.include_router(files_router)
 app.include_router(dashboard_router)
 app.include_router(schedule_router)
 app.include_router(logs_router)
+app.include_router(activation_router)
 
 # Health check endpoint
 @app.get("/health")

@@ -62,6 +62,7 @@ import UsernameModal from '../components/UsernameModal.jsx';
 import PasswordModal from '../components/PasswordModal.jsx';
 import EmailModal from '../components/EmailModal.jsx';
 import DeleteAccountModal from '../components/DeleteAccountModal.jsx';
+import ActivationKeysManager from '../components/ActivationKeysManager.jsx';
 import groupsService from '../services/groups.js';
 
 export default function Dashboard({ onLogout }) {
@@ -289,6 +290,7 @@ export default function Dashboard({ onLogout }) {
     { id: 'files', name: 'File System', color: 'text-green-400', icon: FolderOpen },
     { id: 'logs', name: 'System Logs', color: 'text-yellow-400', icon: FileText },
     { id: 'schedules', name: 'Manage Schedules', color: 'text-indigo-400', icon: Calendar },
+    { id: 'activation', name: 'Activation Keys', color: 'text-pink-400', icon: Lock },
   ];
 
   // Click outside handler for profile dropdown and notification panel
@@ -3355,6 +3357,10 @@ export default function Dashboard({ onLogout }) {
               showSuccess={showSuccess}
               socket={socketRef.current}
             />
+          )}
+
+          {activeSection === 'activation' && (
+            <ActivationKeysManager />
           )}
 
           {activeSection === 'groups' && (

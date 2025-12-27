@@ -15,10 +15,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agent.core.connection import ConnectionManager
 from agent.core.shell_manager import ShellManager
 from agent.core.command_executor import CommandExecutor
+from agent.core.activation import ensure_activated, set_pending_activation_key
 from agent.handlers.socket_handlers import SocketEventHandler
 from agent.network.service_advertiser import ServiceAdvertiser
 from agent.network.server_discoverer import ServiceDiscoverer
-from agent.utils.machine_id import generate_agent_id
+from agent.utils.machine_id import generate_agent_id, get_system_info
 
 logging.basicConfig(
     level=logging.INFO,
@@ -96,7 +97,7 @@ async def main():
     parser = argparse.ArgumentParser(description="DeployX Remote Command Execution Agent")
     parser.add_argument(
         "--server", 
-        default="https://deployx-server.onrender.com",
+        default="http://localhost:8000",
         help="Backend server URL"
     )
     parser.add_argument(
@@ -108,12 +109,54 @@ async def main():
         action="store_true",
         help="Advertise agent on local network"
     )
+    parser.add_argument(
+        "--activation-key",
+        help="Activation key for the agent (can also be set via DEPLOYX_ACTIVATION_KEY env var)"
+    )
+    parser.add_argument(
+        "--set-activation-key",
+        help="Set a pending activation key for service mode and exit"
+    )
     
     args = parser.parse_args()
     
+    # Handle setting activation key for service mode
+    if args.set_activation_key:
+        if set_pending_activation_key(args.set_activation_key):
+            logger.info("Activation key set successfully. Start the agent service to activate.")
+            return
+        else:
+            logger.error("Failed to set activation key")
+            sys.exit(1)
+    
+    # Get system info for activation check
+    system_info = get_system_info()
+    machine_id = system_info.get('machine_id')
+    agent_id = args.agent_id if args.agent_id else generate_agent_id()
+    
+    # Check activation before proceeding
+    logger.info("Checking agent activation status...")
+    is_activated, activation_message = await ensure_activated(
+        server_url=args.server,
+        agent_id=agent_id,
+        machine_id=machine_id,
+        activation_key=args.activation_key
+    )
+    
+    if not is_activated:
+        logger.error(f"Agent is not activated: {activation_message}")
+        logger.error("To activate the agent, use one of these methods:")
+        logger.error("  1. Run with --activation-key YOUR-ACTIVATION-KEY")
+        logger.error("  2. Set environment variable: DEPLOYX_ACTIVATION_KEY=YOUR-ACTIVATION-KEY")
+        logger.error("  3. For service mode, run: agent --set-activation-key YOUR-ACTIVATION-KEY")
+        logger.error("Get an activation key from the DeployX dashboard.")
+        sys.exit(1)
+    
+    logger.info(f"Activation status: {activation_message}")
+    
     # Initialize core components
     shell_manager = ShellManager()
-    connection = ConnectionManager(args.server, args.agent_id)
+    connection = ConnectionManager(args.server, agent_id)
     command_executor = CommandExecutor(shell_manager, connection)
     socket_handler = SocketEventHandler(shell_manager, connection, command_executor)
     
