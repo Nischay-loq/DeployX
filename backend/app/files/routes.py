@@ -20,6 +20,7 @@ from app.files.models import UploadedFile, FileDeployment
 from app.Devices.crud import get_device, get_devices_by_ids
 from app.grouping.crud import get_group, get_devices_in_groups
 from app.grouping.models import Device
+from app.grouping.service import resolve_target_device_ids
 
 # Import Socket.IO components at module level to avoid circular imports
 sio = None
@@ -226,8 +227,8 @@ async def upload_files(
                 if file_obj and os.path.exists(file_obj.file_path):
                     os.remove(file_obj.file_path)
                     crud.delete_uploaded_file(db, file_info["id"], current_user.id)
-            except:
-                pass
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to clean up file {file_info['id']} after upload error: {cleanup_error}")
         
         raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
 
@@ -246,29 +247,13 @@ async def deploy_files(
             raise HTTPException(status_code=404, detail=f"File with ID {file_id} not found")
         files.append(file_obj)
     
-    target_device_ids = set(deployment_request.device_ids)
-    
-    # Add devices from selected groups (only user's own groups)
-    if deployment_request.group_ids:
-        logger.info(f"Processing group_ids: {deployment_request.group_ids} for user {current_user.id}")
-        # First verify that all group_ids belong to the current user
-        from app.grouping.models import DeviceGroup, DeviceGroupMap
-        
-        user_group_ids = db.query(DeviceGroup.id).filter(
-            DeviceGroup.id.in_(deployment_request.group_ids),
-            DeviceGroup.user_id == current_user.id
-        ).all()
-        user_group_ids = [g[0] for g in user_group_ids]
-        logger.info(f"Found {len(user_group_ids)} groups belonging to user: {user_group_ids}")
-        
-        if user_group_ids:
-            group_device_ids = db.query(DeviceGroupMap.device_id).filter(
-                DeviceGroupMap.group_id.in_(user_group_ids)
-            ).all()
-            group_device_ids = [d[0] for d in group_device_ids]
-            logger.info(f"Found {len(group_device_ids)} devices in groups: {group_device_ids}")
-            target_device_ids.update(group_device_ids)
-    
+    target_device_ids = resolve_target_device_ids(
+        db,
+        user_id=current_user.id,
+        device_ids=deployment_request.device_ids,
+        group_ids=deployment_request.group_ids,
+    )
+
     logger.info(f"Total target devices for file deployment: {len(target_device_ids)} - IDs: {list(target_device_ids)}")
     
     if not target_device_ids:
@@ -315,14 +300,14 @@ async def process_file_deployment_async(deployment_id: int, file_ids: List[int],
             try:
                 # Mark deployment as failed on critical error
                 crud.update_deployment_status(db, deployment_id, "failed", completed_at=datetime.utcnow())
-            except:
-                pass
+            except Exception as status_error:
+                logger.error(f"Failed to mark file deployment {deployment_id} as failed: {status_error}")
     finally:
         if db:
             try:
                 db.close()
-            except:
-                pass
+            except Exception as close_error:
+                logger.warning(f"Failed to close DB session after file deployment {deployment_id}: {close_error}")
 
 async def process_file_deployment(deployment_id: int, files: List[UploadedFile], 
                                 devices: List, deployment_request: schemas.FileDeploymentRequest, db: Session):
@@ -500,8 +485,8 @@ async def update_deployment_final_status_async(deployment_id: int, check_delay: 
         if db:
             try:
                 db.close()
-            except:
-                pass
+            except Exception as close_error:
+                logger.warning(f"Failed to close DB session after final status update for deployment {deployment_id}: {close_error}")
 
 async def update_deployment_final_status(deployment_id: int, db: Session, check_delay: int = 3):
     """Check deployment results and update final status after delay"""
@@ -571,8 +556,8 @@ async def update_deployment_final_status(deployment_id: int, db: Session, check_
         try:
             crud.update_deployment_status(db, deployment_id, "failed", completed_at=datetime.utcnow())
             db.commit()
-        except:
-            pass
+        except Exception as status_error:
+            logger.error(f"Failed to mark file deployment {deployment_id} as failed: {status_error}")
 
 @router.get("/deployments/{deployment_id}/progress", response_model=schemas.FileDeploymentProgress)
 async def get_deployment_progress(

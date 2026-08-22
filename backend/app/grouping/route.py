@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+﻿from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import datetime, timedelta
@@ -10,6 +10,7 @@ from . import crud
 from . import models
 from . import schemas
 from .command_executor import group_command_executor
+from .service import get_owned_group
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +42,8 @@ def list_groups(
     force_refresh: bool = False
 ):
     if not force_refresh and _is_groups_cache_valid():
-        print("Returning cached groups data")
         return _groups_cache["data"]
-    
-    print("Fetching fresh groups data from database")
+
     groups_data = crud.get_groups(db, current_user.id)
     
     _update_groups_cache(groups_data)
@@ -93,12 +92,7 @@ def update_group(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    db_group = db.query(models.DeviceGroup).filter(
-        models.DeviceGroup.id == group_id,
-        models.DeviceGroup.user_id == current_user.id
-    ).first()
-    if not db_group:
-        raise HTTPException(status_code=404, detail="Group not found")
+    db_group = get_owned_group(db, group_id, current_user.id)
     
     for key, value in group.dict(exclude_unset=True, exclude={"device_ids"}).items():
         setattr(db_group, key, value)
@@ -233,13 +227,7 @@ async def execute_group_command(
     """
     try:
         # Validate group exists and user has access
-        db_group = db.query(models.DeviceGroup).filter(
-            models.DeviceGroup.id == group_id,
-            models.DeviceGroup.user_id == current_user.id
-        ).first()
-        
-        if not db_group:
-            raise HTTPException(status_code=404, detail="Group not found or access denied")
+        db_group = get_owned_group(db, group_id, current_user.id)
         
         # Validate command
         if not request.command or not request.command.strip():
@@ -321,13 +309,7 @@ async def execute_group_batch_parallel(
     """
     try:
         # Validate group
-        db_group = db.query(models.DeviceGroup).filter(
-            models.DeviceGroup.id == group_id,
-            models.DeviceGroup.user_id == current_user.id
-        ).first()
-        
-        if not db_group:
-            raise HTTPException(status_code=404, detail="Group not found or access denied")
+        db_group = get_owned_group(db, group_id, current_user.id)
         
         # Validate commands
         if not request.commands or len(request.commands) == 0:
@@ -405,13 +387,7 @@ async def execute_group_batch_sequential(
         logger.info(f"Stop on failure: {request.stop_on_failure}")
         
         # Validate group
-        db_group = db.query(models.DeviceGroup).filter(
-            models.DeviceGroup.id == group_id,
-            models.DeviceGroup.user_id == current_user.id
-        ).first()
-        
-        if not db_group:
-            raise HTTPException(status_code=404, detail="Group not found or access denied")
+        db_group = get_owned_group(db, group_id, current_user.id)
         
         # Validate commands
         if not request.commands or len(request.commands) == 0:
@@ -474,13 +450,7 @@ async def get_group_executions(
     """Get all active command executions for a group"""
     try:
         # Validate group access
-        db_group = db.query(models.DeviceGroup).filter(
-            models.DeviceGroup.id == group_id,
-            models.DeviceGroup.user_id == current_user.id
-        ).first()
-        
-        if not db_group:
-            raise HTTPException(status_code=404, detail="Group not found or access denied")
+        db_group = get_owned_group(db, group_id, current_user.id)
         
         # Get all executions
         all_executions = group_command_executor.get_all_active_executions()
@@ -511,13 +481,7 @@ async def get_execution_status(
     """Get status of a specific execution"""
     try:
         # Validate group access
-        db_group = db.query(models.DeviceGroup).filter(
-            models.DeviceGroup.id == group_id,
-            models.DeviceGroup.user_id == current_user.id
-        ).first()
-        
-        if not db_group:
-            raise HTTPException(status_code=404, detail="Group not found or access denied")
+        db_group = get_owned_group(db, group_id, current_user.id)
         
         execution_status = group_command_executor.get_execution_status(execution_id)
         
@@ -546,13 +510,7 @@ async def get_group_batches(
     """Get all active batch executions for a group"""
     try:
         # Validate group access
-        db_group = db.query(models.DeviceGroup).filter(
-            models.DeviceGroup.id == group_id,
-            models.DeviceGroup.user_id == current_user.id
-        ).first()
-        
-        if not db_group:
-            raise HTTPException(status_code=404, detail="Group not found or access denied")
+        db_group = get_owned_group(db, group_id, current_user.id)
         
         # Get all batches
         all_batches = group_command_executor.get_all_active_batches()
@@ -583,13 +541,7 @@ async def get_batch_status(
     """Get status of a specific batch execution"""
     try:
         # Validate group access
-        db_group = db.query(models.DeviceGroup).filter(
-            models.DeviceGroup.id == group_id,
-            models.DeviceGroup.user_id == current_user.id
-        ).first()
-        
-        if not db_group:
-            raise HTTPException(status_code=404, detail="Group not found or access denied")
+        db_group = get_owned_group(db, group_id, current_user.id)
         
         batch_status = group_command_executor.get_batch_status(batch_id)
         
@@ -619,13 +571,7 @@ async def cleanup_execution(
     """Clean up a completed execution"""
     try:
         # Validate group access
-        db_group = db.query(models.DeviceGroup).filter(
-            models.DeviceGroup.id == group_id,
-            models.DeviceGroup.user_id == current_user.id
-        ).first()
-        
-        if not db_group:
-            raise HTTPException(status_code=404, detail="Group not found or access denied")
+        db_group = get_owned_group(db, group_id, current_user.id)
         
         success = group_command_executor.cleanup_completed_execution(execution_id)
         
@@ -651,13 +597,7 @@ async def cleanup_batch(
     """Clean up a completed batch"""
     try:
         # Validate group access
-        db_group = db.query(models.DeviceGroup).filter(
-            models.DeviceGroup.id == group_id,
-            models.DeviceGroup.user_id == current_user.id
-        ).first()
-        
-        if not db_group:
-            raise HTTPException(status_code=404, detail="Group not found or access denied")
+        db_group = get_owned_group(db, group_id, current_user.id)
         
         success = group_command_executor.cleanup_completed_batch(batch_id)
         

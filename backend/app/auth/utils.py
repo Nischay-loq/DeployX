@@ -3,12 +3,15 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 import os
 import random
+import logging
 import smtplib
 from email.message import EmailMessage
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from .database import get_db, User
+
+logger = logging.getLogger(__name__)
 
 # Get JWT secret from environment variable
 SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "your-secret-key-here")
@@ -18,6 +21,12 @@ REFRESH_TOKEN_EXPIRE_DAYS = 30  # 30 days
 RESET_TOKEN_EXPIRE_MINUTES = int(os.environ.get("PASSWORD_RESET_TOKEN_MINUTES", "30"))
 EMAIL_CHANGE_TOKEN_EXPIRE_MINUTES = 30  # 30 minutes for email change verification
 FRONTEND_RESET_URL = os.environ.get("FRONTEND_RESET_URL", "http://localhost:5173/reset-password")
+
+# SMTP configuration (set SMTP_EMAIL / SMTP_PASSWORD in the environment)
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "465"))
+SMTP_EMAIL = os.environ.get("SMTP_EMAIL", "")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
@@ -57,34 +66,40 @@ def create_refresh_token(data: dict, expires_delta: timedelta = None):
 def generate_otp():
     return str(random.randint(100000, 999999))
 
-def send_otp_email(to_email: str, otp: str):
+def _build_message(to_email: str, subject: str, body: str, html: bool = False) -> EmailMessage:
     msg = EmailMessage()
-    msg.set_content(f"Your OTP for signup is: {otp}")
-    msg["Subject"] = "Verify your Email"
-    msg["From"] = "parthshikhare21@gmail.com"
+    msg.set_content(body, subtype='html' if html else 'plain')
+    msg["Subject"] = subject
+    msg["From"] = SMTP_EMAIL
     msg["To"] = to_email
+    return msg
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-        smtp.login("parthshikhare21@gmail.com", "hjav tipn ucog mmyy")
-        smtp.send_message(msg)
+def send_email_message(msg: EmailMessage) -> bool:
+    """Send an EmailMessage via the configured SMTP server. Returns success."""
+    if not SMTP_EMAIL or not SMTP_PASSWORD:
+        logger.error("SMTP_EMAIL/SMTP_PASSWORD not configured - cannot send email")
+        return False
+    try:
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as smtp:
+            smtp.login(SMTP_EMAIL, SMTP_PASSWORD)
+            smtp.send_message(msg)
+        logger.info(f"Email sent successfully to {msg['To']}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send email to {msg['To']}: {e}")
+        return False
+
+def send_otp_email(to_email: str, otp: str):
+    """Send a signup OTP email."""
+    return send_email_message(_build_message(
+        to_email,
+        "Verify your Email",
+        f"Your OTP for signup is: {otp}"
+    ))
 
 def send_email(to_email: str, subject: str, html_content: str):
-    """Generic email sending function"""
-    msg = EmailMessage()
-    msg.set_content(html_content, subtype='html')
-    msg["Subject"] = subject
-    msg["From"] = "parthshikhare21@gmail.com"
-    msg["To"] = to_email
-
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-            smtp.login("parthshikhare21@gmail.com", "hjav tipn ucog mmyy")
-            smtp.send_message(msg)
-        print(f"Email sent successfully to {to_email}")
-    except Exception as e:
-        print(f"Failed to send email to {to_email}: {e}")
-        # For development, continue without failing
-        pass
+    """Generic HTML email sending function"""
+    return send_email_message(_build_message(to_email, subject, html_content, html=True))
 
 def create_password_reset_token(email: str, expires_minutes: int = RESET_TOKEN_EXPIRE_MINUTES) -> str:
     to_encode = {
@@ -97,26 +112,18 @@ def create_password_reset_token(email: str, expires_minutes: int = RESET_TOKEN_E
 
 def verify_password_reset_token(token: str) -> str:
     try:
-        print(f"[DEBUG] Verifying password reset token")
-        print(f"[DEBUG] Token length: {len(token)}")
-        print(f"[DEBUG] SECRET_KEY: {SECRET_KEY[:10]}... (truncated)")
-        
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        print(f"[DEBUG] Token decoded successfully: {payload}")
         
         if payload.get("type") != "password_reset":
-            print(f"[DEBUG] Invalid token type: {payload.get('type')}")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid reset token")
 
         email = payload.get("sub")
         if not email:
-            print(f"[DEBUG] No email found in token")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid reset token")
 
-        print(f"[DEBUG] Password reset token valid for email: {email}")
         return email
     except JWTError as e:
-        print(f"[ERROR] JWT verification failed: {str(e)}")
+        logger.warning(f"Password reset token verification failed: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reset link has expired or is invalid")
 
 def create_email_change_token(user_id: int, new_email: str, expires_minutes: int = EMAIL_CHANGE_TOKEN_EXPIRE_MINUTES) -> str:
@@ -133,29 +140,20 @@ def create_email_change_token(user_id: int, new_email: str, expires_minutes: int
 def verify_email_change_token(token: str) -> tuple:
     """Verify email change token and return (user_id, new_email)"""
     try:
-        print(f"[DEBUG] Verifying email change token")
-        print(f"[DEBUG] Token length: {len(token)}")
-        print(f"[DEBUG] SECRET_KEY: {SECRET_KEY[:10]}... (truncated)")
-        
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        print(f"[DEBUG] Token decoded successfully: {payload}")
         
         if payload.get("type") != "email_change":
-            print(f"[DEBUG] Invalid token type: {payload.get('type')}")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid verification token")
 
         user_id = payload.get("user_id")
         new_email = payload.get("new_email")
         
-        print(f"[DEBUG] Extracted user_id: {user_id}, new_email: {new_email}")
-        
         if not user_id or not new_email:
-            print(f"[DEBUG] Missing user_id or new_email in token")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid verification token")
 
         return user_id, new_email
     except JWTError as e:
-        print(f"[ERROR] JWT verification failed: {str(e)}")
+        logger.warning(f"Email change token verification failed: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification link has expired or is invalid")
 
 def build_password_reset_link(token: str) -> str:
@@ -175,8 +173,10 @@ def build_password_reset_link(token: str) -> str:
     return f"{base_url}/reset-password?token={token}"
 
 def send_password_reset_email(to_email: str, reset_link: str):
-    msg = EmailMessage()
-    msg.set_content(
+    """Send the password reset email."""
+    return send_email_message(_build_message(
+        to_email,
+        "DeployX Password Reset",
         f"Hello,\n\n"
         f"We received a request to reset the password for your DeployX account. "
         f"If you made this request, click the link below to choose a new password:\n\n"
@@ -184,14 +184,7 @@ def send_password_reset_email(to_email: str, reset_link: str):
         f"This link will expire in {RESET_TOKEN_EXPIRE_MINUTES} minutes. "
         f"If you didn't request a password reset, you can safely ignore this email.\n\n"
         f"— The DeployX Team"
-    )
-    msg["Subject"] = "DeployX Password Reset"
-    msg["From"] = "parthshikhare21@gmail.com"
-    msg["To"] = to_email
-
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-        smtp.login("parthshikhare21@gmail.com", "hjav tipn ucog mmyy")
-        smtp.send_message(msg)
+    ))
 
 def verify_token(token: str, token_type: str = "access", raise_exception: bool = True):
     try:

@@ -20,6 +20,7 @@ from app.schedule.models import (
     ScheduledTask, ScheduledTaskExecution, TaskType, TaskStatus, 
     RecurrenceType, CommandPayload, SoftwareDeploymentPayload, FileDeploymentPayload
 )
+from app.grouping.service import expand_group_device_ids
 
 logger = logging.getLogger(__name__)
 
@@ -378,37 +379,24 @@ class TaskScheduler:
         """Execute a command deployment task"""
         try:
             from app.grouping.command_executor import group_command_executor, GroupCommandStatus
-            from app.grouping.models import Device, DeviceGroup, DeviceGroupMap
-            
-            # Get all target devices
+            from app.grouping.models import Device
+
+            # Get all target devices (explicit devices + members of the task's groups)
+            all_device_ids = set(device_ids or [])
+            all_device_ids.update(expand_group_device_ids(db, list(group_ids or []), user_id=task.created_by))
+
             target_devices = []
-            
-            # Add devices from device_ids
-            if device_ids:
-                devices = db.query(Device).filter(Device.id.in_(device_ids)).all()
-                for device in devices:
-                    target_devices.append({
+            if all_device_ids:
+                devices = db.query(Device).filter(Device.id.in_(all_device_ids)).all()
+                target_devices = [
+                    {
                         'id': device.id,
                         'agent_id': device.agent_id,
                         'device_name': device.device_name
-                    })
-            
-            # Add devices from groups
-            if group_ids:
-                group_device_ids = db.query(DeviceGroupMap.device_id).filter(
-                    DeviceGroupMap.group_id.in_(group_ids)
-                ).all()
-                group_device_ids = [d[0] for d in group_device_ids]
-                
-                if group_device_ids:
-                    devices = db.query(Device).filter(Device.id.in_(group_device_ids)).all()
-                    for device in devices:
-                        if not any(d['id'] == device.id for d in target_devices):
-                            target_devices.append({
-                                'id': device.id,
-                                'agent_id': device.agent_id,
-                                'device_name': device.device_name
-                            })
+                    }
+                    for device in devices
+                ]
+
             
             if not target_devices:
                 raise ValueError("No target devices found")
@@ -525,18 +513,11 @@ class TaskScheduler:
         try:
             from app.Deployments.models import Deployment, DeploymentTarget, Checkpoint
             from app.Deployments.routes import execute_deployment_background
-            from app.grouping.models import DeviceGroupMap
-            import asyncio
-            
-            # Collect all target device IDs
-            target_device_ids = set(device_ids)
-            
-            # Add devices from groups
-            if group_ids:
-                group_device_ids = db.query(DeviceGroupMap.device_id).filter(
-                    DeviceGroupMap.group_id.in_(group_ids)
-                ).all()
-                target_device_ids.update([d[0] for d in group_device_ids])
+            from app.grouping.service import expand_group_device_ids
+
+            # Collect all target device IDs (explicit devices + members of the task's groups)
+            target_device_ids = set(device_ids or [])
+            target_device_ids.update(expand_group_device_ids(db, list(group_ids or []), user_id=task.created_by))
             
             if not target_device_ids:
                 raise ValueError("No target devices found")
@@ -602,18 +583,11 @@ class TaskScheduler:
         try:
             from app.files.models import FileDeployment, UploadedFile
             from app.files.routes import process_file_deployment_async
-            from app.grouping.models import Device, DeviceGroupMap
-            import asyncio
-            
-            # Collect all target device IDs
-            target_device_ids = set(device_ids)
-            
-            # Add devices from groups
-            if group_ids:
-                group_device_ids = db.query(DeviceGroupMap.device_id).filter(
-                    DeviceGroupMap.group_id.in_(group_ids)
-                ).all()
-                target_device_ids.update([d[0] for d in group_device_ids])
+            from app.grouping.service import expand_group_device_ids
+
+            # Collect all target device IDs (explicit devices + members of the task's groups)
+            target_device_ids = set(device_ids or [])
+            target_device_ids.update(expand_group_device_ids(db, list(group_ids or []), user_id=task.created_by))
             
             if not target_device_ids:
                 raise ValueError("No target devices found")

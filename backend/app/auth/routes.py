@@ -1,14 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+﻿from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
+import logging
 import os
 import jwt
 import requests
 from . import schemas, utils
 from .database import get_db, User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -555,7 +558,7 @@ def verify_google_token(token: str):
         }
         
     except Exception as e:
-        print(f"Error verifying Google token: {e}")
+        logger.error(f"Error verifying Google token: {e}")
         return None
 
 @router.get("/me")
@@ -643,7 +646,6 @@ def request_password_change(
     current_user: User = Depends(utils.get_current_user)
 ):
     """Request password change - sends reset link to current email"""
-    print(f"Password change requested for user: {current_user.username} ({current_user.email})")
     try:
         # Generate reset token using JWT (not in-memory storage)
         token = utils.create_password_reset_token(current_user.email)
@@ -659,8 +661,7 @@ def request_password_change(
         frontend_url = frontend_url.rstrip('/')
         reset_link = f"{frontend_url}/reset-password?token={token}"
         
-        try:
-            utils.send_email(
+        email_sent = utils.send_email(
                 to_email=current_user.email,
                 subject="Password Reset Request - DeployX",
                 html_content=f"""
@@ -690,14 +691,13 @@ def request_password_change(
                 </div>
                 """
             )
-        except Exception as e:
-            print(f"Failed to send email: {e}")
-            # For development, we'll continue without sending email
-            pass
+        if not email_sent:
+            logger.warning(f"Password reset email could not be sent to {current_user.email}")
         
         return {
-            "status": "success",
-            "message": f"Password reset link sent to {current_user.email}"
+            "status": "success" if email_sent else "error",
+            "message": f"Password reset link sent to {current_user.email}" if email_sent
+                       else "Failed to send password reset email. Please try again later."
         }
         
     except Exception as e:
@@ -753,7 +753,6 @@ def request_email_change(
     current_user: User = Depends(utils.get_current_user)
 ):
     """Request email change - sends verification to new email"""
-    print(f"Email change requested for user: {current_user.username}, new email: {request.new_email}")
     try:
         # Verify password
         if not utils.verify_password(request.password, current_user.password):
@@ -777,8 +776,6 @@ def request_email_change(
         # Generate verification token using JWT with user_id and new_email
         token = utils.create_email_change_token(current_user.id, request.new_email)
         
-        print(f"Generated email change token for user {current_user.id}")
-        
         # Send verification email - use environment-aware URL
         environment = os.environ.get("ENVIRONMENT", "production")
         if environment == "development":
@@ -790,8 +787,7 @@ def request_email_change(
         frontend_url = frontend_url.rstrip('/')
         verification_link = f"{frontend_url}/verify-email-change?token={token}"
         
-        try:
-            utils.send_email(
+        email_sent = utils.send_email(
                 to_email=request.new_email,
                 subject="Verify your new email address - DeployX",
                 html_content=f"""
@@ -822,14 +818,13 @@ def request_email_change(
                 </div>
                 """
             )
-        except Exception as e:
-            print(f"Failed to send email: {e}")
-            # For development, we'll continue without sending email
-            pass
+        if not email_sent:
+            logger.warning(f"Email change verification could not be sent to {request.new_email}")
         
         return {
-            "status": "success",
-            "message": f"Verification email sent to {request.new_email}. Please check your inbox.",
+            "status": "success" if email_sent else "error",
+            "message": f"Verification email sent to {request.new_email}. Please check your inbox." if email_sent
+                       else "Failed to send verification email. Please try again later.",
             "verification_token": token  # For development only
         }
         
@@ -848,9 +843,9 @@ def verify_email_change(
 ):
     """Verify email change using token from email"""
     try:
-        print(f"Verifying email change with token: {request.token}")
+        logger.info("Verifying email change with token")
         
-        # Verify token and extract user_id and new_email
+                # Verify token and extract user_id and new_email
         user_id, new_email = utils.verify_email_change_token(request.token)
         
         # Get user
@@ -879,7 +874,7 @@ def verify_email_change(
         db.commit()
         db.refresh(user)
         
-        print(f"Email updated successfully for user {user_id}: {old_email} -> {new_email}")
+        logger.info(f"Email updated successfully for user {user_id}: {old_email} -> {new_email}")
         
         return {
             "status": "success",
@@ -892,7 +887,7 @@ def verify_email_change(
         raise
     except Exception as e:
         db.rollback()
-        print(f"Error verifying email change: {str(e)}")
+        logger.error(f"Error verifying email change: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to verify email change: {str(e)}"
@@ -932,8 +927,7 @@ def delete_account(
     current_user: User = Depends(utils.get_current_user)
 ):
     """Delete user account (works for both regular and Google OAuth users)"""
-    print(f"Account deletion requested for user: {current_user.username} ({current_user.email})")
-    print(f"Request data: password={'***' if request.password else None}, confirmation='{request.confirmation_text}'")
+    logger.info(f"Account deletion requested for user: {current_user.username} ({current_user.email})")
     
     try:
         # Validate confirmation text
@@ -970,14 +964,14 @@ def delete_account(
             # For example: user's devices, deployments, etc.
             pass
         except Exception as cleanup_error:
-            print(f"Warning: Error during cleanup: {cleanup_error}")
+            logger.warning(f"Error during cleanup: {cleanup_error}")
             # Continue with user deletion even if cleanup fails partially
         
         # Delete the user account
         db.delete(current_user)
         db.commit()
         
-        print(f"Account deleted successfully: {deleted_username} ({deleted_email})")
+        logger.info(f"Account deleted successfully: {deleted_username} ({deleted_email})")
         
         return {
             "status": "success",
@@ -989,10 +983,10 @@ def delete_account(
         }
         
     except HTTPException as he:
-        print(f"HTTP Exception during account deletion: {he.detail}")
+        logger.warning(f"HTTP Exception during account deletion: {he.detail}")
         raise
     except Exception as e:
-        print(f"Unexpected error during account deletion: {str(e)}")
+        logger.exception("Unexpected error during account deletion")
         db.rollback()
         raise HTTPException(
             status_code=500,

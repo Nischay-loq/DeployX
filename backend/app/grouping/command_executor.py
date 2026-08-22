@@ -9,6 +9,8 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 from enum import Enum
 
+from app.common.socket_base import SocketExecutorBase
+
 logger = logging.getLogger(__name__)
 
 # Import command queue for tracking group commands
@@ -192,20 +194,17 @@ class GroupBatchExecution:
         }
 
 
-class GroupCommandExecutor:
+class GroupCommandExecutor(SocketExecutorBase):
     """Handles execution of commands on device groups"""
     
     def __init__(self):
-        self.sio = None
-        self.conn_manager = None
+        super().__init__()
         self.active_executions: Dict[str, GroupCommandExecution] = {}  # keyed by execution_id
         self.active_batches: Dict[str, GroupBatchExecution] = {}  # keyed by batch_id
-        self.execution_locks: Dict[str, asyncio.Lock] = {}
     
     def set_socketio(self, sio, conn_manager):
         """Set the socket.io instance and connection manager"""
-        self.sio = sio
-        self.conn_manager = conn_manager
+        super().set_socketio(sio, conn_manager)
         logger.info("Group command executor initialized with Socket.IO")
     
     async def execute_group_command(self, group_id: int, group_name: str, 
@@ -228,7 +227,7 @@ class GroupCommandExecutor:
         if not devices:
             raise ValueError("No devices in group")
         
-        if not self.sio or not self.conn_manager:
+        if not self.is_ready():
             raise RuntimeError("Socket.IO not initialized")
         
         # Create execution tracker
@@ -277,11 +276,9 @@ class GroupCommandExecutor:
         """Execute command on a single device within a group execution"""
         try:
             # Check if agent is connected
-            agent_sid = self.conn_manager.get_agent_sid(agent_id)
+            agent_sid = self.get_agent_sid(agent_id)
             if not agent_sid:
-                # Log available agents for debugging
-                available_agents = self.conn_manager.get_agent_list()
-                logger.error(f"Agent {agent_id} not connected. Available agents: {available_agents}")
+                self.log_unavailable_agent(agent_id)
                 execution.update_device_status(
                     agent_id, 
                     GroupCommandStatus.FAILED,
@@ -309,7 +306,7 @@ class GroupCommandExecutor:
                         command_queue.update_command_status(
                             queue_cmd_id, 
                             CommandStatus.FAILED,
-                            error=f"Agent not connected. Device agent_id: {agent_id}, Connected agents: {available_agents}"
+                            error=f"Agent {agent_id} not connected"
                         )
                     except Exception as e:
                         logger.error(f"Error adding failed command to queue: {e}")
@@ -317,8 +314,7 @@ class GroupCommandExecutor:
                 return
             
             # Check if agent is responsive
-            if hasattr(self.conn_manager, 'is_agent_connected') and \
-               not self.conn_manager.is_agent_connected(agent_id):
+            if not self.agent_is_connected(agent_id):
                 logger.error(f"Agent {agent_id} is unresponsive")
                 execution.update_device_status(
                     agent_id,

@@ -7,6 +7,9 @@ from app.grouping.models import Device
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DeviceCreate(BaseModel):
     device_name: str
@@ -73,14 +76,10 @@ def get_devices(
     from app.main import conn_manager
     
     if not force_refresh and _is_cache_valid():
-        print("Returning cached devices data")
         return _devices_cache["data"]
-    
-    print("Fetching fresh devices data from database")
-    
+
     # Get list of currently connected agents from connection manager
     online_agent_ids = set(conn_manager.get_agent_list())
-    print(f"Currently connected agents: {online_agent_ids}")
     
     try:
         devices = db.query(Device).options(
@@ -124,7 +123,7 @@ def get_devices(
         return result
         
     except Exception as e:
-        print(f"Error in optimized get_devices: {e}")
+        logger.error(f"Error in optimized get_devices: {e}")
         devices = db.query(Device).options(joinedload(Device.group)).all()
         fallback_result = [
             {
@@ -151,50 +150,24 @@ def get_devices(
 def update_device_status(device: DeviceCreate, db: Session = Depends(get_db)):
     """Update or create device with status and connection info"""
     try:
-        print(f"=== RECEIVED DEVICE UPDATE: {device.dict()} ===")
-        
         existing = db.query(Device).filter(Device.mac_address == device.mac_address).first()
-        
+
         if existing:
-            print(f"=== UPDATING EXISTING DEVICE ID: {existing.id} ===")
-            old_status = existing.status
-            
             # Update existing device
             for key, value in device.dict().items():
                 if value is not None:  # Only update non-None values
                     setattr(existing, key, value)
             existing.last_seen = datetime.utcnow()
-            
-            print(f"=== STATUS CHANGE: {old_status} -> {device.status} ===")
-            
-            # Commit the device update first
+
             db.commit()
             db.refresh(existing)
-            
-            # Then handle cascade effects (but don't let them break the main update)
-            try:
-                if old_status != device.status:
-                    if device.status == "offline":
-                        print("=== CALLING handle_device_offline ===")
-                        handle_device_offline(existing, db)
-                    elif device.status == "online":
-                        print("=== CALLING handle_device_online ===")
-                        handle_device_online(existing, db)
-            except Exception as cascade_error:
-                print(f"=== CASCADE ERROR (non-critical): {cascade_error} ===")
-                # Don't let cascade errors break the main update
-            
-            print(f"=== DEVICE UPDATED SUCCESSFULLY ===")
             return existing
         else:
-            print("=== CREATING NEW DEVICE ===")
-            # Handle None values in device creation
             device_data = device.dict()
             # Convert last_seen to datetime if it's a string
             last_seen_value = device_data.get("last_seen")
             if last_seen_value:
                 try:
-                    # Try to parse ISO string to datetime
                     last_seen_dt = datetime.fromisoformat(last_seen_value)
                 except Exception:
                     last_seen_dt = datetime.utcnow()
@@ -203,36 +176,9 @@ def update_device_status(device: DeviceCreate, db: Session = Depends(get_db)):
             db.add(db_device)
             db.commit()
             db.refresh(db_device)
-            print(f"=== NEW DEVICE CREATED SUCCESSFULLY ===")
             return db_device
-            
+
     except Exception as e:
-        print(f"=== ERROR IN UPDATE_DEVICE_STATUS: {e} ===")
-        print(f"=== ERROR TYPE: {type(e)} ===")
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"Error in update_device_status: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-def handle_device_offline(device: Device, db: Session):
-    """Handle when device goes offline"""
-    try:
-        print(f"Device {device.device_name} went OFFLINE")
-        # Add your cascade logic here - make sure it doesn't cause errors
-        # For now, just log it
-        pass
-    except Exception as e:
-        print(f"Error in handle_device_offline: {e}")
-        # Don't raise the exception
-
-def handle_device_online(device: Device, db: Session):
-    """Handle when device comes online"""
-    try:
-        print(f"Device {device.device_name} came ONLINE")
-        # Add your cascade logic here - make sure it doesn't cause errors
-        # For now, just log it
-        pass
-    except Exception as e:
-        print(f"Error in handle_device_online: {e}")
-        # Don't raise the exception
-        # Just log it

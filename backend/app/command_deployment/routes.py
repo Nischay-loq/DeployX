@@ -416,15 +416,19 @@ async def get_all_canary_status():
 
 @router.post("/canary/{canary_id}/promote")
 async def promote_canary(canary_id: str):
-    """Promote a canary deployment to next percentage."""
+    """Promote a canary deployment to full rollout."""
     try:
         canary_strategy = deployment_strategy.strategies.get("canary")
         if not canary_strategy:
             raise HTTPException(status_code=500, detail="Canary strategy not available")
-        
-        result = canary_strategy.promote_canary(canary_id)
-        return {"message": result}
-    
+
+        success, message = canary_strategy.promote_canary(canary_id)
+        if not success:
+            raise HTTPException(status_code=404, detail=message)
+        return {"message": message}
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error promoting canary {canary_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -864,7 +868,6 @@ def generate_rollback_command(command: str, shell: str = "cmd") -> Optional[str]
             if match:
                 service = match.group(1)
                 return f'systemctl enable {service}'
-                return f'service {service} start'
     
     return None  # Cannot generate rollback for this command
 

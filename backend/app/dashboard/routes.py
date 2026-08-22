@@ -22,18 +22,14 @@ def get_dashboard_stats(
     """Get comprehensive dashboard statistics"""
     try:
         # Device statistics with error handling
-        total_devices = 0
-        online_devices = 0
-        offline_devices = 0
         try:
             total_devices = db.query(Device).count()
             online_devices = db.query(Device).filter(Device.status == "online").count()
             offline_devices = total_devices - online_devices
         except Exception as device_error:
             logger.warning(f"Could not query devices: {device_error}")
-            # Use fallback values
-            total_devices = 1
-            online_devices = 1
+            total_devices = 0
+            online_devices = 0
             offline_devices = 0
         
         # Group statistics
@@ -134,7 +130,8 @@ def get_dashboard_stats(
             import psutil
             cpu_usage = psutil.cpu_percent(interval=0.1)
             memory_usage = psutil.virtual_memory().percent
-        except:
+        except Exception as e:
+            logger.warning(f"Could not read system metrics: {e}")
             cpu_usage = 0
             memory_usage = 0
         
@@ -334,17 +331,8 @@ def get_recent_activity(
                 })
         except Exception as group_error:
             logger.warning(f"Could not query device groups: {group_error}")
-        
-        # 3. Get recent file operations (if file upload history exists)
-        try:
-            # Check if there's a file upload history or similar
-            # This would depend on your file management implementation
-            pass
-        except Exception as file_error:
-            logger.warning(f"Could not query file operations: {file_error}")
-        
-        # 4. Get recent device connections/disconnections from current session
-        # This would come from socket events or device status changes
+
+        # Get recent device connections/disconnections from current session
         try:
             # Rollback any pending transaction to avoid InFailedSqlTransaction error
             db.rollback()

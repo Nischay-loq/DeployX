@@ -5,24 +5,25 @@ import asyncio
 import logging
 from typing import Optional, Dict
 from .queue import command_queue, CommandStatus
-import uuid
+from app.common.socket_base import SocketExecutorBase
 
 logger = logging.getLogger(__name__)
 
-class CommandExecutor:
+class CommandExecutor(SocketExecutorBase):
     """Handles execution of commands through socket.io communication with agents."""
     
     def __init__(self):
-        self.sio = None  # Will be set by the main app
-        self.conn_manager = None  # Will be set by the main app
+        super().__init__()
         self.pending_commands: Dict[str, str] = {}  # Maps command execution ID to command queue ID
         self.command_timeouts: Dict[str, asyncio.Task] = {}  # Track timeout tasks
         self.execution_locks: Dict[str, asyncio.Lock] = {}  # Prevent race conditions
-    
-    def set_socketio(self, sio, conn_manager):
-        """Set the socket.io instance and connection manager."""
-        self.sio = sio
-        self.conn_manager = conn_manager
+        self.completion_events: Dict[str, asyncio.Event] = {}  # Wait handles for batch execution
+
+    def register_completion_event(self, cmd_id: str) -> asyncio.Event:
+        """Register an event that fires when the given command completes."""
+        event = asyncio.Event()
+        self.completion_events[cmd_id] = event
+        return event
     
     async def execute_command(self, cmd_id: str, timeout: int = 0) -> bool:
         """Execute a command by sending it to the appropriate agent with no timeout (persistent execution)."""
@@ -53,9 +54,10 @@ class CommandExecutor:
                     return False
                 
                 # Validate agent connection more thoroughly
-                agent_sid = self.conn_manager.get_agent_sid(cmd.agent_id)
+                agent_sid = self.get_agent_sid(cmd.agent_id)
                 if not agent_sid:
                     logger.error(f"Agent {cmd.agent_id} not connected - no SID found")
+                    self.log_unavailable_agent(cmd.agent_id)
                     command_queue.update_command_status(
                         cmd_id, 
                         CommandStatus.FAILED, 
@@ -64,7 +66,7 @@ class CommandExecutor:
                     return False
                 
                 # Check if agent is truly connected and responsive
-                if hasattr(self.conn_manager, 'is_agent_connected') and not self.conn_manager.is_agent_connected(cmd.agent_id):
+                if not self.agent_is_connected(cmd.agent_id):
                     logger.error(f"Agent {cmd.agent_id} appears to be unresponsive (no recent heartbeat)")
                     command_queue.update_command_status(
                         cmd_id, 
@@ -148,6 +150,11 @@ class CommandExecutor:
                                        display_command: str = None):
         """Handle command completion notification from agent."""
         try:
+            # Wake up any batch execution waiting on this command
+            event = self.completion_events.pop(cmd_id, None)
+            if event:
+                event.set()
+
             # Cancel timeout if it exists
             if cmd_id in self.command_timeouts:
                 timeout_task = self.command_timeouts[cmd_id]

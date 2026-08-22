@@ -1,4 +1,4 @@
-"""
+﻿"""
 REST API endpoints for task scheduling management
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -21,6 +21,17 @@ from app.schedule.scheduler import task_scheduler
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/schedule", tags=["Scheduling"])
+
+
+def get_owned_task(db: Session, task_id: int, user_id: int) -> ScheduledTask:
+    """Return the scheduled task if owned by the user, else raise 404."""
+    task = db.query(ScheduledTask).filter(
+        ScheduledTask.id == task_id,
+        ScheduledTask.created_by == user_id
+    ).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task
 
 
 @router.post("/tasks", response_model=ScheduledTaskResponse, status_code=201)
@@ -212,13 +223,7 @@ async def get_scheduled_task(
 ):
     """Get details of a specific scheduled task"""
     try:
-        task = db.query(ScheduledTask).filter(
-            ScheduledTask.id == task_id,
-            ScheduledTask.created_by == current_user.id
-        ).first()
-        
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
+        task = get_owned_task(db, task_id, current_user.id)
         
         # Get execution history
         executions = db.query(ScheduledTaskExecution).filter(
@@ -296,13 +301,7 @@ async def update_scheduled_task(
 ):
     """Update a scheduled task"""
     try:
-        task = db.query(ScheduledTask).filter(
-            ScheduledTask.id == task_id,
-            ScheduledTask.created_by == current_user.id
-        ).first()
-        
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
+        task = get_owned_task(db, task_id, current_user.id)
         
         # Prevent editing completed tasks (but allow failed tasks for retry)
         if task.status == TaskStatus.COMPLETED:
@@ -443,13 +442,7 @@ async def delete_scheduled_task(
 ):
     """Delete a scheduled task"""
     try:
-        task = db.query(ScheduledTask).filter(
-            ScheduledTask.id == task_id,
-            ScheduledTask.created_by == current_user.id
-        ).first()
-        
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
+        task = get_owned_task(db, task_id, current_user.id)
         
         # Cancel from scheduler
         task_scheduler.cancel_task(task_id)
@@ -477,13 +470,7 @@ async def pause_scheduled_task(
 ):
     """Pause a scheduled task"""
     try:
-        task = db.query(ScheduledTask).filter(
-            ScheduledTask.id == task_id,
-            ScheduledTask.created_by == current_user.id
-        ).first()
-        
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
+        task = get_owned_task(db, task_id, current_user.id)
         
         if task.status not in [TaskStatus.PENDING]:
             raise HTTPException(status_code=400, detail="Only pending tasks can be paused")
@@ -513,13 +500,7 @@ async def resume_scheduled_task(
 ):
     """Resume a paused task"""
     try:
-        task = db.query(ScheduledTask).filter(
-            ScheduledTask.id == task_id,
-            ScheduledTask.created_by == current_user.id
-        ).first()
-        
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
+        task = get_owned_task(db, task_id, current_user.id)
         
         if task.status != TaskStatus.PAUSED:
             raise HTTPException(status_code=400, detail="Only paused tasks can be resumed")
@@ -549,13 +530,7 @@ async def execute_task_now(
 ):
     """Execute a task immediately (manual trigger)"""
     try:
-        task = db.query(ScheduledTask).filter(
-            ScheduledTask.id == task_id,
-            ScheduledTask.created_by == current_user.id
-        ).first()
-        
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
+        task = get_owned_task(db, task_id, current_user.id)
         
         if task.status == TaskStatus.RUNNING:
             raise HTTPException(status_code=400, detail="Task is already running")
@@ -584,13 +559,7 @@ async def get_task_executions(
     """Get execution history for a task"""
     try:
         # Verify task belongs to user
-        task = db.query(ScheduledTask).filter(
-            ScheduledTask.id == task_id,
-            ScheduledTask.created_by == current_user.id
-        ).first()
-        
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
+        task = get_owned_task(db, task_id, current_user.id)
         
         # Get executions
         executions = db.query(ScheduledTaskExecution).filter(
