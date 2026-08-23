@@ -55,7 +55,6 @@ class GoogleDriveService {
       });
 
       this.isInitialized = true;
-      console.log('Google Drive API initialized successfully');
     } catch (error) {
       console.error('Failed to initialize Google Drive API:', error);
       throw new Error(`Google Drive API initialization failed: ${error.message}`);
@@ -109,7 +108,6 @@ class GoogleDriveService {
             return;
           }
           this.accessToken = response.access_token;
-          console.log('Google Drive authentication successful');
           resolve(this.accessToken);
         };
 

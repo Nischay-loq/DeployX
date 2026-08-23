@@ -89,6 +89,7 @@ class BackupManager:
             logger.info(f"Creating backup: {target_path} -> {backup_path}")
             
             # Create zip backup
+            file_count = 1
             with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 if target.is_file():
                     # Backup single file
@@ -96,12 +97,14 @@ class BackupManager:
                     logger.info(f"Backed up file: {target.name}")
                 elif target.is_dir():
                     # Backup entire directory
+                    file_count = 0
                     for root, dirs, files in os.walk(target):
                         for file in files:
                             file_path = Path(root) / file
                             arcname = file_path.relative_to(target.parent)
                             zipf.write(file_path, arcname)
-                    logger.info(f"Backed up directory: {target} ({len(zipf.namelist())} files)")
+                            file_count += 1
+                    logger.info(f"Backed up directory: {target} ({file_count} files)")
             
             # Store metadata
             backup_meta = {
@@ -112,7 +115,7 @@ class BackupManager:
                 'timestamp': timestamp,
                 'created_at': datetime.now().isoformat(),
                 'is_directory': target.is_dir(),
-                'file_count': len(zipfile.ZipFile(backup_path).namelist()) if target.is_dir() else 1,
+                'file_count': file_count,
                 'backup_size': backup_path.stat().st_size,
                 'custom_metadata': metadata or {}
             }
@@ -201,7 +204,6 @@ class BackupManager:
                 
                 # Clean up temporary backup if restore succeeded
                 if temp_backup_path:
-                    temp_backup_id = Path(temp_backup_path).stem.split('_')[0]
                     self.delete_backup(temp_backup_id)
                 
                 logger.info(f"Backup restored successfully: {backup_id}")
@@ -212,7 +214,6 @@ class BackupManager:
                 # If restore failed and we have a temp backup, try to restore it
                 if temp_backup_path:
                     try:
-                        temp_backup_id = Path(temp_backup_path).stem.split('_')[0]
                         self.restore_backup(temp_backup_id, str(restore_target))
                         logger.info("Temporary backup restored after failed restore")
                     except Exception as restore_err:

@@ -181,7 +181,6 @@ export default function SchedulingModal({
     setIsSubmitting(true);
     try {
       const payload = buildSchedulePayload();
-      console.log('SchedulingModal - Sending payload to backend:', payload);
       await onSchedule(payload);
       onClose();
     } catch (err) {

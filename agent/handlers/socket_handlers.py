@@ -976,20 +976,23 @@ class SocketEventHandler:
                     'message': 'Executing custom command...'
                 })
             
-            # Execute command using shell manager
-            success = await self.shell_manager.ensure_shell()
-            
+            # Execute command as an isolated subprocess and capture output
+            proc = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT
+            )
+            try:
+                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=1800)
+                output = stdout.decode(errors='replace') if stdout else ''
+                success = proc.returncode == 0
+            except asyncio.TimeoutError:
+                proc.kill()
+                output = "Command timed out after 1800 seconds"
+                success = False
+
             if not success:
-                raise Exception("Failed to start shell")
-            
-            # Execute the command
-            await self.shell_manager.execute_command(command)
-            
-            # Wait for completion
-            await asyncio.sleep(2)
-            
-            # Get output
-            output = self.shell_manager.get_output()
+                raise Exception(f"Command failed with exit code {proc.returncode}: {output[-500:]}")
             
             # Send completion status
             if self._connection and self._connection.connected:

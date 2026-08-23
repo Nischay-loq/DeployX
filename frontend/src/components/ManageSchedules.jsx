@@ -21,29 +21,8 @@ import {
   Terminal as TerminalIcon,
   Package
 } from 'lucide-react';
-import authService from '../services/auth.js';
-
-// Helper function to get API URL from environment
-const getApiUrl = () => {
-  return import.meta.env.VITE_API_URL || 'http://localhost:8000';
-};
-
-// Helper function to format dates in IST
-const formatDate = (dateString) => {
-  if (!dateString) return 'N/A';
-  const date = new Date(dateString);
-  
-  // Convert to IST (Indian Standard Time - UTC+5:30)
-  return date.toLocaleString('en-IN', {
-    timeZone: 'Asia/Kolkata',
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true
-  });
-};
+import api from '../services/api.js';
+import { formatDate } from '../utils/format.js';
 
 const ManageSchedules = ({
   showAlert = (msg) => alert(msg),
@@ -71,54 +50,28 @@ const ManageSchedules = ({
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
 
-  const getAuthHeaders = () => {
-    const token = authService.getToken() || 
-                   localStorage.getItem('access_token') || 
-                   localStorage.getItem('token') ||
-                   sessionStorage.getItem('access_token') ||
-                   sessionStorage.getItem('token');
-    
-    return {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    };
-  };
-
   const fetchSchedules = useCallback(async () => {
     try {
       setLoading(true);
-      const apiUrl = getApiUrl();
-      
+
       // Build query parameters for pagination and filters
-      const params = new URLSearchParams({
-        skip: ((currentPage - 1) * pageSize).toString(),
-        limit: pageSize.toString()
-      });
-      
+      const params = {
+        skip: (currentPage - 1) * pageSize,
+        limit: pageSize
+      };
+
       // Add status filter if not 'all'
       if (filterStatus !== 'all') {
-        params.append('status', filterStatus);
+        params.status = filterStatus;
       }
-      
+
       // Add type filter if not 'all'
       if (filterType !== 'all') {
-        params.append('task_type', filterType);
-      }
-      
-      const response = await fetch(`${apiUrl}/api/schedule/tasks?${params.toString()}`, {
-        method: 'GET',
-        headers: getAuthHeaders()
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Unauthorized - Please log in again');
-        }
-        throw new Error(`Failed to fetch schedules: ${response.status}`);
+        params.task_type = filterType;
       }
 
-      const data = await response.json();
-      
+      const data = await api.get('/api/schedule/tasks', { params });
+
       // Handle both old format (array) and new format (object with pagination)
       if (Array.isArray(data)) {
         // Old format - no pagination
@@ -143,15 +96,8 @@ const ManageSchedules = ({
 
   const fetchDevices = async () => {
     try {
-      const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/devices/`, {
-        method: 'GET',
-        headers: getAuthHeaders()
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setDevices(data);
-      }
+      const data = await api.get('/devices/');
+      setDevices(data);
     } catch (err) {
       console.error('Error fetching devices:', err);
     }
@@ -159,15 +105,8 @@ const ManageSchedules = ({
 
   const fetchGroups = async () => {
     try {
-      const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/groups/`, {
-        method: 'GET',
-        headers: getAuthHeaders()
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setGroups(data);
-      }
+      const data = await api.get('/groups/');
+      setGroups(data);
     } catch (err) {
       console.error('Error fetching groups:', err);
     }
@@ -188,14 +127,12 @@ const ManageSchedules = ({
 
     // Listen for scheduled task completion
     const handleTaskCompleted = (taskInfo) => {
-      console.log('[ManageSchedules] Scheduled task completed:', taskInfo);
       // Refresh the schedules list to show updated status
       fetchSchedules();
     };
 
     // Listen for scheduled task failure
     const handleTaskFailed = (taskInfo) => {
-      console.log('[ManageSchedules] Scheduled task failed:', taskInfo);
       // Refresh the schedules list to show updated status
       fetchSchedules();
     };
@@ -216,14 +153,7 @@ const ManageSchedules = ({
       'Delete Schedule',
       async () => {
         try {
-          const apiUrl = getApiUrl();
-          const response = await fetch(`${apiUrl}/api/schedule/tasks/${scheduleId}`, {
-            method: 'DELETE',
-            headers: getAuthHeaders()
-          });
-
-          if (!response.ok) throw new Error('Failed to delete schedule');
-
+          await api.delete(`/api/schedule/tasks/${scheduleId}`);
           await fetchSchedules();
         } catch (err) {
           console.error('Error deleting schedule:', err);
@@ -236,16 +166,9 @@ const ManageSchedules = ({
   const handlePauseResume = async (schedule) => {
     try {
       const newStatus = schedule.status === 'paused' ? 'pending' : 'paused';
-      const apiUrl = getApiUrl();
-      const response = await fetch(`${apiUrl}/api/schedule/tasks/${schedule.id}`, {
-        method: 'PUT',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          status: newStatus
-        })
+      await api.put(`/api/schedule/tasks/${schedule.id}`, {
+        status: newStatus
       });
-
-      if (!response.ok) throw new Error('Failed to update schedule');
 
       await fetchSchedules();
     } catch (err) {
@@ -601,7 +524,6 @@ const ManageSchedules = ({
                     {schedule.status === 'failed' && (
                       <button
                         onClick={() => {
-                          console.log('Retry clicked for schedule:', schedule);
                           handleRetrySchedule(schedule);
                         }}
                         className="p-2 hover:bg-gray-700 rounded-lg text-orange-400 hover:text-orange-300 transition-colors border border-orange-500/30"
@@ -907,13 +829,6 @@ const EditScheduleModal = ({
     setSaving(true);
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const token = authService.getToken() || 
-                     localStorage.getItem('access_token') || 
-                     localStorage.getItem('token') ||
-                     sessionStorage.getItem('access_token') ||
-                     sessionStorage.getItem('token');
-
       // Validate scheduled time
       if (!formData.scheduled_time) {
         showAlert('Please select a scheduled time', 'Missing Information', 'warning');
@@ -966,21 +881,8 @@ const EditScheduleModal = ({
         };
       }
 
-      console.log('Sending update:', updateData);
 
-      const response = await fetch(`${apiUrl}/api/schedule/tasks/${schedule.id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(updateData)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `Failed to update schedule: ${response.status}`);
-      }
+      await api.put(`/api/schedule/tasks/${schedule.id}`, updateData);
 
       // Show appropriate success message
       const successMessage = isRetry 

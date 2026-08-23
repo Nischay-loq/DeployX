@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import authService from '../services/auth.js';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import api from '../services/api.js';
 
 const EmailModal = ({ onClose }) => {
   const [newEmail, setNewEmail] = useState('');
@@ -30,26 +29,7 @@ const EmailModal = ({ onClose }) => {
     setMessage('');
     
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/request-email-change`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authService.getToken()}`
-        },
-        body: JSON.stringify({ new_email: newEmail, password: password })
-      });
-
-      if (!response.ok) {
-        let errorMessage = 'Failed to send email verification';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.detail || errorMessage;
-        } catch (e) {
-          // If response is not JSON, use status text
-          errorMessage = response.statusText || errorMessage;
-        }
-        throw new Error(errorMessage);
-      }
+      await api.post('/auth/request-email-change', { new_email: newEmail, password: password });
 
       setMessage('Email verification link sent to your new email address!');
       setMessageType('success');

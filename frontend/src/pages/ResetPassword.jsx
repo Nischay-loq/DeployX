@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Shield, Lock, CheckCircle, AlertTriangle } from "lucide-react";
 import authService from "../services/auth.js";
+import ParticlesBackground from "../components/ParticlesBackground.jsx";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -70,7 +71,7 @@ export default function ResetPassword() {
       await authService.confirmPasswordReset(token, newPassword);
       setStatus("success");
       setMessage("Password reset successfully! Redirecting to login...");
-      setTimeout(() => navigate("/login"), 2500);
+      setTimeout(() => navigate("/"), 2500);
     } catch (error) {
       setStatus("valid");
       setMessage(error.message || "Failed to reset password. Please try again.");
@@ -188,7 +189,7 @@ export default function ResetPassword() {
 
         <div className="text-center mt-6 text-sm text-gray-400">
           Remembered your password?{" "}
-          <Link to="/login" className="text-primary-400 hover:text-primary-300 font-medium">
+          <Link to="/" className="text-primary-400 hover:text-primary-300 font-medium">
             Back to login
           </Link>
         </div>
@@ -198,20 +199,7 @@ export default function ResetPassword() {
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(0,255,247,0.12),transparent_35%),radial-gradient(circle_at_80%_80%,rgba(0,168,255,0.12),transparent_35%)]">
-      <div className="particles-background">
-        {Array.from({ length: 20 }).map((_, i) => (
-          <div
-            key={i}
-            className="absolute w-2 h-2 rounded-full bg-neonAqua blur-[1px] opacity-70"
-            style={{
-              top: `${Math.random() * 100}%`,
-              left: `${Math.random() * 100}%`,
-              animation: `float ${6 + Math.random() * 6}s infinite alternate`,
-            }}
-          />
-        ))}
-      </div>
-      <style>{`@keyframes float{from{transform:translateY(0)}to{transform:translateY(-20px)}}`}</style>
+      <ParticlesBackground />
 
       <div className="absolute inset-0 flex items-center justify-center p-6 form-container">
         <div className="glass-light border-trace rounded-3xl w-full max-w-md p-8">

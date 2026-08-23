@@ -110,12 +110,6 @@ def update_deployment_status(deployment_id: int, db: Session):
         logger.error(f"Error updating deployment status: {e}", exc_info=True)
 
 
-# Add a simple test endpoint without auth
-@router.get("/test")
-def test_endpoint():
-    """Test endpoint without authentication"""
-    return {"message": "Deployments router is working"}
-
 @router.get("", response_model=List[DeploymentListResponse])
 @router.get("/", response_model=List[DeploymentListResponse])
 def get_user_deployments(

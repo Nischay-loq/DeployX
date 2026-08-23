@@ -2,6 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { X, Shield } from "lucide-react";
 import authService from "../services/auth.js";
+import ParticlesBackground from "../components/ParticlesBackground.jsx";
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
@@ -39,20 +40,7 @@ export default function ForgotPassword() {
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(0,255,247,0.12),transparent_35%),radial-gradient(circle_at_80%_80%,rgba(0,168,255,0.12),transparent_35%)]">
-      <div className="particles-background">
-        {Array.from({ length: 20 }).map((_, i) => (
-          <div
-            key={i}
-            className="absolute w-2 h-2 rounded-full bg-neonAqua blur-[1px] opacity-70"
-            style={{
-              top: `${Math.random() * 100}%`,
-              left: `${Math.random() * 100}%`,
-              animation: `float ${6 + Math.random() * 6}s infinite alternate`,
-            }}
-          />
-        ))}
-      </div>
-      <style>{`@keyframes float{from{transform:translateY(0)}to{transform:translateY(-20px)}}`}</style>
+      <ParticlesBackground />
 
       {/* Close Button */}
       <button
@@ -127,7 +115,7 @@ export default function ForgotPassword() {
             <p className="text-gray-400 text-sm">
               Remember your password?{" "}
               <Link
-                to="/login"
+                to="/"
                 className="text-electricBlue hover:underline cursor-pointer"
               >
                 Back to Login

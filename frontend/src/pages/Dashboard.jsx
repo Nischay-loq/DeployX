@@ -1,13 +1,11 @@
 import { useState, useEffect, useRef, useMemo, memo } from 'react';
 import authService from '../services/auth.js';
+import api from '../services/api.js';
+import { formatRelativeTime } from '../utils/format.js';
 import Terminal from '../components/Terminal.jsx';
 import DeploymentManager from '../components/DeploymentManager.jsx';
 import io from 'socket.io-client';
 
-// Helper function to get API URL from environment
-const getApiUrl = () => {
-  return import.meta.env.VITE_API_URL || 'http://localhost:8000';
-};
 import { 
   Terminal as TerminalIcon, 
   FolderOpen,
@@ -26,8 +24,6 @@ import {
   Home,
   Server,
   Cpu,
-  HardDrive,
-  Wifi,
   Users,
   TrendingUp,
   Shield,
@@ -50,7 +46,9 @@ import {
   Plus,
   FileText,
   Calendar,
-  RefreshCw
+  RefreshCw,
+  Sun,
+  Moon
 } from 'lucide-react';
 import GroupsManager from '../components/GroupsManager.jsx';
 import DeploymentsManager from '../components/DeploymentsManager.jsx';
@@ -64,6 +62,7 @@ import EmailModal from '../components/EmailModal.jsx';
 import DeleteAccountModal from '../components/DeleteAccountModal.jsx';
 import ActivationKeysManager from '../components/ActivationKeysManager.jsx';
 import groupsService from '../services/groups.js';
+import { useTheme } from '../hooks/useTheme.js';
 
 export default function Dashboard({ onLogout }) {
   const [activeSection, setActiveSection] = useState('overview');
@@ -74,15 +73,15 @@ export default function Dashboard({ onLogout }) {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
   const [showAgentsTooltip, setShowAgentsTooltip] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const socketRef = useRef(null);
   const isMountedRef = useRef(true);
+  const { theme, toggle: toggleTheme } = useTheme();
   const user = authService.getCurrentUser();
 
   // Add authentication debugging
   useEffect(() => {
     const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
-    console.log('Dashboard - User:', user);
-    console.log('Dashboard - Token available:', !!token);
     
     if (!user || !token) {
       console.warn('Dashboard - No user or token found, redirecting to login');
@@ -236,7 +235,6 @@ export default function Dashboard({ onLogout }) {
     });
     
     const endTime = performance.now();
-    console.log(`🚀 Device filtering took ${(endTime - startTime).toFixed(2)}ms for ${devicesData.length} devices`);
     
     return result;
   }, [devicesData, devicesSearchTerm, devicesStatusFilter, devicesGroupFilter]);
@@ -256,7 +254,6 @@ export default function Dashboard({ onLogout }) {
     });
     
     const endTime = performance.now();
-    console.log(`🚀 Group filtering took ${(endTime - startTime).toFixed(2)}ms for ${groupsData.length} groups`);
     
     return result;
   }, [groupsData, groupsSearchTerm]);
@@ -303,7 +300,6 @@ export default function Dashboard({ onLogout }) {
         // Check if click is inside notification area (button or panel)
         const notificationArea = event.target.closest('.notification-container');
         if (!notificationArea) {
-          console.log('Click outside notification panel, closing...');
           setShowNotificationPanel(false);
         }
       }
@@ -320,7 +316,6 @@ export default function Dashboard({ onLogout }) {
     const loadInitialData = async () => {
       // Only load data on first mount
       if (initialLoading) {
-        console.log('📦 Dashboard: Loading initial data for section:', activeSection);
         
         // Load only what's needed for the initial section
         if (activeSection === 'overview') {
@@ -345,7 +340,6 @@ export default function Dashboard({ onLogout }) {
   // Add a test notification on mount for debugging
   useEffect(() => {
     if (!initialLoading) {
-      console.log('🔔 Adding test notification for debugging');
       addNotification(
         'info',
         'Welcome to DeployX',
@@ -372,44 +366,22 @@ export default function Dashboard({ onLogout }) {
     const fetchTrends = async () => {
       try {
         setTrendsLoading(true);
-        const token = authService.getToken();
-        if (!token) {
+        if (!authService.isLoggedIn()) {
           setTrendsLoading(false);
           return;
         }
-        
-        const headers = {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        };
-        
-        const apiUrl = getApiUrl();
-        let url;
-        
-        if (trendsMode === 'custom') {
-          // Custom date range mode - only fetch if both dates are set
-          if (!trendsFromDate || !trendsToDate) {
-            console.log('Custom mode: Waiting for both dates to be set');
-            setTrendsLoading(false);
-            return;
-          }
-          url = `${apiUrl}/api/dashboard/deployment-trends?from_date=${trendsFromDate}&to_date=${trendsToDate}`;
-          console.log('Fetching custom range:', trendsFromDate, 'to', trendsToDate);
-        } else {
-          // Preset days mode
-          url = `${apiUrl}/api/dashboard/deployment-trends?days=${trendsDays}`;
-          console.log('Fetching preset days:', trendsDays);
+
+        const params = trendsMode === 'custom'
+          ? { from_date: trendsFromDate, to_date: trendsToDate }
+          : { days: trendsDays };
+
+        if (trendsMode === 'custom' && (!trendsFromDate || !trendsToDate)) {
+          setTrendsLoading(false);
+          return;
         }
-        
-        const response = await fetch(url, { headers });
-        
-        if (response.ok) {
-          const trendsData = await response.json();
-          console.log('Trends data received:', trendsData);
-          setDeploymentTrends(trendsData.trends || []);
-        } else {
-          console.error('Failed to fetch trends:', response.status, response.statusText);
-        }
+
+        const trendsData = await api.get('/api/dashboard/deployment-trends', { params });
+        setDeploymentTrends(trendsData.trends || []);
       } catch (error) {
         console.error('Error fetching deployment trends:', error);
       } finally {
@@ -492,16 +464,9 @@ export default function Dashboard({ onLogout }) {
     setShowDeploymentModal(true);
     
     try {
-      const token = authService.getToken();
-      if (!token) {
-        console.log('No token found for deployment details fetch');
+      if (!authService.isLoggedIn()) {
         return;
       }
-
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
 
       // Check if this is a day-based deployment (from trends chart)
       const isDayDeployment = deployment.id && deployment.id.toString().startsWith('day-');
@@ -511,13 +476,8 @@ export default function Dashboard({ onLogout }) {
         const date = deployment.id.toString().replace('day-', '');
         
         // Fetch all deployments for this date
-        const response = await fetch(`${getApiUrl()}/deployments/by-date/${date}`, {
-          headers
-        });
-
-        if (response.ok) {
-          const dateData = await response.json();
-          console.log('Deployments for date:', dateData);
+        try {
+          const dateData = await api.get(`/deployments/by-date/${date}`);
           
           // Update selected deployment with date-based data
           setSelectedDeployment({
@@ -528,24 +488,17 @@ export default function Dashboard({ onLogout }) {
             file_deployments: dateData.file_deployments || [],
             summary: dateData.summary || {}
           });
-          
-          // Set empty devices/groups for date view
-          setDeploymentDevices([]);
-          setDeploymentGroups([]);
-        } else {
-          console.error('Failed to fetch date deployments:', response.status);
-          setDeploymentDevices([]);
-          setDeploymentGroups([]);
+        } catch (fetchError) {
+          console.error('Failed to fetch date deployments:', fetchError.message);
         }
+        
+        // Set empty devices/groups for date view
+        setDeploymentDevices([]);
+        setDeploymentGroups([]);
       } else {
         // Normal deployment detail fetch
-        const response = await fetch(`${getApiUrl()}/deployments/${deployment.id}`, {
-          headers
-        });
-
-        if (response.ok) {
-          const deploymentDetails = await response.json();
-          console.log('Deployment details:', deploymentDetails);
+        try {
+          const deploymentDetails = await api.get(`/deployments/${deployment.id}`);
           
           // Extract devices and groups from deployment details
           setDeploymentDevices(deploymentDetails.devices || []);
@@ -561,8 +514,8 @@ export default function Dashboard({ onLogout }) {
             target_devices: deploymentDetails.target_devices || [],
             target_groups: deploymentDetails.target_groups || []
           });
-        } else {
-          console.error('Failed to fetch deployment details:', response.status);
+        } catch (detailError) {
+          console.error('Failed to fetch deployment details:', detailError.message);
           // Use fallback data structure
           setDeploymentDevices([]);
           setDeploymentGroups([]);
@@ -641,27 +594,12 @@ export default function Dashboard({ onLogout }) {
       let resultsData;
       
       if (deploymentType === 'file_deployment') {
-        const response = await fetch(`http://localhost:8000/api/files/deployments/${deploymentId}/progress`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`
-          }
-        });
-        resultsData = await response.json();
+        resultsData = await api.get(`/api/files/deployments/${deploymentId}/progress`);
       } else if (deploymentType === 'deployment') {
-        const response = await fetch(`http://localhost:8000/api/deployments/${deploymentId}/progress`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`
-          }
-        });
-        resultsData = await response.json();
+        resultsData = await api.get(`/api/deployments/${deploymentId}/progress`);
       } else if (deploymentType === 'command') {
         // For command executions, fetch from group command execution endpoint
-        const response = await fetch(`http://localhost:8000/api/groups/commands/executions/${deploymentId}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('token')}`
-          }
-        });
-        const data = await response.json();
+        const data = await api.get(`/api/groups/commands/executions/${deploymentId}`);
         
         // Transform command execution data to match deployment results format
         resultsData = {
@@ -757,49 +695,25 @@ export default function Dashboard({ onLogout }) {
       // Ensure auth service is initialized
       authService.init();
       
-      // Get token from multiple sources with priority order
-      const token = authService.getToken() || 
-                   localStorage.getItem('access_token') || 
-                   localStorage.getItem('token') ||
-                   sessionStorage.getItem('access_token') ||
-                   sessionStorage.getItem('token');
-      
-      // Debug token and auth state
-      console.log('Dashboard: Token from authService:', authService.getToken() ? 'present' : 'missing');
-      console.log('Dashboard: Token from localStorage:', localStorage.getItem('token') ? 'present' : 'missing');
-      console.log('Dashboard: Access token from localStorage:', localStorage.getItem('access_token') ? 'present' : 'missing');
-      console.log('Dashboard: Auth service logged in:', authService.isLoggedIn());
-      console.log('Dashboard: Final token to use:', token ? 'present' : 'missing');
-      
       // Check if user is authenticated
-      if (!token || !authService.isLoggedIn()) {
-        console.log('Dashboard: No valid token found, redirecting to login');
+      if (!authService.isLoggedIn()) {
         onLogout();
         return;
       }
       
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
-      
       // Fetch all dashboard data in parallel for faster loading
-      const apiUrl = getApiUrl();
-      const [statsResponse, activityResponse, chartResponse, metricsResponse, trendsResponse] = await Promise.allSettled([
-        fetch(`${apiUrl}/api/dashboard/stats`, { headers }),
-        fetch(`${apiUrl}/api/dashboard/recent-activity`, { headers }),
-        fetch(`${apiUrl}/api/dashboard/device-status-chart`, { headers }),
-        fetch(`${apiUrl}/api/dashboard/system-metrics`, { headers }),
-        fetch(`${apiUrl}/api/dashboard/deployment-trends?days=${trendsDays}`, { headers })
+      const [statsResult, activityResult, chartResult, metricsResult, trendsResult] = await Promise.allSettled([
+        api.get('/api/dashboard/stats'),
+        api.get('/api/dashboard/recent-activity'),
+        api.get('/api/dashboard/device-status-chart'),
+        api.get('/api/dashboard/system-metrics'),
+        api.get('/api/dashboard/deployment-trends', { params: { days: trendsDays } })
       ]);
       
       // Process stats response
-      if (statsResponse.status === 'fulfilled' && statsResponse.value.ok) {
-        const statsData = await statsResponse.value.json();
-        console.log('Dashboard: Received stats data:', statsData);
-        setDashboardStats(statsData);
-      } else if (statsResponse.status === 'fulfilled' && statsResponse.value.status === 401) {
-        console.log('Dashboard: Authentication failed');
+      if (statsResult.status === 'fulfilled') {
+        setDashboardStats(statsResult.value);
+      } else if (statsResult.reason && statsResult.reason.message && statsResult.reason.message.includes('session has expired')) {
         if (!authService.isPersistentSession()) {
           authService.logout();
           onLogout();
@@ -808,7 +722,7 @@ export default function Dashboard({ onLogout }) {
       } else {
         console.error('Dashboard: Failed to fetch stats');
         setDashboardStats({
-          devices: { total: agents.length, online: agents.filter(a => a.status === 'connected').length, offline: agents.filter(a => a.status !== 'connected').length, health_percentage: agents.length > 0 ? Math.round((agents.filter(a => a.status === 'connected').length / agents.length) * 100) : 0 },
+          devices: { total: agents.length, online: onlineAgents.length, offline: (agents.length - onlineAgents.length), health_percentage: agents.length > 0 ? Math.round((onlineAgents.length / agents.length) * 100) : 0 },
           deployments: { total: 0, successful: 0, failed: 0, pending: 0, success_rate: 0 },
           commands: { total: 0, active: 0, pending: 0, completed: 0, failed: 0 },
           system: { health_score: 85, uptime: '99.9%', last_updated: new Date().toISOString() },
@@ -818,11 +732,9 @@ export default function Dashboard({ onLogout }) {
       }
       
       // Process activity response
-      if (activityResponse.status === 'fulfilled' && activityResponse.value.ok) {
-        const activityData = await activityResponse.value.json();
-        console.log('Dashboard: Received activity data:', activityData);
-        setRecentActivity(activityData.activity || []);
-      } else if (activityResponse.status === 'fulfilled' && activityResponse.value.status === 401) {
+      if (activityResult.status === 'fulfilled') {
+        setRecentActivity(activityResult.value.activity || []);
+      } else if (activityResult.reason && activityResult.reason.message && activityResult.reason.message.includes('session has expired')) {
         if (!authService.isPersistentSession()) {
           authService.logout();
           onLogout();
@@ -831,24 +743,18 @@ export default function Dashboard({ onLogout }) {
       }
       
       // Process chart response
-      if (chartResponse.status === 'fulfilled' && chartResponse.value.ok) {
-        const chartData = await chartResponse.value.json();
-        console.log('Dashboard: Received chart data:', chartData);
-        setDeviceChart(chartData.chart_data || []);
+      if (chartResult.status === 'fulfilled') {
+        setDeviceChart(chartResult.value.chart_data || []);
       }
       
       // Process metrics response
-      if (metricsResponse.status === 'fulfilled' && metricsResponse.value.ok) {
-        const metricsData = await metricsResponse.value.json();
-        console.log('Dashboard: Received metrics data:', metricsData);
-        setSystemMetrics(metricsData);
+      if (metricsResult.status === 'fulfilled') {
+        setSystemMetrics(metricsResult.value);
       }
       
       // Process trends response
-      if (trendsResponse.status === 'fulfilled' && trendsResponse.value.ok) {
-        const trendsData = await trendsResponse.value.json();
-        console.log('Dashboard: Received trends data:', trendsData);
-        setDeploymentTrends(trendsData.trends || []);
+      if (trendsResult.status === 'fulfilled') {
+        setDeploymentTrends(trendsResult.value.trends || []);
       }
       
     } catch (error) {
@@ -866,7 +772,6 @@ export default function Dashboard({ onLogout }) {
       // Check cache first (refresh every 45 seconds for better performance)
       const now = Date.now();
       if (!forceRefresh && devicesLastFetch && (now - devicesLastFetch) < 45000 && devicesData.length > 0) {
-        console.log('⚡ Dashboard: Using cached devices data (age: ' + Math.round((now - devicesLastFetch) / 1000) + 's)');
         return;
       }
 
@@ -874,85 +779,27 @@ export default function Dashboard({ onLogout }) {
       
       // Ensure auth service is initialized
       if (!authService.getCurrentUser()) {
-        console.log('Dashboard: No user found for devices fetch');
         return;
       }
 
-      const token = authService.getToken();
-      if (!token) {
-        console.log('Dashboard: No token found for devices fetch');
+      if (!authService.isLoggedIn()) {
         return;
       }
 
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
-
-      // Remove timeout for persistent connection
-      const devicesResponse = await fetch(`${getApiUrl()}/devices/`, {
-        headers
-      });
-      
-      if (devicesResponse.ok) {
-        const devicesDataResponse = await devicesResponse.json();
-        const fetchEndTime = performance.now();
-        const fetchDuration = (fetchEndTime - fetchStartTime).toFixed(2);
-        
-        console.log(`🚀 Dashboard: Received ${devicesDataResponse?.length || 0} devices in ${fetchDuration}ms`);
-        
-        // Update data and cache timestamp
+      try {
+        const devicesDataResponse = await api.get('/devices/');
         setDevicesData(devicesDataResponse || []);
         setDevicesLastFetch(Date.now());
-      } else if (devicesResponse.status === 401) {
-        console.log('Dashboard: Authentication failed for devices data');
-        // Only auto-logout for non-persistent sessions
-        if (!authService.isPersistentSession()) {
-          authService.logout();
-          onLogout();
-          return;
-        }
-      } else {
-        console.error('Dashboard: Failed to fetch devices:', devicesResponse.status, devicesResponse.statusText);
-        // Set fallback data for development
-        setDevicesData([
-          {
-            id: 1,
-            device_name: "Web Server 01",
-            ip_address: "192.168.1.10",
-            status: "online",
-            os: "Ubuntu 20.04",
-            last_seen: "2024-01-15T10:30:00Z",
-            groups: ["Web Servers", "Production"],
-            cpu_usage: 45,
-            memory_usage: 60,
-            disk_usage: 25
-          },
-          {
-            id: 2,
-            device_name: "Database Server",
-            ip_address: "192.168.1.20",
-            status: "online",
-            os: "CentOS 8",
-            last_seen: "2024-01-15T10:29:00Z",
-            groups: ["Database Servers"],
-            cpu_usage: 30,
-            memory_usage: 80,
-            disk_usage: 55
-          },
-          {
-            id: 3,
-            device_name: "App Server 02",
-            ip_address: "192.168.1.30",
-            status: "offline",
-            os: "Windows Server 2019",
-            last_seen: "2024-01-15T09:15:00Z",
-            groups: ["Application Servers"],
-            cpu_usage: 0,
-            memory_usage: 0,
-            disk_usage: 40
+      } catch (fetchError) {
+        if (fetchError.message && fetchError.message.includes('session has expired')) {
+          // Only auto-logout for non-persistent sessions
+          if (!authService.isPersistentSession()) {
+            authService.logout();
+            onLogout();
+            return;
           }
-        ]);
+        }
+        console.error('Dashboard: Failed to fetch devices:', fetchError.message);
       }
     } catch (error) {
       console.error('Dashboard: Error fetching devices data:', error);
@@ -965,13 +812,10 @@ export default function Dashboard({ onLogout }) {
 
   // Optimized groups data fetching with caching
   const fetchGroupsData = async (forceRefresh = false) => {
-    const fetchStartTime = performance.now();
-    
     try {
       // Check cache first (refresh every 45 seconds for better performance)
       const now = Date.now();
       if (!forceRefresh && groupsLastFetch && (now - groupsLastFetch) < 45000 && groupsData.length > 0) {
-        console.log('⚡ Dashboard: Using cached groups data (age: ' + Math.round((now - groupsLastFetch) / 1000) + 's)');
         return;
       }
 
@@ -979,59 +823,24 @@ export default function Dashboard({ onLogout }) {
       
       // Ensure auth service is initialized
       if (!authService.getCurrentUser()) {
-        console.log('Dashboard: No user found for groups fetch');
         return;
       }
 
-      const token = authService.getToken();
-      if (!token) {
-        console.log('Dashboard: No token found for groups fetch');
+      if (!authService.isLoggedIn()) {
         return;
       }
-
-      const headers = {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
 
       // Use Promise.race for timeout handling
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Request timeout')), 8000)
       );
 
-      const apiUrl = getApiUrl();
-      console.log('Dashboard: Using API URL:', apiUrl);
-      console.log('Dashboard: Environment VITE_API_URL:', import.meta.env.VITE_API_URL);
-      
-      const fetchPromise = fetch(`${apiUrl}/groups/`, {
-        headers
-      });
-      
-      const groupsResponse = await Promise.race([fetchPromise, timeoutPromise]);
-      
-      if (groupsResponse.ok) {
-        const groupsDataResponse = await groupsResponse.json();
-        const fetchEndTime = performance.now();
-        const fetchDuration = (fetchEndTime - fetchStartTime).toFixed(2);
-        
-        console.log(`🚀 Dashboard: Received ${groupsDataResponse?.length || 0} groups in ${fetchDuration}ms`);
-        
-        // Update data and cache timestamp
-        setGroupsData(groupsDataResponse || []);
-        setGroupsLastFetch(Date.now());
-      } else if (groupsResponse.status === 401) {
-        console.log('Dashboard: Authentication failed for groups data');
-        // Only auto-logout for non-persistent sessions
-        if (!authService.isPersistentSession()) {
-          authService.logout();
-          onLogout();
-          return;
-        }
-      } else {
-        console.error('Dashboard: Failed to fetch groups:', groupsResponse.status, groupsResponse.statusText);
-        // Set empty array when API call fails
-        setGroupsData([]);
-      }
+      const fetchPromise = api.get('/groups/');
+      const groupsDataResponse = await Promise.race([fetchPromise, timeoutPromise]);
+
+      // Update data and cache timestamp
+      setGroupsData(groupsDataResponse || []);
+      setGroupsLastFetch(Date.now());
     } catch (error) {
       console.error('Dashboard: Error fetching groups data:', error);
       setGroupsData([]);
@@ -1044,16 +853,13 @@ export default function Dashboard({ onLogout }) {
   const handleUpdateGroup = async (groupData) => {
     const updatedGroupId = editingGroup.id;
     try {
-      console.log('🎯 Updating group:', updatedGroupId, groupData);
       await groupsService.updateGroup(updatedGroupId, groupData);
-      console.log('✅ Group updated successfully, triggering refresh...');
       
       // Force refresh groups and devices data
       await forceRefreshGroups();
       
       // If group devices modal is open for this group, refresh it
       if (showGroupDevicesModal && selectedGroup && selectedGroup.id === updatedGroupId) {
-        console.log('Refreshing group devices modal for updated group');
         // Update the selected group name
         const newGroupName = groupData.group_name || selectedGroup.name;
         setSelectedGroup({ id: updatedGroupId, name: newGroupName });
@@ -1064,7 +870,6 @@ export default function Dashboard({ onLogout }) {
       // Close edit modal
       setShowGroupEditModal(false);
       setEditingGroup(null);
-      console.log('🎯 Group update completed');
     } catch (error) {
       console.error('❌ Failed to update group:', error);
       showError('Failed to update group: ' + error.message);
@@ -1079,15 +884,12 @@ export default function Dashboard({ onLogout }) {
   // Handle group creation
   const handleCreateGroup = async (groupData) => {
     try {
-      console.log('🎯 Creating group:', groupData);
       await groupsService.createGroup(groupData);
-      console.log('✅ Group created successfully, triggering refresh...');
       // Force refresh groups and devices data
       await forceRefreshGroups();
       
       // Close modal
       setShowGroupCreateModal(false);
-      console.log('🎯 Group creation completed');
     } catch (error) {
       console.error('❌ Failed to create group:', error);
       showError('Failed to create group: ' + error.message);
@@ -1100,16 +902,13 @@ export default function Dashboard({ onLogout }) {
 
   // Force refresh devices data specifically
   const forceRefreshDevices = async () => {
-    console.log('🔄 Dashboard: Force refreshing devices data...');
     setDevicesLastFetch(null);
     await fetchDevicesData(true);
     setDevicesRefreshKey(prev => prev + 1);
-    console.log('✅ Dashboard: Devices data refresh completed');
   };
 
   // Force refresh all dashboard data
   const forceRefreshAll = async () => {
-    console.log('🔄 Dashboard: Force refreshing all dashboard data...');
     setGroupsLastFetch(null);
     setDevicesLastFetch(null);
     await Promise.all([
@@ -1119,17 +918,10 @@ export default function Dashboard({ onLogout }) {
     ]);
     setGroupsRefreshKey(prev => prev + 1);
     setDevicesRefreshKey(prev => prev + 1);
-    console.log('✅ Dashboard: All dashboard data refresh completed');
   };
 
   // Debug function to log current state (temporary)
   const debugCurrentState = () => {
-    console.log('🐛 === CURRENT DASHBOARD STATE ===');
-    console.log('📊 Dashboard Stats:', dashboardStats);
-    console.log('👥 Groups Data:', groupsData);
-    console.log('🖥️ Devices Data:', devicesData);
-    console.log('🔑 Refresh Keys - Groups:', groupsRefreshKey, 'Devices:', devicesRefreshKey);
-    console.log('🐛 === END DEBUG STATE ===');
   };
 
   // Add debug function to window for manual testing
@@ -1137,7 +929,6 @@ export default function Dashboard({ onLogout }) {
 
   // Force refresh all group-related data
   const forceRefreshGroups = async () => {
-    console.log('🔄 Dashboard: Force refreshing all group-related data (groups, devices, dashboard stats)...');
     const oldGroupsKey = groupsRefreshKey;
     const oldDevicesKey = devicesRefreshKey;
     
@@ -1153,16 +944,12 @@ export default function Dashboard({ onLogout }) {
     
     // Force re-render for both groups and devices
     setGroupsRefreshKey(prev => {
-      console.log('📊 Groups refresh key: ', prev, '->', prev + 1);
       return prev + 1;
     });
     setDevicesRefreshKey(prev => {
-      console.log('📱 Devices refresh key: ', prev, '->', prev + 1);
       return prev + 1;
     });
     
-    console.log('✅ Dashboard: All group-related data refresh completed');
-    console.log('📈 Refresh keys updated - Groups:', oldGroupsKey, '->', groupsRefreshKey + 1, 'Devices:', oldDevicesKey, '->', devicesRefreshKey + 1);
   };
 
   // Initialize socket connection for agent management
@@ -1174,7 +961,6 @@ export default function Dashboard({ onLogout }) {
     // Set up periodic refresh only for overview section (reduced from 30s to 60s)
     const interval = setInterval(() => {
       if (activeSection === 'overview') {
-        console.log('🔄 Periodic refresh for overview section');
         fetchDashboardData();
       }
     }, 60000); // Refresh every 60 seconds
@@ -1182,7 +968,6 @@ export default function Dashboard({ onLogout }) {
     const initializeSocket = () => {
       if (socketRef.current) return;
       
-      console.log('Dashboard: Initializing socket connection...');
       
       const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:8000';
       
@@ -1202,7 +987,6 @@ export default function Dashboard({ onLogout }) {
       socketRef.current.on('connect', () => {
         if (!isMountedRef.current) return;
         
-        console.log('Dashboard: Connected to backend server');
         setIsConnected(true);
         setConnectionError(null);
         
@@ -1212,7 +996,6 @@ export default function Dashboard({ onLogout }) {
         // Request initial agents list
         setTimeout(() => {
           if (socketRef.current && socketRef.current.connected) {
-            console.log('Dashboard: Requesting agents list...');
             socketRef.current.emit('get_agents');
           }
         }, 200);
@@ -1231,7 +1014,6 @@ export default function Dashboard({ onLogout }) {
       socketRef.current.on('disconnect', (reason) => {
         if (!isMountedRef.current) return;
         
-        console.log('Dashboard: Disconnected from backend:', reason);
         setIsConnected(false);
         setConnectionError(`Disconnected: ${reason}`);
         
@@ -1249,7 +1031,6 @@ export default function Dashboard({ onLogout }) {
       socketRef.current.on('agents_list', (agentsList) => {
         if (!isMountedRef.current) return;
         
-        console.log('Dashboard: Received agents list:', agentsList);
         
         if (Array.isArray(agentsList)) {
           // Validate that agents have the expected structure
@@ -1262,7 +1043,6 @@ export default function Dashboard({ onLogout }) {
           }
           
           setAgents(validAgents);
-          console.log('Dashboard: Set agents:', validAgents);
           
           // Refresh dashboard data when agents update
           fetchDashboardData();
@@ -1271,12 +1051,9 @@ export default function Dashboard({ onLogout }) {
           if (validAgents.length > 0 && !currentAgent) {
             const firstAgent = validAgents[0];
             setCurrentAgent(firstAgent.agent_id);
-            console.log('Dashboard: Auto-selected first agent:', firstAgent.agent_id);
-            console.log('Dashboard: First agent details:', firstAgent);
             
             // Request shells for the first agent
             if (socketRef.current && socketRef.current.connected) {
-              console.log('Dashboard: Auto-requesting shells for first agent:', firstAgent.agent_id);
               socketRef.current.emit('get_shells', firstAgent.agent_id);
             } else {
               console.warn('Dashboard: Cannot auto-request shells - socket not connected');
@@ -1292,21 +1069,15 @@ export default function Dashboard({ onLogout }) {
       socketRef.current.on('shells_list', (shellsList) => {
         if (!isMountedRef.current) return;
         
-        console.log('Dashboard: Received shells list:', shellsList);
-        console.log('Dashboard: Shells type:', typeof shellsList);
-        console.log('Dashboard: Is array:', Array.isArray(shellsList));
-        console.log('Dashboard: Current agent when shells received:', currentAgent);
         
         if (Array.isArray(shellsList)) {
           setShells(shellsList);
           
           if (shellsList.length > 0) {
-            console.log('Dashboard: Setting shells:', shellsList);
             // Auto-select default shell if none selected
             if (!currentShell) {
               const defaultShell = shellsList.includes('cmd') ? 'cmd' : 
                                  shellsList.includes('bash') ? 'bash' : shellsList[0];
-              console.log('Dashboard: Auto-selecting shell:', defaultShell);
               setCurrentShell(defaultShell);
             }
           } else {
@@ -1330,7 +1101,6 @@ export default function Dashboard({ onLogout }) {
       socketRef.current.on('device_status_changed', (deviceInfo) => {
         if (!isMountedRef.current) return;
         
-        console.log('Dashboard: Device status changed in real-time:', deviceInfo);
         
         // Update devices data immediately without refetching
         setDevicesData((prevDevices) => {
@@ -1364,7 +1134,6 @@ export default function Dashboard({ onLogout }) {
       socketRef.current.on('deployment_completed', (deploymentInfo) => {
         if (!isMountedRef.current) return;
         
-        console.log('Dashboard: Deployment completed:', deploymentInfo);
         
         const { deployment_id, deployment_name, status, success_count, failure_count, total_count } = deploymentInfo;
         
@@ -1402,7 +1171,6 @@ export default function Dashboard({ onLogout }) {
       socketRef.current.on('file_deployment_completed', (deploymentInfo) => {
         if (!isMountedRef.current) return;
         
-        console.log('Dashboard: File deployment completed:', deploymentInfo);
         
         const { deployment_id, file_name, status, success_count, failure_count, total_count } = deploymentInfo;
         
@@ -1440,7 +1208,6 @@ export default function Dashboard({ onLogout }) {
       socketRef.current.on('agent_connected', (agentInfo) => {
         if (!isMountedRef.current) return;
         
-        console.log('Dashboard: Agent connected:', agentInfo);
         
         addNotification(
           'info',
@@ -1454,7 +1221,6 @@ export default function Dashboard({ onLogout }) {
       socketRef.current.on('agent_disconnected', (agentInfo) => {
         if (!isMountedRef.current) return;
         
-        console.log('Dashboard: Agent disconnected:', agentInfo);
         
         addNotification(
           'warning',
@@ -1468,7 +1234,6 @@ export default function Dashboard({ onLogout }) {
       socketRef.current.on('system_error', (errorInfo) => {
         if (!isMountedRef.current) return;
         
-        console.log('Dashboard: System error:', errorInfo);
         
         addNotification(
           'error',
@@ -1482,7 +1247,6 @@ export default function Dashboard({ onLogout }) {
       socketRef.current.on('scheduled_task_completed', (taskInfo) => {
         if (!isMountedRef.current) return;
         
-        console.log('Dashboard: Scheduled task completed:', taskInfo);
         
         const taskTypeLabel = taskInfo.task_type === 'command' ? 'Command Execution' :
                              taskInfo.task_type === 'software_deployment' ? 'Software Deployment' :
@@ -1514,7 +1278,6 @@ export default function Dashboard({ onLogout }) {
       socketRef.current.on('scheduled_task_failed', (taskInfo) => {
         if (!isMountedRef.current) return;
         
-        console.log('Dashboard: Scheduled task failed:', taskInfo);
         
         const taskTypeLabel = taskInfo.task_type === 'command' ? 'Command Execution' :
                              taskInfo.task_type === 'software_deployment' ? 'Software Deployment' :
@@ -1563,8 +1326,6 @@ export default function Dashboard({ onLogout }) {
 
   // Handle agent selection
   const handleAgentSelect = (agentId) => {
-    console.log('Dashboard: Agent selected:', agentId);
-    console.log('Dashboard: Available agents:', agents);
     
     // If no agentId (clearing selection), just clear everything
     if (!agentId) {
@@ -1576,7 +1337,6 @@ export default function Dashboard({ onLogout }) {
     
     // Find the agent object
     const selectedAgentObj = agents.find(a => a.agent_id === agentId);
-    console.log('Dashboard: Selected agent object:', selectedAgentObj);
     
     // Check if the agent is actually online/available
     if (!selectedAgentObj) {
@@ -1592,14 +1352,9 @@ export default function Dashboard({ onLogout }) {
     setCurrentShell('');
     
     if (agentId && socketRef.current && socketRef.current.connected) {
-      console.log('Dashboard: Requesting shells for agent:', agentId);
-      console.log('Dashboard: Socket connected:', socketRef.current.connected);
       socketRef.current.emit('get_shells', agentId);
     } else {
       console.warn('Dashboard: Cannot request shells - no agentId or socket not connected');
-      console.log('Dashboard: AgentId:', agentId);
-      console.log('Dashboard: Socket exists:', !!socketRef.current);
-      console.log('Dashboard: Socket connected:', socketRef.current?.connected);
     }
   };
 
@@ -1613,7 +1368,6 @@ export default function Dashboard({ onLogout }) {
     if (currentAgent && agents.length > 0) {
       const agentStillOnline = agents.find(a => a.agent_id === currentAgent);
       if (!agentStillOnline) {
-        console.log('Dashboard: Selected agent went offline, clearing selection');
         setCurrentAgent('');
         setShells([]);
         setCurrentShell('');
@@ -1634,31 +1388,17 @@ export default function Dashboard({ onLogout }) {
     setFormMessage({ type: '', text: '' });
 
     try {
-      const token = authService.getToken() || localStorage.getItem('access_token');
-      const response = await fetch(`${getApiUrl()}/auth/update-username`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ new_username: usernameForm.newUsername })
-      });
+      const data = await api.put('/auth/update-username', { new_username: usernameForm.newUsername });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setFormMessage({ type: 'success', text: data.message });
-        setUsernameForm({ newUsername: '' });
-        // Update user info in auth service if needed
-        setTimeout(() => {
-          setShowChangeUsername(false);
-          setFormMessage({ type: '', text: '' });
-        }, 2000);
-      } else {
-        setFormMessage({ type: 'error', text: data.detail || 'Failed to update username' });
-      }
+      setFormMessage({ type: 'success', text: data.message });
+      setUsernameForm({ newUsername: '' });
+      // Update user info in auth service if needed
+      setTimeout(() => {
+        setShowChangeUsername(false);
+        setFormMessage({ type: '', text: '' });
+      }, 2000);
     } catch (error) {
-      setFormMessage({ type: 'error', text: 'Network error. Please try again.' });
+      setFormMessage({ type: 'error', text: error.message || 'Failed to update username' });
     } finally {
       setFormLoading(false);
     }
@@ -1682,33 +1422,19 @@ export default function Dashboard({ onLogout }) {
     }
 
     try {
-      const token = authService.getToken() || localStorage.getItem('access_token');
-      const response = await fetch(`${getApiUrl()}/auth/change-password`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          current_password: passwordForm.currentPassword,
-          new_password: passwordForm.newPassword
-        })
+      const data = await api.put('/auth/change-password', {
+        current_password: passwordForm.currentPassword,
+        new_password: passwordForm.newPassword
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setFormMessage({ type: 'success', text: data.message });
-        setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-        setTimeout(() => {
-          setShowChangePassword(false);
-          setFormMessage({ type: '', text: '' });
-        }, 2000);
-      } else {
-        setFormMessage({ type: 'error', text: data.detail || 'Failed to change password' });
-      }
+      setFormMessage({ type: 'success', text: data.message });
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setTimeout(() => {
+        setShowChangePassword(false);
+        setFormMessage({ type: '', text: '' });
+      }, 2000);
     } catch (error) {
-      setFormMessage({ type: 'error', text: 'Network error. Please try again.' });
+      setFormMessage({ type: 'error', text: error.message || 'Failed to change password' });
     } finally {
       setFormLoading(false);
     }
@@ -1720,33 +1446,19 @@ export default function Dashboard({ onLogout }) {
     setFormMessage({ type: '', text: '' });
 
     try {
-      const token = authService.getToken() || localStorage.getItem('access_token');
-      const response = await fetch(`${getApiUrl()}/auth/request-email-change`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          new_email: emailForm.newEmail,
-          password: emailForm.password
-        })
+      const data = await api.post('/auth/request-email-change', {
+        new_email: emailForm.newEmail,
+        password: emailForm.password
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setFormMessage({ type: 'success', text: data.message });
-        setEmailForm({ newEmail: '', password: '' });
-        setTimeout(() => {
-          setShowChangeEmail(false);
-          setFormMessage({ type: '', text: '' });
-        }, 3000);
-      } else {
-        setFormMessage({ type: 'error', text: data.detail || 'Failed to request email change' });
-      }
+      setFormMessage({ type: 'success', text: data.message });
+      setEmailForm({ newEmail: '', password: '' });
+      setTimeout(() => {
+        setShowChangeEmail(false);
+        setFormMessage({ type: '', text: '' });
+      }, 3000);
     } catch (error) {
-      setFormMessage({ type: 'error', text: 'Network error. Please try again.' });
+      setFormMessage({ type: 'error', text: error.message || 'Failed to request email change' });
     } finally {
       setFormLoading(false);
     }
@@ -1820,8 +1532,6 @@ export default function Dashboard({ onLogout }) {
 
   // Memoized Device Card Component for better performance
   const DeviceCard = memo(({ device, refreshKey }) => {
-    console.log('🖥️ Rendering device card:', device.device_name, 'refreshKey:', refreshKey);
-    console.log('👥 Device group info:', device.group, device.groups);
     
     return (
       <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-6 hover:bg-white/15 transition-all duration-300">
@@ -1881,11 +1591,8 @@ export default function Dashboard({ onLogout }) {
   const GroupCard = memo(({ group, refreshKey }) => {
     // Calculate actual device count from devicesData
     const actualDeviceCount = useMemo(() => {
-      console.log('🔍 Calculating device count for group:', group.id, group.group_name, 'refreshKey:', refreshKey);
-      console.log('📊 Available devices data:', devicesData?.length, 'devices');
       
       if (!devicesData || devicesData.length === 0) {
-        console.log('❌ No devices data available');
         return 0;
       }
       
@@ -1901,7 +1608,6 @@ export default function Dashboard({ onLogout }) {
         return false;
       });
       
-      console.log('✅ Found', matchingDevices.length, 'devices for group', group.group_name);
       return matchingDevices.length;
     }, [devicesData, group.id, group.group_name, refreshKey]);
 
@@ -1922,13 +1628,10 @@ export default function Dashboard({ onLogout }) {
         'Delete Group',
         async () => {
           try {
-            console.log('🎯 Deleting group:', group.id, group.group_name);
             await groupsService.deleteGroup(group.id);
-            console.log('✅ Group deleted successfully, triggering refresh...');
             
             // If group devices modal is open for this group, close it
             if (showGroupDevicesModal && selectedGroup && selectedGroup.id === group.id) {
-              console.log('Closing group devices modal for deleted group');
               setShowGroupDevicesModal(false);
               setSelectedGroup(null);
               setGroupDevices([]);
@@ -1936,7 +1639,6 @@ export default function Dashboard({ onLogout }) {
             
             // Force refresh groups and devices data
             await forceRefreshGroups();
-            console.log('🎯 Group deletion completed');
           } catch (error) {
             console.error('❌ Failed to delete group:', error);
             showError('Failed to delete group: ' + error.message);
@@ -2000,13 +1702,16 @@ export default function Dashboard({ onLogout }) {
     );
   });
 
+  // Only agents whose socket session is live (status comes as 'online'/'offline')
+  const onlineAgents = agents.filter(a => a.status === 'online');
+
   // Show skeleton loading for initial load
   if (initialLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-6">
+      <div className="min-h-screen bg-slate-950 p-6">
         <div className="max-w-7xl mx-auto">
           <div className="mb-6">
-            <div className="h-8 bg-white/20 rounded w-1/4 animate-pulse"></div>
+            <div className="h-8 bg-slate-800 rounded-lg w-1/4 animate-pulse"></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
@@ -2017,73 +1722,238 @@ export default function Dashboard({ onLogout }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900">
-      {/* Header */}
-      <header className="bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 px-6 py-4 sticky top-0 z-50">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-gradient-to-r from-primary-500 to-accent-cyan rounded-xl flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-xl font-display">DX</span>
-            </div>
+    <div className="flex h-screen overflow-hidden bg-slate-950">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+        {/* Sidebar - full height, starts at the very top like NexusGrid */}
+        <aside className={`fixed inset-y-0 left-0 z-50 w-64 shrink-0 flex flex-col bg-slate-900 border-r border-slate-700/60 transition-transform duration-300 lg:static ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+          {/* Logo */}
+          <div className="flex items-center gap-2.5 px-5 py-5 border-b border-slate-700/60 shrink-0">
+            <img src="/logo.svg" alt="DeployX logo" className="h-8 w-auto" />
             <div>
-              <h1 className="text-2xl font-bold font-display text-white">DeployX</h1>
-              {/* <p className="text-sm text-gray-400">
-                {user?.username ? `Welcome back, ${user.username}` : 'Remote System Management Console'}
-              </p> */}
+              <p className="text-sm font-bold text-slate-100 leading-tight">DeployX</p>
+              <p className="text-xs text-slate-500">Fleet Management</p>
             </div>
           </div>
+
+          {/* Nav */}
+          <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
+            {sections.map(section => (
+              <button
+                key={section.id}
+                onClick={() => { setActiveSection(section.id); setSidebarOpen(false); }}
+                className={`sidebar-link ${activeSection === section.id ? 'active' : ''}`}
+                title={section.description}
+              >
+                <section.icon className="w-[18px] h-[18px] shrink-0" />
+                <span className="flex-1">{section.name}</span>
+              </button>
+            ))}
+          </nav>
+
+          {/* User Panel */}
+          {user && (
+            <div className="px-3 py-3 border-t border-slate-700/60 profile-dropdown relative shrink-0">
+              {/* Profile dropdown menu */}
+              {showProfileDropdown && (
+                <div className="absolute bottom-full left-3 right-3 mb-2 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-slate-700/60">
+                    <p className="text-slate-100 font-medium text-sm">{user?.username}</p>
+                    <p className="text-slate-500 text-xs truncate">{user?.email}</p>
+                  </div>
+                  <div className="py-1">
+                    <button
+                      onClick={() => handleProfileOptionClick('username')}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-700/60 transition-colors"
+                    >
+                      <Edit className="w-4 h-4" />
+                      <span>Change Username</span>
+                    </button>
+                    <button
+                      onClick={() => handleProfileOptionClick('password')}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-700/60 transition-colors"
+                    >
+                      <Lock className="w-4 h-4" />
+                      <span>Change Password</span>
+                    </button>
+                    <button
+                      onClick={() => handleProfileOptionClick('email')}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-700/60 transition-colors"
+                    >
+                      <Mail className="w-4 h-4" />
+                      <span>Change Email</span>
+                    </button>
+                  </div>
+                  <div className="border-t border-slate-700/60 py-1">
+                    <button
+                      onClick={() => handleProfileOptionClick('delete-account')}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Delete Account</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-slate-800/80">
+                <button
+                  onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                  title="Account options"
+                  className="w-8 h-8 bg-brand-600/20 rounded-full flex items-center justify-center shrink-0 hover:bg-brand-600/40 transition-colors"
+                >
+                  <span className="text-xs font-bold text-brand-400">
+                    {(user?.username || 'U').charAt(0).toUpperCase()}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                  className="flex-1 min-w-0 text-left hover:opacity-80 transition-opacity"
+                >
+                  <p className="text-xs font-semibold text-slate-200 truncate">{user?.username}</p>
+                  <p className="text-xs text-slate-500 truncate">{user?.email || 'Signed in'}</p>
+                </button>
+                <button
+                  onClick={() => handleProfileOptionClick('logout')}
+                  title="Logout"
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+        </aside>
+      {/* Main column: header + content */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      {/* Header */}
+      <header className="h-14 px-4 lg:px-6 shrink-0 flex items-center justify-between bg-slate-900 border-b border-slate-700/60">
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Mobile sidebar toggle */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="lg:hidden w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-colors"
+            aria-label="Toggle navigation"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <h1 className="page-title truncate">{sections.find(s => s.id === activeSection)?.name || 'Dashboard'}</h1>
+        </div>
           
           <div className="flex items-center gap-2">
-            {/* Search */}
-            <div className="relative hidden md:block">
-              {/* <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" /> */}
-              {/* <input 
-                type="text" 
-                placeholder="Search..." 
-                className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
-              /> */}
+            {/* Connection Status */}
+            <div 
+              className="relative flex items-center"
+              onMouseEnter={() => onlineAgents.length > 0 && setShowAgentsTooltip(true)}
+              onMouseLeave={() => setShowAgentsTooltip(false)}
+            >
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium ${
+                isConnected 
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+                  : 'bg-red-500/10 border-red-500/30 text-red-400'
+              }`}>
+                <div className={`w-2 h-2 rounded-full ${
+                  isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'
+                }`}></div>
+                <span>{isConnected ? 'Connected' : 'Disconnected'}</span>
+                {onlineAgents.length > 0 && (
+                  <span className="text-slate-500 text-xs">• {onlineAgents.length} online</span>
+                )}
+              </div>
+
+              {/* Agents Tooltip */}
+              {showAgentsTooltip && onlineAgents.length > 0 && (
+                <div className="absolute top-full mt-2 right-0 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-[100] overflow-hidden">
+                  <div className="p-3 border-b border-slate-700/60 bg-slate-800/50">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                      <h3 className="text-sm font-semibold text-slate-100">Connected Devices</h3>
+                      <span className="ml-auto text-xs text-slate-400 bg-slate-700/50 px-2 py-0.5 rounded-full">
+                        {onlineAgents.length}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {onlineAgents.map((agent, index) => (
+                      <div 
+                        key={agent.agent_id}
+                        className={`p-3 hover:bg-slate-800/50 transition-colors ${
+                          index !== onlineAgents.length - 1 ? 'border-b border-slate-800' : ''
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 w-8 h-8 bg-emerald-500/15 border border-emerald-500/30 rounded-lg flex items-center justify-center">
+                            <Server className="w-4 h-4 text-emerald-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-100 truncate">
+                              {agent.hostname || 'Unknown Host'}
+                            </p>
+                            <p className="text-xs text-slate-500 font-mono truncate">
+                              ID: {agent.agent_id}
+                            </p>
+                            {agent.os && (
+                              <div className="flex items-center gap-1 mt-1">
+                                <span className="text-xs text-slate-500">
+                                  {agent.os}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-shrink-0">
+                            <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-            
+
             {/* Notifications */}
-            <div className="relative notification-container flex items-center">
+            <div className="relative header-notifications flex items-center">
               <button 
                 onClick={() => {
-                  console.log('Notification bell clicked. Current state:', showNotificationPanel);
-                  console.log('Notifications array:', notifications);
-                  console.log('Unread count:', unreadCount);
                   setShowNotificationPanel(!showNotificationPanel);
                 }}
-                aria-label="notifications"
-                className="relative w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all"
+                aria-label="Notifications"
+                className="relative w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-colors"
               >
-                <Bell className="w-5 h-5" />
+                <Bell className="w-4 h-4" />
                 {unreadCount > 0 && (
-                  <div className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-red-500 rounded-full flex items-center justify-center px-1">
-                    <span className="text-xs font-bold text-white">{unreadCount > 99 ? '99+' : unreadCount}</span>
-                  </div>
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4 text-center font-medium">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
                 )}
               </button>
 
               {/* Notification Panel */}
               {showNotificationPanel && (
                 <div 
-                  className="absolute right-0 top-full mt-2 w-96 max-w-[calc(100vw-2rem)] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl overflow-hidden z-[9999]"
+                  className="absolute right-0 top-full mt-2 w-96 max-w-[calc(100vw-2rem)] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden z-[9999]"
                   style={{ minHeight: '200px' }}
                 >
-                  {console.log('🔔 Notification panel is rendering!', { notifications, showNotificationPanel })}
                   {/* Header */}
-                  <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-white">Notifications</h3>
+                  <div className="p-4 border-b border-slate-700/60 flex items-center justify-between">
+                    <h3 className="text-base font-semibold text-slate-100">Notifications</h3>
                     <div className="flex items-center gap-2">
                       {notifications.length > 0 && (
                         <>
                           <button
                             onClick={markAllAsRead}
-                            className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
+                            className="text-xs text-brand-400 hover:text-brand-300 transition-colors"
                           >
                             Mark all read
                           </button>
-                          <span className="text-gray-600">|</span>
+                          <span className="text-slate-700">|</span>
                           <button
                             onClick={clearAllNotifications}
                             className="text-xs text-red-400 hover:text-red-300 transition-colors"
@@ -2094,7 +1964,7 @@ export default function Dashboard({ onLogout }) {
                       )}
                       <button
                         onClick={() => setShowNotificationPanel(false)}
-                        className="ml-2 text-gray-400 hover:text-white transition-colors"
+                        className="ml-2 text-slate-400 hover:text-white transition-colors"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -2104,12 +1974,12 @@ export default function Dashboard({ onLogout }) {
                   {/* Notifications List */}
                   <div className="max-h-96 overflow-y-auto">
                     {notifications.length === 0 ? (
-                      <div className="p-8 text-center text-gray-400">
+                      <div className="p-8 text-center text-slate-500">
                         <Bell className="w-12 h-12 mx-auto mb-3 opacity-30" />
                         <p>No notifications</p>
                       </div>
                     ) : (
-                      <div className="divide-y divide-gray-700">
+                      <div className="divide-y divide-slate-800">
                         {notifications.map((notification) => {
                           const getNotificationIcon = () => {
                             switch (notification.type) {
@@ -2125,16 +1995,16 @@ export default function Dashboard({ onLogout }) {
                           };
 
                           const getNotificationBg = () => {
-                            if (notification.read) return 'bg-gray-800/50';
+                            if (notification.read) return 'bg-slate-800/40';
                             switch (notification.type) {
                               case 'success':
-                                return 'bg-green-500/5';
+                                return 'bg-emerald-500/5';
                               case 'error':
                                 return 'bg-red-500/5';
                               case 'warning':
-                                return 'bg-yellow-500/5';
+                                return 'bg-amber-500/5';
                               default:
-                                return 'bg-blue-500/5';
+                                return 'bg-brand-500/5';
                             }
                           };
 
@@ -2149,17 +2019,17 @@ export default function Dashboard({ onLogout }) {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-start justify-between gap-2">
-                                    <h4 className={`text-sm font-medium ${notification.read ? 'text-gray-400' : 'text-white'}`}>
+                                    <h4 className={`text-sm font-medium ${notification.read ? 'text-slate-500' : 'text-slate-100'}`}>
                                       {notification.title}
                                     </h4>
                                     {!notification.read && (
-                                      <div className="w-2 h-2 bg-primary-500 rounded-full flex-shrink-0 mt-1"></div>
+                                      <div className="w-2 h-2 bg-brand-500 rounded-full flex-shrink-0 mt-1"></div>
                                     )}
                                   </div>
-                                  <p className={`text-sm mt-1 ${notification.read ? 'text-gray-500' : 'text-gray-300'}`}>
+                                  <p className={`text-sm mt-1 ${notification.read ? 'text-slate-600' : 'text-slate-400'}`}>
                                     {notification.message}
                                   </p>
-                                  <p className="text-xs text-gray-500 mt-2">
+                                  <p className="text-xs text-slate-600 mt-2">
                                     {new Date(notification.timestamp).toLocaleTimeString([], { 
                                       hour: '2-digit', 
                                       minute: '2-digit'
@@ -2176,7 +2046,7 @@ export default function Dashboard({ onLogout }) {
                                             action.onClick();
                                             markNotificationAsRead(notification.id);
                                           }}
-                                          className="px-3 py-1 text-xs font-medium bg-primary-600 hover:bg-primary-700 text-white rounded transition-colors"
+                                          className="px-3 py-1 text-xs font-medium bg-brand-600 hover:bg-brand-700 text-white rounded-md transition-colors"
                                         >
                                           {action.label}
                                         </button>
@@ -2195,280 +2065,124 @@ export default function Dashboard({ onLogout }) {
               )}
             </div>
             
-            {/* Connection Status */}
-            <div 
-              className="relative flex items-center"
-              onMouseEnter={() => agents.length > 0 && setShowAgentsTooltip(true)}
-              onMouseLeave={() => setShowAgentsTooltip(false)}
+            {/* Date (NexusGrid-style) */}
+            <span className="hidden md:block text-xs text-slate-500 mr-1">
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+            </span>
+
+            {/* Theme toggle */}
+            <button
+              onClick={toggleTheme}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-colors"
             >
-              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
-                isConnected 
-                  ? 'bg-green-500/20 border-green-500/30' 
-                  : 'bg-red-500/20 border-red-500/30'
-              }`}>
-                <div className={`w-2 h-2 rounded-full ${
-                  isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'
-                }`}></div>
-                <span className={`text-sm font-medium ${
-                  isConnected ? 'text-green-400' : 'text-red-400'
-                }`}>
-                  {isConnected ? 'Connected' : 'Disconnected'}
-                </span>
-                {agents.length > 0 && (
-                  <span className="text-gray-400 text-xs">• {agents.length} agent(s)</span>
-                )}
-              </div>
-
-              {/* Agents Tooltip */}
-              {showAgentsTooltip && agents.length > 0 && (
-                <div className="absolute top-full mt-2 right-0 w-72 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl z-[100] backdrop-blur-sm">
-                  <div className="p-3 border-b border-gray-700 bg-gray-800/50">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                      <h3 className="text-sm font-semibold text-white">Connected Devices</h3>
-                      <span className="ml-auto text-xs text-gray-400 bg-gray-700/50 px-2 py-0.5 rounded-full">
-                        {agents.length}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    {agents.map((agent, index) => (
-                      <div 
-                        key={agent.agent_id}
-                        className={`p-3 hover:bg-gray-800/50 transition-colors ${
-                          index !== agents.length - 1 ? 'border-b border-gray-800' : ''
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
-                            <Server className="w-4 h-4 text-white" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-white truncate">
-                              {agent.hostname || 'Unknown Host'}
-                            </p>
-                            <p className="text-xs text-gray-400 font-mono truncate">
-                              ID: {agent.agent_id}
-                            </p>
-                            {agent.os && (
-                              <div className="flex items-center gap-1 mt-1">
-                                <span className="text-xs text-gray-500">
-                                  {agent.os}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex-shrink-0">
-                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {/* Profile Dropdown */}
-            <div className="relative profile-dropdown">
-              <button
-                onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-                className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
-                title={user?.username || 'User Profile'}
-              >
-                <User className="w-5 h-5 text-white" />
-              </button>
-
-              {/* Profile Dropdown Menu */}
-              {showProfileDropdown && (
-                <div className="absolute right-0 mt-2 w-56 bg-gray-800 border border-gray-700 rounded-lg shadow-2xl z-[100] backdrop-blur-sm">
-                  <div className="py-2 bg-gray-800">
-                    <div className="px-4 py-3 border-b border-gray-700 bg-gray-800">
-                      <p className="text-white font-medium">{user?.username}</p>
-                      <p className="text-gray-400 text-sm">{user?.email}</p>
-                    </div>
-                    
-                    <button
-                      onClick={() => handleProfileOptionClick('username')}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-gray-700 bg-gray-800 transition-colors"
-                    >
-                      <Edit className="w-4 h-4" />
-                      <span>Change Username</span>
-                    </button>
-                    
-                    <button
-                      onClick={() => handleProfileOptionClick('password')}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-gray-700 bg-gray-800 transition-colors"
-                    >
-                      <Lock className="w-4 h-4" />
-                      <span>Change Password</span>
-                    </button>
-                    
-                    <button
-                      onClick={() => handleProfileOptionClick('email')}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-300 hover:bg-gray-700 bg-gray-800 transition-colors"
-                    >
-                      <Mail className="w-4 h-4" />
-                      <span>Change Email</span>
-                    </button>
-                    
-                    <div className="border-t border-gray-700 mt-2 bg-gray-800">
-                      <button
-                        onClick={() => handleProfileOptionClick('logout')}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/20 bg-gray-800 transition-colors"
-                      >
-                        <LogOut className="w-4 h-4" />
-                        <span>Logout</span>
-                      </button>
-                      
-                      <button
-                        onClick={() => handleProfileOptionClick('delete-account')}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/20 bg-gray-800 transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        <span>Delete Account</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
           </div>
-        </div>
-      </header>
-
-      <div className="flex h-[calc(100vh-80px)]">
-        {/* Sidebar */}
-        <aside className="w-72 bg-gray-800/30 backdrop-blur-sm border-r border-gray-700 p-4">
-          <nav className="space-y-2">
-            {sections.map(section => (
-              <button
-                key={section.id}
-                onClick={() => setActiveSection(section.id)}
-                className={`w-full flex items-start gap-3 px-4 py-3 rounded-xl transition-all ${
-                  activeSection === section.id
-                    ? 'bg-primary-500/20 border border-primary-500/30 text-primary-400 shadow-lg'
-                    : 'text-gray-400 hover:bg-gray-800/50 hover:text-white'
-                }`}
-              >
-                <section.icon className={`w-5 h-5 ${section.color} mt-0.5 flex-shrink-0`} />
-                <div className="text-left flex-1">
-                  <div className="font-medium">{section.name}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">{section.description}</div>
-                </div>
-              </button>
-            ))}
-          </nav>
-        </aside>
+            </header>
 
         {/* Main Content */}
-        <main className="flex-1 p-6 overflow-auto bg-gray-900/50">
+        <main className="flex-1 p-4 lg:p-6 overflow-y-auto bg-slate-950 min-w-0">
           {activeSection === 'overview' && (
             <div className="space-y-6">
               {/* Welcome Header */}
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h1 className="text-3xl font-bold text-white mb-2">Welcome back, {user?.username || 'Admin'}!</h1>
-                  <p className="text-gray-400">Here's what's happening with your systems today</p>
+                  <h1 className="text-xl font-bold text-slate-100">
+                    Welcome back, {user?.username || 'Admin'}!
+                  </h1>
+                  <p className="text-sm text-slate-500 mt-0.5">Here's what's happening with your systems today</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm text-gray-400">Last updated</p>
-                  <p className="text-white font-medium">{new Date().toLocaleTimeString()}</p>
+                  <p className="text-xs text-slate-500">Last updated</p>
+                  <p className="text-sm font-medium text-slate-300">{new Date().toLocaleTimeString()}</p>
                 </div>
               </div>
 
               {/* Quick Stats Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div 
-                  className="card-dark cursor-pointer hover:bg-gray-800/80 transition-all hover:scale-105"
+                  className="card-dark p-4 cursor-pointer hover:border-slate-600 hover:shadow-md"
                   onClick={() => setActiveSection('devices')}
                   title="Click to view all devices"
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-gray-400 text-sm font-medium">Connected Devices</p>
-                      {loading ? (
-                        <div className="h-8 w-16 bg-gray-700/50 rounded animate-pulse"></div>
-                      ) : (
-                        <p className="text-2xl font-bold text-white">{dashboardStats.devices.total}</p>
-                      )}
-                      {loading ? (
-                        <div className="h-4 w-20 bg-gray-700/50 rounded animate-pulse mt-1"></div>
-                      ) : (
-                        <p className="text-green-400 text-xs mt-1">
-                          <span className="inline-flex items-center gap-1">
-                            <CheckCircle className="w-3 h-3" />
-                            {dashboardStats.devices.online} Online
-                          </span>
-                        </p>
-                      )}
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center shrink-0">
+                      <Server className="w-5 h-5 text-blue-400" />
                     </div>
-                    <div className="p-3 bg-blue-500/20 rounded-lg">
-                      <Server className="w-6 h-6 text-blue-400" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-2xl font-bold text-slate-100 leading-tight tabular-nums">{dashboardStats.devices.total}</p>
+                      <p className="text-xs font-medium text-slate-400 truncate">Connected Devices</p>
                     </div>
                   </div>
+                  <p className="text-xs text-emerald-400 mt-2">
+                    <span className="inline-flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      {dashboardStats.devices.online} Online
+                    </span>
+                  </p>
                 </div>
 
-                <div className="card-dark">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-gray-400 text-sm font-medium">System Health</p>
-                      <p className="text-2xl font-bold text-white">{dashboardStats.system.health_score}%</p>
-                      <p className={`text-xs mt-1 ${dashboardStats.system.health_score >= 80 ? 'text-green-400' : dashboardStats.system.health_score >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
-                        <span className="inline-flex items-center gap-1">
-                          <TrendingUp className="w-3 h-3" />
-                          {dashboardStats.system.health_score >= 80 ? 'Excellent' : dashboardStats.system.health_score >= 60 ? 'Good' : 'Poor'}
-                        </span>
-                      </p>
+                <div className="card-dark p-4 hover:border-slate-600 hover:shadow-md">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+                      <Shield className="w-5 h-5 text-emerald-400" />
                     </div>
-                    <div className="p-3 bg-green-500/20 rounded-lg">
-                      <Shield className="w-6 h-6 text-green-400" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-2xl font-bold text-slate-100 leading-tight tabular-nums">{dashboardStats.system.health_score}%</p>
+                      <p className="text-xs font-medium text-slate-400 truncate">System Health</p>
                     </div>
                   </div>
+                  <p className={`text-xs mt-2 ${dashboardStats.system.health_score >= 80 ? 'text-emerald-400' : dashboardStats.system.health_score >= 60 ? 'text-amber-400' : 'text-red-400'}`}>
+                    <span className="inline-flex items-center gap-1">
+                      <TrendingUp className="w-3 h-3" />
+                      {dashboardStats.system.health_score >= 80 ? 'Excellent' : dashboardStats.system.health_score >= 60 ? 'Good' : 'Poor'}
+                    </span>
+                  </p>
                 </div>
 
                 <div 
-                  className="card-dark cursor-pointer hover:bg-gray-800/80 transition-all hover:scale-105"
+                  className="card-dark p-4 cursor-pointer hover:border-slate-600 hover:shadow-md"
                   onClick={() => setActiveSection('deployments')}
                   title="Click to view software deployments"
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-gray-400 text-sm font-medium">Deployments</p>
-                      <p className="text-2xl font-bold text-white">{dashboardStats.deployments.total}</p>
-                      <p className="text-green-400 text-xs mt-1">
-                        <span className="inline-flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3" />
-                          {dashboardStats.deployments.success_rate}% Success Rate
-                        </span>
-                      </p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0">
+                      <Play className="w-5 h-5 text-purple-400" />
                     </div>
-                    <div className="p-3 bg-purple-500/20 rounded-lg">
-                      <Play className="w-6 h-6 text-purple-400" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-2xl font-bold text-slate-100 leading-tight tabular-nums">{dashboardStats.deployments.total}</p>
+                      <p className="text-xs font-medium text-slate-400 truncate">Deployments</p>
                     </div>
                   </div>
+                  <p className="text-xs text-emerald-400 mt-2">
+                    <span className="inline-flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      {dashboardStats.deployments.success_rate}% Success Rate
+                    </span>
+                  </p>
                 </div>
 
                 <div 
-                  className="card-dark cursor-pointer hover:bg-gray-800/80 transition-all hover:scale-105"
+                  className="card-dark p-4 cursor-pointer hover:border-slate-600 hover:shadow-md"
                   onClick={() => setActiveSection('deployment')}
                   title="Click to view command execution"
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-gray-400 text-sm font-medium">Total Commands</p>
-                      <p className="text-2xl font-bold text-white">{dashboardStats.commands.total || 0}</p>
-                      <p className="text-blue-400 text-xs mt-1">
-                        <span className="inline-flex items-center gap-1">
-                          <CheckCircle className="w-3 h-3" />
-                          {dashboardStats.commands.completed || 0} Completed
-                        </span>
-                      </p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-orange-500/15 border border-orange-500/30 flex items-center justify-center shrink-0">
+                      <Command className="w-5 h-5 text-orange-400" />
                     </div>
-                    <div className="p-3 bg-orange-500/20 rounded-lg">
-                      <Command className="w-6 h-6 text-orange-400" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-2xl font-bold text-slate-100 leading-tight tabular-nums">{dashboardStats.commands.total || 0}</p>
+                      <p className="text-xs font-medium text-slate-400 truncate">Total Commands</p>
                     </div>
                   </div>
+                  <p className="text-xs text-sky-400 mt-2">
+                    <span className="inline-flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      {dashboardStats.commands.completed || 0} Completed
+                    </span>
+                  </p>
                 </div>
               </div>
 
@@ -2477,7 +2191,7 @@ export default function Dashboard({ onLogout }) {
                 {/* Device Health Chart */}
                 <div className="card-dark">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-white">Device Health</h3>
+                    <h3 className="text-sm font-semibold text-slate-200">Device Health</h3>
                     <BarChart3 className="w-5 h-5 text-gray-400" />
                   </div>
                   <div className="space-y-3">
@@ -2524,7 +2238,7 @@ export default function Dashboard({ onLogout }) {
                 <div className="card-dark">
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-white">Recent Activities</h3>
+                      <h3 className="text-sm font-semibold text-slate-200">Recent Activities</h3>
                       <p className="text-xs text-gray-400 mt-1">Deployments • Groups • Connections • System Events</p>
                     </div>
                     <Clock className="w-5 h-5 text-gray-400" />
@@ -2567,23 +2281,10 @@ export default function Dashboard({ onLogout }) {
                               return <Clock className="w-3 h-3" />;
                           }
                         };
-                        const formatTimestamp = (timestamp) => {
-                          if (!timestamp) return 'Unknown time';
-                          const date = new Date(timestamp);
-                          const now = new Date();
-                          const diffMs = now - date;
-                          const diffMins = Math.floor(diffMs / 60000);
-                          const diffHours = Math.floor(diffMins / 60);
-                          const diffDays = Math.floor(diffHours / 24);
-                          
-                          if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
-                          if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
-                          return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
-                        };
                         return (
                           <div 
                             key={activity.id || index} 
-                            className={`flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800/70 transition-colors group ${
+                            className={`flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg hover:bg-slate-800/80 transition-colors group ${
                               activity.type === 'deployment' || activity.type === 'deployment_complete' ? 'cursor-pointer' : ''
                             }`}
                             onClick={() => {
@@ -2606,7 +2307,7 @@ export default function Dashboard({ onLogout }) {
                             <div className="flex-1 min-w-0">
                               <p className="text-white text-sm font-medium truncate">{activity.title}</p>
                               <div className="flex items-center gap-2 mt-1">
-                                <p className="text-gray-400 text-xs">{formatTimestamp(activity.timestamp)}</p>
+                                <p className="text-gray-400 text-xs">{formatRelativeTime(activity.timestamp)}</p>
                                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
                                   activity.status === 'completed' || activity.status === 'success' ? 'bg-green-900/30 text-green-400' :
                                   activity.status === 'failed' ? 'bg-red-900/30 text-red-400' :
@@ -2650,7 +2351,7 @@ export default function Dashboard({ onLogout }) {
                 {/* Device Status Pie Chart */}
                 <div className="card-dark">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-white">Device Status Distribution</h3>
+                    <h3 className="text-sm font-semibold text-slate-200">Device Status Distribution</h3>
                     <PieChart className="w-5 h-5 text-gray-400" />
                   </div>
                   <div className="flex items-center justify-center">
@@ -2701,7 +2402,7 @@ export default function Dashboard({ onLogout }) {
                 {/* Command Queue Activity */}
                 <div className="card-dark">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-white">Command Queue Activity</h3>
+                    <h3 className="text-sm font-semibold text-slate-200">Command Queue Activity</h3>
                     <Activity className="w-5 h-5 text-gray-400" />
                   </div>
                   <div className="space-y-4">
@@ -2767,7 +2468,7 @@ export default function Dashboard({ onLogout }) {
                 {/* System Health Gauge */}
                 <div className="card-dark">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-white">System Health Score</h3>
+                    <h3 className="text-sm font-semibold text-slate-200">System Health Score</h3>
                     <Shield className="w-5 h-5 text-gray-400" />
                   </div>
                   <div className="flex items-center justify-center">
@@ -2825,7 +2526,7 @@ export default function Dashboard({ onLogout }) {
                 <div className="flex flex-col gap-4 mb-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold text-white">Deployment Success Trends</h3>
+                      <h3 className="text-sm font-semibold text-slate-200">Deployment Success Trends</h3>
                       <p className="text-xs text-gray-400 mt-1">View deployment history and success rates</p>
                     </div>
                     <TrendingUp className="w-5 h-5 text-gray-400" />
@@ -3055,7 +2756,7 @@ export default function Dashboard({ onLogout }) {
                 {/* Network Activity */}
                 <div className="card-dark">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-white">Network & Connectivity</h3>
+                    <h3 className="text-sm font-semibold text-slate-200">Network & Connectivity</h3>
                     <Network className="w-5 h-5 text-gray-400" />
                   </div>
                   <div className="space-y-4">
@@ -3070,7 +2771,7 @@ export default function Dashboard({ onLogout }) {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-gray-400 text-sm">Connected Agents</span>
-                      <span className="text-cyan-400 font-medium">{agents.filter(agent => agent.status === 'connected').length}/{agents.length}</span>
+                      <span className="text-cyan-400 font-medium">{onlineAgents.length}/{agents.length}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-gray-400 text-sm">Network Connections</span>
@@ -3091,7 +2792,7 @@ export default function Dashboard({ onLogout }) {
                 {/* Resource Usage */}
                 <div className="card-dark">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-white">System Resource Usage</h3>
+                    <h3 className="text-sm font-semibold text-slate-200">System Resource Usage</h3>
                     <Cpu className="w-5 h-5 text-gray-400" />
                   </div>
                   <div className="space-y-4">
@@ -3159,7 +2860,7 @@ export default function Dashboard({ onLogout }) {
               {/* Quick Actions & Shortcuts */}
               <div className="card-dark">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-semibold text-white">Quick Actions</h3>
+                  <h3 className="text-sm font-semibold text-slate-200">Quick Actions</h3>
                   <Zap className="w-5 h-5 text-yellow-400" />
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
@@ -3201,7 +2902,7 @@ export default function Dashboard({ onLogout }) {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="card-dark">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-white">Agent Status</h3>
+                    <h3 className="text-sm font-semibold text-slate-200">Agent Status</h3>
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                       <PieChart className="w-5 h-5 text-gray-400" />
@@ -3213,14 +2914,14 @@ export default function Dashboard({ onLogout }) {
                         <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
                         <span className="text-gray-300">Online</span>
                       </div>
-                      <span className="text-white font-medium">{agents.filter(a => a.status === 'connected').length}</span>
+                      <span className="text-white font-medium">{onlineAgents.length}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 bg-red-400 rounded-full"></div>
                         <span className="text-gray-300">Offline</span>
                       </div>
-                      <span className="text-white font-medium">{agents.filter(a => a.status !== 'connected').length}</span>
+                      <span className="text-white font-medium">{(agents.length - onlineAgents.length)}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -3234,7 +2935,7 @@ export default function Dashboard({ onLogout }) {
 
                 <div className="card-dark">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-white">Deployments</h3>
+                    <h3 className="text-sm font-semibold text-slate-200">Deployments</h3>
                     <Database className="w-5 h-5 text-gray-400" />
                   </div>
                   <div className="space-y-3">
@@ -3264,7 +2965,7 @@ export default function Dashboard({ onLogout }) {
 
                 <div className="card-dark">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-white">Security</h3>
+                    <h3 className="text-sm font-semibold text-slate-200">Security</h3>
                     <Shield className="w-5 h-5 text-gray-400" />
                   </div>
                   <div className="space-y-3">
@@ -3293,11 +2994,11 @@ export default function Dashboard({ onLogout }) {
                   <div className="p-2 bg-cyan-500/20 rounded-lg flex-shrink-0">
                     <TerminalIcon className="w-6 h-6 text-cyan-400" />
                   </div>
-                  <h2 className="text-2xl font-bold text-white whitespace-nowrap">Interactive Remote Shell</h2>
+                  <h2 className="text-lg font-semibold text-slate-100">Interactive Remote Shell</h2>
                   <span className="text-gray-400 whitespace-nowrap">•</span>
-                  <p className="text-gray-400 whitespace-nowrap">Execute commands on remote systems in real-time</p>
+                  <p className="text-sm text-slate-500 whitespace-nowrap truncate hidden md:block">Execute commands on remote systems in real-time</p>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-2 bg-green-500/20 border border-green-500/30 rounded-lg flex-shrink-0">
+                <div className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg flex-shrink-0">
                   <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                   <span className="text-green-400 text-sm font-medium whitespace-nowrap">Live</span>
                 </div>
@@ -3316,9 +3017,9 @@ export default function Dashboard({ onLogout }) {
                   <div className="p-2 bg-teal-500/20 rounded-lg flex-shrink-0">
                     <Command className="w-6 h-6 text-teal-400" />
                   </div>
-                  <h2 className="text-2xl font-bold text-white whitespace-nowrap">Command Execution</h2>
+                  <h2 className="text-lg font-semibold text-slate-100">Command Execution</h2>
                   <span className="text-gray-400 whitespace-nowrap">•</span>
-                  <p className="text-gray-400 whitespace-nowrap">Deploy and execute commands across multiple devices</p>
+                  <p className="text-sm text-slate-500 whitespace-nowrap truncate hidden md:block">Deploy and execute commands across multiple devices</p>
                 </div>
               </div>
               
@@ -3370,9 +3071,9 @@ export default function Dashboard({ onLogout }) {
                   <div className="p-2 bg-orange-500/20 rounded-lg flex-shrink-0">
                     <Monitor className="w-6 h-6 text-orange-400" />
                   </div>
-                  <h2 className="text-2xl font-bold text-white whitespace-nowrap">Device Groups</h2>
+                  <h2 className="text-lg font-semibold text-slate-100">Device Groups</h2>
                   <span className="text-gray-400 whitespace-nowrap">•</span>
-                  <p className="text-gray-400 whitespace-nowrap">Organize and manage device collections</p>
+                  <p className="text-sm text-slate-500 whitespace-nowrap truncate hidden md:block">Organize and manage device collections</p>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <button
@@ -3503,7 +3204,7 @@ export default function Dashboard({ onLogout }) {
                   <Monitor className="w-6 h-6 text-green-400" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-white">System Information</h2>
+                  <h2 className="text-lg font-semibold text-slate-100">System Information</h2>
                   <p className="text-gray-400">Monitor system resources and performance</p>
                 </div>
               </div>
@@ -3517,10 +3218,10 @@ export default function Dashboard({ onLogout }) {
                 ].map((metric, index) => (
                   <div key={index} className="card-dark">
                     <div className="flex items-center justify-between mb-4">
-                      <span className="text-gray-400 text-sm font-medium">{metric.label}</span>
+                      <span className="text-xs font-medium text-slate-400">{metric.label}</span>
                       <MoreHorizontal className="w-4 h-4 text-gray-500" />
                     </div>
-                    <div className="text-3xl font-bold text-white mb-2">{metric.value}</div>
+                    <div className="text-2xl font-bold text-slate-100 leading-tight tabular-nums mb-2">{metric.value}</div>
                     <div className="w-full bg-gray-700 rounded-full h-2">
                       <div 
                         className={`h-2 rounded-full transition-all duration-300 ${
@@ -3536,7 +3237,7 @@ export default function Dashboard({ onLogout }) {
               </div>
 
               <div className="card-dark">
-                <h3 className="text-lg font-semibold text-white mb-4">System Details</h3>
+                <h3 className="text-sm font-semibold text-slate-200 mb-4">System Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div><span className="text-gray-400">OS:</span> <span className="text-white">Ubuntu 22.04.3 LTS</span></div>
                   <div><span className="text-gray-400">Kernel:</span> <span className="text-white">5.15.0-91-generic</span></div>
@@ -3554,7 +3255,7 @@ export default function Dashboard({ onLogout }) {
                   <Settings className="w-6 h-6 text-red-400" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-white">Service Manager</h2>
+                  <h2 className="text-lg font-semibold text-slate-100">Service Manager</h2>
                   <p className="text-gray-400">Control and monitor system services</p>
                 </div>
               </div>
@@ -3617,13 +3318,13 @@ export default function Dashboard({ onLogout }) {
                   <Network className="w-6 h-6 text-purple-400" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-white">Network Overview</h2>
+                  <h2 className="text-lg font-semibold text-slate-100">Network Overview</h2>
                   <p className="text-gray-400">Monitor network interfaces and connections</p>
                 </div>
               </div>
               
               <div className="card-dark">
-                <h3 className="text-lg font-semibold text-white mb-4">Network Interfaces</h3>
+                <h3 className="text-sm font-semibold text-slate-200 mb-4">Network Interfaces</h3>
                 <div className="space-y-4">
                   {[
                     { name: 'eth0', ip: '192.168.1.100', status: 'up', speed: '1 Gbps' },
@@ -3653,7 +3354,7 @@ export default function Dashboard({ onLogout }) {
                   <Activity className="w-6 h-6 text-yellow-400" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-white">Process Manager</h2>
+                  <h2 className="text-lg font-semibold text-slate-100">Process Manager</h2>
                   <p className="text-gray-400">Monitor and manage running processes</p>
                 </div>
               </div>
@@ -3677,7 +3378,7 @@ export default function Dashboard({ onLogout }) {
                         { pid: '1236', name: 'node', cpu: '12.3', memory: '89 MB', status: 'running' },
                         { pid: '1237', name: 'python3', cpu: '0.8', memory: '34 MB', status: 'sleeping' },
                       ].map((process, index) => (
-                        <tr key={index} className="border-b border-gray-800 hover:bg-gray-800/30">
+                        <tr key={index} className="border-b border-slate-800 hover:bg-slate-800/40">
                           <td className="py-3 text-gray-300">{process.pid}</td>
                           <td className="py-3 text-white font-medium">{process.name}</td>
                           <td className="py-3 text-gray-300">{process.cpu}%</td>
@@ -3707,9 +3408,9 @@ export default function Dashboard({ onLogout }) {
                   <div className="p-2 bg-teal-500/20 rounded-lg flex-shrink-0">
                     <Server className="w-6 h-6 text-teal-400" />
                   </div>
-                  <h2 className="text-2xl font-bold text-white whitespace-nowrap">Devices Management</h2>
+                  <h2 className="text-lg font-semibold text-slate-100">Devices Management</h2>
                   <span className="text-gray-400 whitespace-nowrap">•</span>
-                  <p className="text-gray-400 whitespace-nowrap">Monitor and control connected devices</p>
+                  <p className="text-sm text-slate-500 whitespace-nowrap truncate hidden md:block">Monitor and control connected devices</p>
                 </div>
                 <button
                   onClick={fetchDevicesData}
@@ -4173,7 +3874,7 @@ export default function Dashboard({ onLogout }) {
                   {/* Software Deployments */}
                   {selectedDeployment.software_deployments?.length > 0 && (
                     <div>
-                      <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                      <h3 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
                         <Database className="h-5 w-5 text-purple-400" />
                         Software Deployments ({selectedDeployment.software_deployments.length})
                       </h3>
@@ -4213,7 +3914,7 @@ export default function Dashboard({ onLogout }) {
                   {/* File Deployments */}
                   {selectedDeployment.file_deployments?.length > 0 && (
                     <div>
-                      <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                      <h3 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
                         <FileText className="h-5 w-5 text-cyan-400" />
                         File Deployments ({selectedDeployment.file_deployments.length})
                       </h3>
@@ -4267,7 +3968,7 @@ export default function Dashboard({ onLogout }) {
                 <div className="space-y-8">
                   {/* Software Details Section */}
                   <div>
-                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
                       <Database className="h-5 w-5 text-blue-400" />
                       Software Details
                     </h3>
@@ -4307,7 +4008,7 @@ export default function Dashboard({ onLogout }) {
 
                   {/* Target Devices Section */}
                   <div>
-                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
                       <Monitor className="h-5 w-5 text-green-400" />
                       Target Devices ({deploymentDevices.length})
                     </h3>
@@ -4358,7 +4059,7 @@ export default function Dashboard({ onLogout }) {
 
                   {/* Target Groups Section */}
                   <div>
-                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
                       <Users className="h-5 w-5 text-purple-400" />
                       Target Groups ({deploymentGroups.length})
                     </h3>
@@ -4404,7 +4105,6 @@ export default function Dashboard({ onLogout }) {
                   className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
                   onClick={() => {
                     // Could add functionality to re-run deployment or view logs
-                    console.log('View deployment logs for:', selectedDeployment?.id);
                   }}
                 >
                   View Logs
@@ -4619,7 +4319,7 @@ export default function Dashboard({ onLogout }) {
           <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex justify-between items-start mb-6">
               <div>
-                <h2 className="text-2xl font-bold text-white">Deployment Results</h2>
+                <h2 className="text-lg font-semibold text-slate-100">Deployment Results</h2>
                 {deploymentResultsData && !deploymentResultsData.error && (
                   <p className="text-gray-400 mt-1">
                     {deploymentResultsData.type === 'file_deployment' ? 'File Deployment' : 

@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-import authService from '../services/auth.js';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import api from '../services/api.js';
 
 const PasswordModal = ({ onClose }) => {
   const [loading, setLoading] = useState(false);
@@ -13,25 +11,7 @@ const PasswordModal = ({ onClose }) => {
     setMessage('');
     
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/request-password-change`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authService.getToken()}`
-        }
-      });
-
-      if (!response.ok) {
-        let errorMessage = 'Failed to send password reset email';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.detail || errorMessage;
-        } catch (e) {
-          // If response is not JSON, use status text
-          errorMessage = response.statusText || errorMessage;
-        }
-        throw new Error(errorMessage);
-      }
+      await api.post('/auth/request-password-change');
 
       setMessage('Password reset link sent to your email!');
       setMessageType('success');

@@ -1,7 +1,4 @@
-import axios from 'axios';
-import authService from './auth';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import api from './api';
 
 const schedulingService = {
   /**
@@ -9,25 +6,10 @@ const schedulingService = {
    */
   async createScheduledTask(taskData) {
     try {
-      const token = authService.getToken();
-      console.log('Sending task data to backend:', JSON.stringify(taskData, null, 2));
-      const response = await axios.post(
-        `${API_BASE_URL}/api/schedule/tasks`,
-        taskData,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      return response.data;
+      return await api.post('/api/schedule/tasks', taskData);
     } catch (error) {
       console.error('Error creating scheduled task:', error);
-      console.error('Response data:', error.response?.data);
-      console.error('Response status:', error.response?.status);
-      const errorDetail = error.response?.data?.detail || error.response?.data || 'Failed to create scheduled task';
-      throw new Error(JSON.stringify(errorDetail));
+      throw new Error(error.message || 'Failed to create scheduled task');
     }
   },
 
@@ -36,20 +18,10 @@ const schedulingService = {
    */
   async getTasks(params = {}) {
     try {
-      const token = authService.getToken();
-      const response = await axios.get(
-        `${API_BASE_URL}/api/schedule/tasks`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
-          params
-        }
-      );
-      return response.data;
+      return await api.get('/api/schedule/tasks', { params });
     } catch (error) {
       console.error('Error fetching scheduled tasks:', error);
-      throw new Error(error.response?.data?.detail || 'Failed to fetch scheduled tasks');
+      throw new Error(error.message || 'Failed to fetch scheduled tasks');
     }
   },
 
@@ -58,19 +30,10 @@ const schedulingService = {
    */
   async getTask(taskId) {
     try {
-      const token = authService.getToken();
-      const response = await axios.get(
-        `${API_BASE_URL}/api/schedule/tasks/${taskId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
-      return response.data;
+      return await api.get(`/api/schedule/tasks/${taskId}`);
     } catch (error) {
       console.error('Error fetching task:', error);
-      throw new Error(error.response?.data?.detail || 'Failed to fetch task');
+      throw new Error(error.message || 'Failed to fetch task');
     }
   },
 
@@ -79,21 +42,10 @@ const schedulingService = {
    */
   async updateTask(taskId, updateData) {
     try {
-      const token = authService.getToken();
-      const response = await axios.put(
-        `${API_BASE_URL}/api/schedule/tasks/${taskId}`,
-        updateData,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      return response.data;
+      return await api.put(`/api/schedule/tasks/${taskId}`, updateData);
     } catch (error) {
       console.error('Error updating task:', error);
-      throw new Error(error.response?.data?.detail || 'Failed to update task');
+      throw new Error(error.message || 'Failed to update task');
     }
   },
 
@@ -102,19 +54,10 @@ const schedulingService = {
    */
   async deleteTask(taskId) {
     try {
-      const token = authService.getToken();
-      const response = await axios.delete(
-        `${API_BASE_URL}/api/schedule/tasks/${taskId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
-      return response.data;
+      return await api.delete(`/api/schedule/tasks/${taskId}`);
     } catch (error) {
       console.error('Error deleting task:', error);
-      throw new Error(error.response?.data?.detail || 'Failed to delete task');
+      throw new Error(error.message || 'Failed to delete task');
     }
   },
 
@@ -123,20 +66,10 @@ const schedulingService = {
    */
   async pauseTask(taskId) {
     try {
-      const token = authService.getToken();
-      const response = await axios.post(
-        `${API_BASE_URL}/api/schedule/tasks/${taskId}/pause`,
-        {},
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
-      return response.data;
+      return await api.post(`/api/schedule/tasks/${taskId}/pause`);
     } catch (error) {
       console.error('Error pausing task:', error);
-      throw new Error(error.response?.data?.detail || 'Failed to pause task');
+      throw new Error(error.message || 'Failed to pause task');
     }
   },
 
@@ -145,20 +78,10 @@ const schedulingService = {
    */
   async resumeTask(taskId) {
     try {
-      const token = authService.getToken();
-      const response = await axios.post(
-        `${API_BASE_URL}/api/schedule/tasks/${taskId}/resume`,
-        {},
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
-      return response.data;
+      return await api.post(`/api/schedule/tasks/${taskId}/resume`);
     } catch (error) {
       console.error('Error resuming task:', error);
-      throw new Error(error.response?.data?.detail || 'Failed to resume task');
+      throw new Error(error.message || 'Failed to resume task');
     }
   },
 
@@ -167,20 +90,10 @@ const schedulingService = {
    */
   async executeTaskNow(taskId) {
     try {
-      const token = authService.getToken();
-      const response = await axios.post(
-        `${API_BASE_URL}/api/schedule/tasks/${taskId}/execute`,
-        {},
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
-      return response.data;
+      return await api.post(`/api/schedule/tasks/${taskId}/execute`);
     } catch (error) {
       console.error('Error executing task:', error);
-      throw new Error(error.response?.data?.detail || 'Failed to execute task');
+      throw new Error(error.message || 'Failed to execute task');
     }
   },
 
@@ -189,20 +102,10 @@ const schedulingService = {
    */
   async getTaskExecutions(taskId, params = {}) {
     try {
-      const token = authService.getToken();
-      const response = await axios.get(
-        `${API_BASE_URL}/api/schedule/tasks/${taskId}/executions`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
-          params
-        }
-      );
-      return response.data;
+      return await api.get(`/api/schedule/tasks/${taskId}/executions`, { params });
     } catch (error) {
       console.error('Error fetching task executions:', error);
-      throw new Error(error.response?.data?.detail || 'Failed to fetch task executions');
+      throw new Error(error.message || 'Failed to fetch task executions');
     }
   },
 
@@ -211,19 +114,10 @@ const schedulingService = {
    */
   async getStats() {
     try {
-      const token = authService.getToken();
-      const response = await axios.get(
-        `${API_BASE_URL}/api/schedule/stats`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
-      return response.data;
+      return await api.get('/api/schedule/stats');
     } catch (error) {
       console.error('Error fetching stats:', error);
-      throw new Error(error.response?.data?.detail || 'Failed to fetch stats');
+      throw new Error(error.message || 'Failed to fetch stats');
     }
   }
 };

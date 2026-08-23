@@ -1,11 +1,27 @@
 import { Routes, Route, Link, Navigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import Home from './pages/Home.jsx'
 import ForgotPassword from './pages/ForgotPassword.jsx'
 import ResetPassword from './pages/ResetPassword.jsx'
-import Dashboard from './pages/Dashboard.jsx'
 import VerifyEmailChange from './pages/VerifyEmailChange.jsx'
+import SignIn from './pages/SignIn.jsx'
+import SignUp from './pages/SignUp.jsx'
 import authService from './services/auth.js'
+
+// Dashboard is the heaviest page (terminal + managers) - load it on demand
+const Dashboard = lazy(() => import('./pages/Dashboard.jsx'))
+
+const LoadingScreen = () => (
+  <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+    <div className="text-center">
+      <div className="inline-block mb-6 animate-pulse">
+        <img src="/logo.svg" alt="DeployX logo" className="h-16 w-auto drop-shadow-lg" />
+      </div>
+      <h2 className="text-2xl font-semibold text-slate-100 mb-2">DeployX</h2>
+      <p className="text-slate-500 animate-pulse">Loading dashboard...</p>
+    </div>
+  </div>
+)
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -27,26 +43,21 @@ export default function App() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-primary-500 to-accent-cyan rounded-2xl mb-6 shadow-lg">
-            <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
-          </div>
-          <h2 className="text-2xl font-semibold text-white mb-2">DeployX</h2>
-          <p className="text-gray-400 animate-pulse">Initializing platform...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 transition-colors duration-300">
+    <div className="min-h-screen bg-slate-950 transition-colors duration-300">
       <Routes>
         <Route 
           path="/" 
           element={isAuthenticated ? <Navigate to="/dashboard" /> : <Home />} 
         />
+        {/* Auth pages */}
+        <Route path="/signin" element={isAuthenticated ? <Navigate to="/dashboard" /> : <SignIn />} />
+        <Route path="/signup" element={isAuthenticated ? <Navigate to="/dashboard" /> : <SignUp />} />
+        {/* Legacy URLs */}
+        <Route path="/login" element={<Navigate to="/signin" replace />} />
         <Route 
           path="/forgot-password" 
           element={isAuthenticated ? <Navigate to="/dashboard" /> : <ForgotPassword />} 
@@ -62,16 +73,22 @@ export default function App() {
         
         <Route 
           path="/dashboard" 
-          element={isAuthenticated ? <Dashboard onLogout={handleLogout} /> : <Navigate to="/" />} 
+          element={
+            isAuthenticated ? (
+              <Suspense fallback={<LoadingScreen />}>
+                <Dashboard onLogout={handleLogout} />
+              </Suspense>
+            ) : <Navigate to="/" />
+          } 
         />
         
         <Route path="*" element={
-          <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-6">
+          <div className="min-h-screen bg-slate-950 flex items-center justify-center px-6">
             <div className="text-center max-w-md">
               <div className="mb-8">
-                <h1 className="text-9xl font-bold text-primary-500 mb-4">404</h1>
-                <h2 className="text-2xl font-semibold text-white mb-2">Page Not Found</h2>
-                <p className="text-gray-400 mb-8">
+                <h1 className="text-9xl font-bold text-brand-500 mb-4">404</h1>
+                <h2 className="text-2xl font-semibold text-slate-100 mb-2">Page Not Found</h2>
+                <p className="text-slate-400 mb-8">
                   The page you're looking for doesn't exist or has been moved.
                 </p>
               </div>
@@ -85,8 +102,8 @@ export default function App() {
                   </svg>
                   Go Home
                 </Link>
-                <div className="text-sm text-gray-500">
-                  or <Link to="/" className="text-primary-400 hover:text-primary-300 transition-colors">return to homepage</Link>
+                <div className="text-sm text-slate-500">
+                  or <Link to="/" className="text-brand-400 hover:text-brand-300 transition-colors">return to homepage</Link>
                 </div>
               </div>
             </div>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import authService from '../services/auth.js';
+import api from '../services/api.js';
 
 const UsernameModal = ({ onClose }) => {
   const [newUsername, setNewUsername] = useState('');
@@ -21,27 +22,7 @@ const UsernameModal = ({ onClose }) => {
     setMessage('');
     
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${apiUrl}/auth/update-username`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authService.getToken()}`
-        },
-        body: JSON.stringify({ new_username: newUsername })
-      });
-
-      if (!response.ok) {
-        let errorMessage = 'Failed to update username';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.detail || errorMessage;
-        } catch (e) {
-          // If response is not JSON, use status text
-          errorMessage = response.statusText || errorMessage;
-        }
-        throw new Error(errorMessage);
-      }
+      await api.put('/auth/update-username', { new_username: newUsername });
 
       // Update local user data
       const updatedUser = { ...user, username: newUsername };

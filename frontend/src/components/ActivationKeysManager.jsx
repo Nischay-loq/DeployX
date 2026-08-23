@@ -14,7 +14,8 @@ import {
   Eye,
   EyeOff,
   Filter,
-  Search
+  Search,
+  Terminal
 } from 'lucide-react';
 import activationService from '../services/activation.js';
 
@@ -36,6 +37,9 @@ export default function ActivationKeysManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [showKey, setShowKey] = useState({});
+  const [setupCommands, setSetupCommands] = useState(null);
+  const [setupLoading, setSetupLoading] = useState(false);
+  const [copiedField, setCopiedField] = useState(null);
 
   const fetchKeys = useCallback(async () => {
     try {
@@ -101,6 +105,35 @@ export default function ActivationKeysManager() {
     } catch (err) {
       setError('Failed to copy to clipboard');
     }
+  };
+
+  const openSetupCommands = async (keyId) => {
+    try {
+      setSetupLoading(true);
+      setSetupCommands(null);
+      setError(null);
+      const data = await activationService.getSetupCommands(keyId);
+      setSetupCommands(data);
+    } catch (err) {
+      setError(err.message || 'Failed to load setup commands');
+    } finally {
+      setSetupLoading(false);
+    }
+  };
+
+  const copyCommand = async (field, value) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch (err) {
+      setError('Failed to copy to clipboard');
+    }
+  };
+
+  const closeSetupModal = () => {
+    setSetupCommands(null);
+    setCopiedField(null);
   };
 
   const formatDate = (dateStr) => {
@@ -423,13 +456,22 @@ export default function ActivationKeysManager() {
                           </button>
                         </div>
                       ) : (
-                        <button
-                          onClick={() => setDeleteConfirm(key.id)}
-                          className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                          title="Delete key"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end space-x-1">
+                          <button
+                            onClick={() => openSetupCommands(key.id)}
+                            className="p-2 text-gray-400 hover:text-primary-400 hover:bg-primary-500/10 rounded-lg transition-colors"
+                            title="Get agent setup command for this key"
+                          >
+                            <Terminal className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirm(key.id)}
+                            className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                            title="Delete key"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -475,7 +517,7 @@ export default function ActivationKeysManager() {
             </div>
           </div>
         </div>
-        <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4">
+        <div className="bg-gray-800/50 border border-red-500/20 rounded-xl p-4">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-red-500/20 rounded-lg">
               <XCircle className="w-5 h-5 text-red-400" />
@@ -487,6 +529,95 @@ export default function ActivationKeysManager() {
           </div>
         </div>
       </div>
+
+      {/* Setup Command Modal */}
+      {(setupLoading || setupCommands) && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={closeSetupModal}>
+          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Terminal className="w-5 h-5 text-primary-400" />
+                  Agent Setup Command
+                </h3>
+                {setupCommands && (
+                  <p className="text-sm text-gray-400 mt-1">
+                    Key: <code className="font-mono text-primary-300">{setupCommands.key}</code>
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={closeSetupModal}
+                className="text-gray-400 hover:text-white transition-colors"
+                disabled={setupLoading}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {setupLoading ? (
+              <div className="flex items-center justify-center py-10">
+                <RefreshCw className="w-7 h-7 text-primary-500 animate-spin" />
+              </div>
+            ) : setupCommands && (
+              <div className="space-y-4">
+                {!setupCommands.binary_windows_found || !setupCommands.binary_linux_found ? (
+                  <div className="flex items-start p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                    <AlertTriangle className="w-4 h-4 text-yellow-400 mr-2 mt-0.5 shrink-0" />
+                    <span className="text-sm text-yellow-300">
+                      Missing agent binary for: {[
+                        !setupCommands.binary_windows_found && 'Windows',
+                        !setupCommands.binary_linux_found && 'Linux'
+                      ].filter(Boolean).join(', ')}. Place the built binary in the backend
+                      {' '}<code className="font-mono">agent_updates/</code> folder as{' '}
+                      <code className="font-mono">{setupCommands.expected_binaries.windows}</code> /{' '}
+                      <code className="font-mono">{setupCommands.expected_binaries.linux.join(' or ')}</code>.
+                    </span>
+                  </div>
+                ) : null}
+
+                {[
+                  { field: 'windows', label: 'Windows (run in CMD or PowerShell)', command: setupCommands.windows_command },
+                  { field: 'linux', label: 'Linux / macOS (run in bash)', command: setupCommands.linux_command }
+                ].map(({ field, label, command }) => (
+                  <div key={field} className="border border-gray-700/50 rounded-lg overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2 bg-gray-800/80 border-b border-gray-700/50">
+                      <span className="text-sm font-medium text-gray-300">{label}</span>
+                      <button
+                        onClick={() => copyCommand(field, command)}
+                        className="flex items-center space-x-1 px-3 py-1 text-xs font-medium text-primary-400 hover:text-primary-300 bg-primary-500/10 hover:bg-primary-500/20 rounded-md transition-colors"
+                      >
+                        {copiedField === field ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-green-400" />
+                            <span className="text-green-400">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <pre className="px-4 py-3 bg-black/40 text-sm font-mono text-green-300 whitespace-pre-wrap break-all">{command}</pre>
+                  </div>
+                ))}
+
+                <div className="text-sm text-gray-400 space-y-1 pt-2">
+                  <p><span className="text-gray-300 font-medium">How it works:</span> the command downloads the matching agent binary from this server, installs it, registers it to run at startup (Windows startup folder / Linux autostart or systemd), and activates it with this key.</p>
+                  {setupCommands.is_used && (
+                    <p className="text-yellow-400">Note: this key has already been used. It will only work when reinstalling on the same machine it activated.</p>
+                  )}
+                  {setupCommands.expires_at && (
+                    <p className="text-gray-500">Key expires: {formatDate(setupCommands.expires_at)}</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

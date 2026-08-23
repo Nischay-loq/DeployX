@@ -7,7 +7,6 @@ class LogsService {
   async getAllLogs(params = {}) {
     try {
       const response = await api.get('/api/logs/', { params });
-      console.log('LogsService - Raw API response:', response);
       return response; // api.get already returns parsed JSON
     } catch (error) {
       console.error('Failed to fetch logs:', error);
@@ -21,7 +20,6 @@ class LogsService {
   async getLogStats() {
     try {
       const response = await api.get('/api/logs/stats');
-      console.log('LogsService - Stats response:', response);
       return response; // api.get already returns parsed JSON
     } catch (error) {
       console.error('Failed to fetch log stats:', error);

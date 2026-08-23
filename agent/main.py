@@ -18,7 +18,6 @@ from agent.core.command_executor import CommandExecutor
 from agent.core.activation import ensure_activated, set_pending_activation_key
 from agent.handlers.socket_handlers import SocketEventHandler
 from agent.network.service_advertiser import ServiceAdvertiser
-from agent.network.server_discoverer import ServiceDiscoverer
 from agent.utils.machine_id import generate_agent_id, get_system_info
 
 logging.basicConfig(
@@ -190,7 +189,6 @@ async def main():
                     logger.error("No shells detected")
 
                 logger.info("Registering agent with backend")
-                logger.info("Registering agent with backend...")
                 registration_success = await connection.register_agent(shells)
                 if registration_success:
                     logger.info("Agent registration successful")

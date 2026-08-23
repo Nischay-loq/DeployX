@@ -31,6 +31,8 @@ import googleDriveService from '../services/manualGoogleDrive';
 import schedulingService from '../services/scheduling';
 import Notification from './jsx/Notification';
 import SchedulingModal from './SchedulingModal';
+import { API_BASE_URL } from '../services/api';
+import { formatFileSize as formatFileSizeUtil } from '../utils/format';
 
 export default function FileSystemManager() {
   // File upload states
@@ -81,8 +83,7 @@ export default function FileSystemManager() {
     loadDevices();
 
     // Initialize Socket.IO connection
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-    socketRef.current = io(API_URL, {
+    socketRef.current = io(API_BASE_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
@@ -90,16 +91,13 @@ export default function FileSystemManager() {
     });
 
     socketRef.current.on('connect', () => {
-      console.log('FileSystemManager: Socket.IO connected');
     });
 
     socketRef.current.on('disconnect', () => {
-      console.log('FileSystemManager: Socket.IO disconnected');
     });
 
     // Listen for file deployment completion
     socketRef.current.on('file_deployment_completed', (data) => {
-      console.log('File deployment completed:', data);
       // Refresh deployment progress if we have a deployment ID
       setCurrentDeploymentId(prevId => {
         if (prevId && data.deployment_id === prevId) {
@@ -111,7 +109,6 @@ export default function FileSystemManager() {
 
     // Listen for individual file transfer updates
     socketRef.current.on('file_transfer_update', (data) => {
-      console.log('File transfer update:', data);
       // Update the specific result if we're tracking this deployment
       setCurrentDeploymentId(prevId => {
         if (prevId && data.deployment_id === prevId) {
@@ -518,7 +515,6 @@ export default function FileSystemManager() {
         addNotification('Files uploaded successfully', 'success');
       }
       
-      console.log('FileSystemManager - File IDs for scheduling:', fileIds);
       
       if (fileIds.length === 0) {
         addNotification('No valid file IDs found. Please try uploading files again.', 'error');
@@ -548,11 +544,6 @@ export default function FileSystemManager() {
         }
       };
 
-      console.log('FileSystemManager - Opening scheduling modal with data:', {
-        selectedDevices,
-        selectedGroups,
-        taskData
-      });
 
       const targetInfo = `${fileIds.length} files to ${targetDevices.length} devices`;
 
@@ -629,9 +620,6 @@ export default function FileSystemManager() {
         const pollProgress = async () => {
           try {
             const progressResponse = await filesService.getDeploymentProgress(deploymentId);
-            console.log('📊 Progress Response:', progressResponse);
-            console.log('📊 Deployment Status:', progressResponse.status);
-            console.log('📊 Results:', progressResponse.results);
             
             setDeploymentResults(progressResponse.results || []);
             
@@ -639,13 +627,11 @@ export default function FileSystemManager() {
             const deploymentStatus = progressResponse.status;
             const isComplete = ['completed', 'failed', 'partial_failure'].includes(deploymentStatus);
             
-            console.log('✅ Is Complete?', isComplete, '| Status:', deploymentStatus);
             
             if (!isComplete) {
               pollIntervalRef.current = setTimeout(pollProgress, 2000); // Poll every 2 seconds
             } else {
               // Deployment complete - re-enable button and show results
-              console.log('🎉 Deployment complete! Setting isDeploying to false');
               setIsDeploying(false);
               setShowResults(true);
               
@@ -658,7 +644,6 @@ export default function FileSystemManager() {
               const successCount = progressResponse.results.filter(r => r.status === 'success').length;
               const totalCount = progressResponse.results.length;
               
-              console.log('📈 Success Count:', successCount, '| Total:', totalCount);
               
               if (deploymentStatus === 'completed') {
                 addNotification(`✅ All ${totalCount} deployments completed successfully!`, 'success');
@@ -762,7 +747,7 @@ export default function FileSystemManager() {
   };
 
   const formatFileSize = (bytes) => {
-    return filesService.formatFileSize(bytes);
+    return formatFileSizeUtil(bytes);
   };
 
   const filteredGroups = groups.filter(group => 

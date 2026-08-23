@@ -11,7 +11,7 @@
 
 **DeployX** is a full-stack deployment automation platform that enables centralized management of software installations, command execution, and system monitoring across multiple machines. Deploy, control, and monitor your entire infrastructure from a single dashboard.
 
-[Features](#-features) • [Architecture](#-architecture) • [Quick Start](#-quick-start) • [Documentation](#-project-structure) • [Contributors](#-contributors)
+[Features](#-features) • [Architecture](#-architecture) • [Quick Start](#-quick-start) • [Agent Setup](#-agent-setup) • [API](#-api-documentation)
 
 </div>
 
@@ -19,9 +19,7 @@
 
 ## 🌐 Overview
 
-DeployX is designed to simplify and automate the deployment process across distributed systems. Whether managing a handful of machines or an entire fleet, DeployX provides real-time control, automated backup/rollback capabilities, and comprehensive monitoring—all from an intuitive web dashboard.
-
-### 💡 Key Components
+DeployX simplifies and automates deployment across distributed systems. Whether managing a handful of machines or an entire fleet, DeployX provides real-time control, automatic backup/rollback for destructive operations, scheduled tasks, and comprehensive monitoring — all from a web dashboard.
 
 ```mermaid
 graph LR
@@ -29,59 +27,50 @@ graph LR
     B -->|Socket.IO| C[Agent 1]
     B -->|Socket.IO| D[Agent 2]
     B -->|Socket.IO| E[Agent N]
-    B -->|PostgreSQL| F[Database]
+    B -->|SQLAlchemy| F[(Database)]
 ```
 
-- **Frontend**: React-based dashboard with real-time updates and intuitive UI
-- **Backend**: FastAPI server with PostgreSQL database for orchestration and state management
-- **Agent**: Lightweight Python client running on target machines with auto-update capabilities
-- **Communication**: Real-time bidirectional communication via Socket.IO and REST APIs
+- **Frontend**: React dashboard with real-time updates via Socket.IO
+- **Backend**: FastAPI server handling orchestration, auth, scheduling and state
+- **Agent**: Lightweight Python client on target machines (Windows/Linux/macOS)
+- **Communication**: Bidirectional Socket.IO events + REST APIs
 
 ---
 
 ## ✨ Features
 
-### 🎯 Core Capabilities
+### 🖥️ Agent Enrollment & Activation
+- 🔑 **Activation Keys**: Generate time-limited keys from the dashboard; agents self-activate against the server
+- ⚡ **One-Command Setup**: Copy a single PowerShell or bash command per key — it downloads the right agent binary for the OS, installs it to the startup folder (Windows) or autostart/systemd-user (Linux), and activates it automatically
+- 🔄 **Auto-Update Channel**: Agents poll `/api/agent/updates` for new versions with checksum verification
 
-#### **Deployment Management**
-- 📦 **Software Deployment**: Automated installation across multiple machines
-- 🔄 **Auto-Update**: Self-updating agent mechanism for seamless updates
-- 📅 **Scheduled Deployments**: Schedule installations for specific times
-- 🌍 **Multi-Environment Support**: Development, staging, and production environments
-- 🔙 **Backup & Rollback**: Automatic backups before destructive operations
+### 🎯 Deployment Management
+- 📦 **Software Deployment**: Install catalog software or custom commands across multiple machines
+- 📄 **File Deployment**: Upload files once (local or picked straight from Google Drive) and distribute them to target paths on many devices
+- 🔁 **Retries**: Re-run failed software deployments and reschedule failed scheduled tasks
+- 📅 **Scheduled Tasks**: One-time, interval, or cron-style recurrence for commands, software and file deployments
+- 🔙 **Backup & Rollback**: Automatic backups before destructive operations, with rollback/restore endpoints
+- 🛡️ **Destructive Command Detection**: Dangerous commands (`rm -rf`, `del /s`, `format`, …) are flagged and backed up before execution
 
-#### **Command Execution**
-- 💻 **Remote Shell Access**: Execute terminal commands (CMD, PowerShell, Bash)
-- 👥 **Group Operations**: Execute commands across device groups simultaneously
-- ⚡ **Parallel & Sequential**: Support for both parallel and sequential batch execution
-- 🎯 **Selective Targeting**: Run commands on specific machines or groups
-- 📊 **Real-time Output**: Live command output streaming
+### 💻 Command Execution
+- 💻 **Remote Shell Access**: Interactive CMD / PowerShell / Bash terminals in the browser (Xterm.js) with command-history navigation, interrupt (Ctrl+C), suspend and clear-screen support
+- 👥 **Group Operations**: Execute commands or batches across device groups in parallel
+- ⏸️ **Command Queue**: Persistent queue with pause/resume/delete, live output streaming, status tracking and statistics
+- 🔀 **Deployment Strategies**: Sequential batch (with stop-on-failure), blue-green and canary flows
 
-#### **System Monitoring**
-- 📈 **Resource Monitoring**: CPU, RAM, disk, and network usage
-- 🔍 **Agent Discovery**: Automatic agent detection via Zeroconf/mDNS
-- ❤️ **Health Checks**: Continuous heartbeat and status monitoring
-- 📝 **Comprehensive Logging**: Detailed activity and error logs
-- 🔔 **Real-time Notifications**: Instant updates on deployment status
+### 📊 Monitoring & Management
+- 📈 **Dashboard Analytics**: Device health, deployment trends, system metrics and recent activity
+- ❤️ **Heartbeats & Status**: Continuous online/offline tracking of every agent
+- 🖥️ **Device Inventory**: OS, CPU, memory, disk and network details collected from every agent
+- 🗂️ **Device Grouping**: Organize machines into logical groups with membership management
+- 📝 **Logs**: Centralized activity logs with statistics and one-click Excel export
+- 🔔 **Real-time Notifications**: Instant deployment/command results in the UI
 
-#### **File Management**
-- 📁 **File Transfer**: Upload/download files to/from remote machines
-- 🗂️ **Directory Operations**: Remote file system navigation and management
-- 📦 **Batch Operations**: Multiple file operations in one go
-
-#### **Security & Authentication**
-- 🔐 **JWT Authentication**: Secure token-based authentication
-- 🌐 **Firebase Integration**: Support for Google OAuth and social logins
-- 👤 **User Management**: Role-based access control
-- 🔒 **Secure Communication**: Encrypted agent-server communication
-- 📋 **Action Logging**: Complete audit trail of all operations
-
-#### **Advanced Features**
-- 🎛️ **Device Grouping**: Organize machines into logical groups
-- 🔍 **Destructive Command Detection**: Automatic backup before dangerous operations
-- 🏷️ **Software Inventory**: Track installed software across machines
-- 📊 **Dashboard Analytics**: Visual insights into deployment status
-- 🔄 **State Management**: Persistent tracking of deployment states
+### 🔐 Security
+- 🔐 **JWT Authentication** with refresh tokens and Google OAuth (Firebase)
+- 👤 **Account Management**: username change, email change (with verification link) and self-service account deletion
+- 🧾 **Audit trail** of deployments, commands and results
+- 📧 **Email verification**: signup OTPs, password resets and email-change links
 
 ---
 
@@ -92,40 +81,30 @@ graph LR
 #### **Backend**
 | Technology | Purpose |
 |-----------|---------|
-| FastAPI | Modern Python web framework for APIs |
-| PostgreSQL | Relational database for persistent storage |
-| SQLAlchemy | ORM for database interactions |
-| Socket.IO | Real-time bidirectional communication |
-| JWT | Secure authentication tokens |
-| APScheduler | Task scheduling and cron jobs |
-| Uvicorn | ASGI server for production deployment |
+| FastAPI | REST APIs + Socket.IO server |
+| SQLAlchemy | ORM (PostgreSQL recommended, any DB via `DB_URL`) |
+| python-socketio | Real-time agent/frontend communication |
+| APScheduler | Task scheduling |
+| JWT (python-jose) | Authentication tokens |
+| Uvicorn | ASGI server |
 
 #### **Frontend**
 | Technology | Purpose |
 |-----------|---------|
-| React 18 | Component-based UI framework |
-| Vite | Fast build tool and dev server |
-| Axios | HTTP client for API communication |
+| React 18 + Vite | UI framework and build tooling |
+| Tailwind CSS | Styling |
 | Socket.IO Client | Real-time event handling |
-| Xterm.js | Terminal emulation in browser |
-| Tailwind CSS | Utility-first CSS framework |
-| Framer Motion | Animation library |
-| Firebase | Authentication and OAuth integration |
+| Xterm.js | In-browser terminal emulation |
+| Firebase | Google OAuth |
+| fetch-based ApiClient | Single HTTP client with token refresh |
 
 #### **Agent**
 | Technology | Purpose |
 |-----------|---------|
-| Python 3.8+ | Core agent runtime |
-| Socket.IO | Server communication |
-| Zeroconf | Service discovery (mDNS) |
-| psutil | System information gathering |
-| aiohttp | Async HTTP client |
-
-#### **DevOps & Deployment**
-- **Hosting**: Render (Backend) + Vercel (Frontend)
-- **Version Control**: Git
-- **Build Tools**: PyInstaller (Agent executables)
-- **CI/CD**: Automated deployment pipelines
+| Python 3.8+ | Core runtime (packaged with PyInstaller) |
+| Socket.IO Client | Server communication |
+| psutil | System information |
+| aiohttp | Async downloads |
 
 ---
 
@@ -133,113 +112,75 @@ graph LR
 
 ### Prerequisites
 
-- **Python**: 3.8 or higher
-- **Node.js**: 16.x or higher
-- **PostgreSQL**: 12 or higher
-- **Git**: For cloning the repository
+- **Python** 3.8+
+- **Node.js** 16+
+- A database (PostgreSQL recommended)
 
-### Installation
-
-#### 1️⃣ Clone the Repository
-
-```bash
-git clone https://github.com/your-username/DeployX.git
-cd DeployX
-```
-
-#### 2️⃣ Backend Setup
+### Backend
 
 ```bash
 cd backend
-
-# Create virtual environment
 python -m venv venv
-
-# Activate virtual environment
-# Windows:
-venv\Scripts\activate
-# Linux/Mac:
-source venv/bin/activate
-
-# Install dependencies
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # Linux/Mac
 pip install -r requirements.txt
 
-# Configure environment variables
-cp .env.example .env
-# Edit .env with your database credentials and settings
-
-# Run database migrations (if applicable)
-# python migrate.py
-
-# Start the backend server
-python start_server.py
+# Create a .env next to start_server.py (see Configuration below)
+python start_server.py       # serves app + Socket.IO on port 8000
 ```
 
-**Backend Environment Variables** (`.env`):
-```env
-DATABASE_URL=postgresql://user:password@localhost/deployx
-SECRET_KEY=your-secret-key-here
-ENVIRONMENT=development
-FRONTEND_URL=http://localhost:5173
-JWT_SECRET_KEY=your-jwt-secret
-```
-
-#### 3️⃣ Frontend Setup
+### Frontend
 
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
 
-# Configure environment variables
-cp .env.example .env
-# Edit .env with your backend URL
+# .env in frontend/:
+#   VITE_API_URL=http://localhost:8000
+#   VITE_SOCKET_URL=http://localhost:8000
 
-# Start development server
-npm run dev
+npm run dev                  # http://localhost:5173
 ```
 
-**Frontend Environment Variables** (`.env`):
-```env
-VITE_API_URL=http://localhost:8000
-VITE_SOCKET_URL=http://localhost:8000
-```
-
-#### 4️⃣ Agent Setup
+### Agent
 
 ```bash
 cd agent
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Configure agent settings (optional)
-# Edit config.json for custom server URL
-
-# Run the agent
-python main.py --server http://localhost:8000
+python main.py --server http://localhost:8000 --activation-key XXXX-XXXX-XXXX-XXXX
 ```
 
-**Or use the standalone executable** (from `Exe/` directory):
+Useful flags: `--server`, `--agent-id`, `--advertise`, `--set-activation-key KEY`.
+The key can also be provided via the `DEPLOYX_ACTIVATION_KEY` environment variable.
+
+### Quick Test
+
+1. Open the dashboard at `http://localhost:5173` and sign up
+2. Run the agent on a target machine with a valid activation key
+3. Verify the device appears **online**, open its terminal and run `echo hello`
+4. Generate an activation key → copy its setup command → enroll more machines with one paste
+
+---
+
+## 🖥️ Agent Setup (One Command)
+
+1. Place built agent binaries on the backend host inside `backend/agent_updates/`:
+   - `DeployXAgent.exe` (Windows, PyInstaller build)
+   - `deployx-agent-linux` (Linux binary)
+2. In the dashboard go to **Activation Keys → ⌨ Setup Command** for your key.
+3. Copy the line matching the target OS and run it there:
+
+**Windows** (CMD or PowerShell):
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm 'https://your-server/api/agent/setup/bootstrap.ps1?key=XXXX-XXXX-XXXX-XXXX&server=https://your-server' | iex"
+```
+
+**Linux**:
 ```bash
-# Windows
-DeployX-Agent.exe
-
-# Linux
-./DeployX-Agent
-
-# macOS
-./DeployX-Agent
+curl -fsSL 'https://your-server/api/agent/setup/bootstrap.sh?key=XXXX-XXXX-XXXX-XXXX&server=https://your-server' | bash
 ```
 
-### 🎯 Quick Test
-
-1. **Access Dashboard**: Navigate to `http://localhost:5173`
-2. **Login**: Create an account or use OAuth
-3. **Start Agent**: Run agent on target machine
-4. **Verify Connection**: Check dashboard for connected agents
-5. **Execute Command**: Test a simple command like `echo "Hello from DeployX!"`
+What the script does: detects nothing it doesn't need to (it is already platform-specific), downloads the matching binary, installs it, registers autostart (`%APPDATA%\...\Startup\DeployXAgent.cmd` on Windows; systemd user service or desktop autostart entry on Linux), launches the agent, and activates it with your key.
 
 ---
 
@@ -248,237 +189,148 @@ DeployX-Agent.exe
 ```
 DeployX/
 ├── agent/                          # Python agent for target machines
-│   ├── main.py                    # Agent entry point
-│   ├── core/                      # Core agent functionality
-│   │   ├── backup_manager.py     # Automatic backup system
-│   │   ├── command_executor.py   # Command execution engine
-│   │   ├── connection.py         # Server connection management
-│   │   ├── destructive_detector.py # Dangerous command detection
-│   │   └── shell_manager.py      # Shell session management
-│   ├── handlers/                  # Event handlers
-│   │   └── socket_handlers.py    # Socket.IO event handling
-│   ├── installers/                # Software installation
-│   │   ├── downloader.py         # File download utilities
-│   │   └── installer.py          # Installation automation
-│   ├── network/                   # Network utilities
-│   │   ├── server_discoverer.py  # Server discovery (mDNS)
-│   │   └── service_advertiser.py # Service advertisement
-│   └── utils/                     # Helper utilities
-│       └── machine_id.py         # Unique agent identification
+│   ├── main.py                     # Entry point (CLI flags, reconnect loop)
+│   ├── core/
+│   │   ├── activation.py           # Activation-key handshake + local state
+│   │   ├── backup_manager.py       # Backup creation/restore/delete
+│   │   ├── command_executor.py     # Execution engine + rollback
+│   │   ├── connection.py           # Socket.IO connection manager
+│   │   ├── destructive_detector.py # Dangerous command analysis
+│   │   └── shell_manager.py        # Shell session management
+│   ├── handlers/socket_handlers.py # Socket event handlers
+│   ├── installers/                 # downloader.py + installer.py
+│   ├── network/service_advertiser.py # Optional mDNS advertising (--advertise)
+│   └── utils/machine_id.py         # Machine fingerprinting
 │
-├── backend/                        # FastAPI backend server
+├── backend/
 │   ├── app/
-│   │   ├── main.py               # Application entry point
-│   │   ├── agents/               # Agent management
-│   │   │   ├── routes.py        # Agent API endpoints
-│   │   │   ├── crud.py          # Database operations
-│   │   │   └── schemas.py       # Pydantic models
-│   │   ├── auth/                 # Authentication system
-│   │   │   ├── routes.py        # Auth endpoints
-│   │   │   ├── database.py      # User database
-│   │   │   ├── utils.py         # JWT & password hashing
-│   │   │   └── schemas.py       # Auth models
-│   │   ├── Deployments/          # Deployment management
-│   │   │   ├── routes.py        # Deployment endpoints
-│   │   │   ├── executor.py      # Deployment execution
-│   │   │   ├── models.py        # Database models
-│   │   │   └── scheduler.py     # Scheduled deployments
-│   │   ├── command_deployment/   # Command execution
-│   │   │   ├── routes.py        # Command endpoints
-│   │   │   ├── executor.py      # Command execution
-│   │   │   ├── queue.py         # Command queue
-│   │   │   └── strategies.py    # Execution strategies
-│   │   ├── grouping/             # Device grouping
-│   │   │   ├── route.py         # Group endpoints
-│   │   │   ├── command_executor.py # Group command execution
-│   │   │   ├── crud.py          # Group operations
-│   │   │   └── models.py        # Group models
-│   │   ├── files/                # File management
-│   │   │   ├── routes.py        # File endpoints
-│   │   │   └── crud.py          # File operations
-│   │   ├── software/             # Software catalog
-│   │   ├── Devices/              # Device management
-│   │   └── dashboard/            # Dashboard data
-│   └── start_server.py           # Server startup script
+│   │   ├── main.py                 # App composition root (routers, CORS)
+│   │   ├── config.py               # CORS/environment helpers
+│   │   ├── sockets/                # Socket.IO server, ConnectionManager,
+│   │   │                           # and all socket event handlers
+│   │   ├── common/socket_base.py   # Shared executor plumbing
+│   │   ├── auth/                   # Signup/login/OAuth/password flows
+│   │   ├── activation/             # Activation keys CRUD + validation
+│   │   ├── agent_setup/            # One-command bootstrap scripts + binaries
+│   │   ├── agent_updates/          # Agent auto-update distribution
+│   │   ├── agents/                 # Agent/device registry
+│   │   ├── Devices/                # Device status endpoints
+│   │   ├── grouping/               # Groups, group executor, target resolution
+│   │   ├── command_deployment/     # Command queue, executor, strategies
+│   │   ├── Deployments/            # Software deployments
+│   │   ├── files/                  # Upload/deploy/file-system endpoints
+│   │   ├── software/               # Software catalog
+│   │   ├── schedule/               # Scheduled tasks + scheduler service
+│   │   ├── dashboard/              # Analytics endpoints
+│   │   └── logs/                   # Activity logs
+│   └── start_server.py             # Uvicorn startup script
 │
-├── frontend/                       # React frontend
-│   ├── src/
-│   │   ├── App.jsx               # Main application component
-│   │   ├── main.jsx              # Entry point
-│   │   ├── components/           # Reusable components
-│   │   ├── pages/                # Page components
-│   │   │   ├── Home.jsx         # Landing page
-│   │   │   ├── Dashboard.jsx    # Main dashboard
-│   │   │   └── ...              # Other pages
-│   │   ├── contexts/             # React contexts
-│   │   ├── services/             # API services
-│   │   │   └── auth.js          # Authentication service
-│   │   └── utils/                # Helper functions
-│   ├── public/                    # Static assets
-│   ├── package.json              # Dependencies
-│   └── vite.config.js            # Vite configuration
+├── frontend/src/
+│   ├── pages/                      # Home, Dashboard, ForgotPassword, ...
+│   ├── components/                 # Terminal, managers, modals, ...
+│   ├── services/api.js             # ApiClient (+ shared base URL export)
+│   ├── utils/format.js             # Shared date/size formatters
+│   └── App.jsx                     # Routes (Dashboard is lazy-loaded)
 │
-├── executable_agent_file/         # Agent executable builder
-│   ├── agent_with_updater.py    # Agent with auto-update
-│   ├── updater.py                # Update mechanism
-│   ├── version.py                # Version tracking
-│   ├── build_all.bat             # Windows build script
-│   └── build_all.sh              # Linux/Mac build script
-│
-├── Exe/                           # Compiled agent executables
-│   ├── windows/                  # Windows .exe
-│   ├── linux/                    # Linux binaries
-│   └── macos/                    # macOS binaries
-│
-├── LICENSE                        # MIT License
-└── README.md                      # This file
+├── executable_agent_file/          # PyInstaller packaging + updater wrapper
+├── tests/test_backup_rollback.py   # Pytest suite (detector/backup/rollback)
+└── LICENSE
 ```
 
 ---
 
 ## 📖 API Documentation
 
-### REST API Endpoints
-
-Once the backend is running, access the interactive API documentation:
+Interactive docs once the backend is running:
 - **Swagger UI**: `http://localhost:8000/docs`
 - **ReDoc**: `http://localhost:8000/redoc`
 
-### Key API Routes
+### Key Routes
 
-#### Authentication
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - User login
-- `POST /api/auth/google-login` - Google OAuth login
-- `POST /api/auth/refresh` - Refresh JWT token
+| Area | Endpoints |
+|------|-----------|
+| Auth (`/auth`) | `POST /auth/signup-request`, `/auth/signup-complete`, `/auth/login`, `/auth/google-auth`, `/auth/refresh`; password reset + email change flows under `/auth/*` |
+| Devices (`/devices`) | `GET /devices/`, `POST /devices/` (status update) |
+| Groups (`/groups`) | Group CRUD; `POST /groups/{id}/commands`, `POST /groups/{id}/commands/batch/sequential`; executions/batches status |
+| Commands (`/api/deployment`) | `POST /commands`, `/commands/batch`, `/commands/batch/sequential`; `/{cmd_id}/pause\|resume\|rollback\|restore-backup`; `GET /stats` |
+| Software deployments (`/deployments`) | `POST /install`, `GET /{deployment_id}/progress`, `/details`, `GET /by-date/{date}`, `POST /retry` |
+| Files (`/files`) | `POST /files/upload`, `POST /files/deploy`, `GET /deployments` (history), progress, `DELETE /{file_id}`, remote filesystem ops |
+| Software catalog (`/software`) | CRUD for catalog entries + categories |
+| Logs (`/api/logs`) | List, stats, log details |
+| Scheduling (`/api/schedule`) | Task CRUD, `pause/resume/execute`, executions history, stats |
+| Dashboard (`/api/dashboard`) | `stats`, `recent-activity`, `deployment-trends`, `system-metrics`, `device-status-chart` |
+| Activation (`/activation`) | `POST /generate`, `POST /validate`, `GET /keys`, `GET /check/{machine_id}` |
+| Agent setup (`/api/agent/setup`) | `GET /commands/{key_id}`, `GET /bootstrap.ps1`, `GET /bootstrap.sh`, `GET /binary/{platform}` |
+| Agent updates (`/api/agent/updates`) | `GET /check`, `GET /download/{platform}/{version}`, `GET /versions` |
 
-#### Agents
-- `GET /api/agents` - List all agents
-- `GET /api/agents/{agent_id}` - Get agent details
-- `POST /api/agents/{agent_id}/command` - Execute command
-- `DELETE /api/agents/{agent_id}` - Remove agent
-
-#### Deployments
-- `POST /api/deployments` - Create deployment
-- `GET /api/deployments` - List deployments
-- `GET /api/deployments/{deployment_id}` - Get deployment status
-- `POST /api/deployments/{deployment_id}/rollback` - Rollback deployment
-
-#### Groups
-- `POST /api/groups` - Create device group
-- `GET /api/groups` - List all groups
-- `POST /api/groups/{group_id}/execute` - Execute command on group
+Real-time communication (shell I/O, command output, agent registration, heartbeats) runs over **Socket.IO** — see `backend/app/sockets/handlers.py`.
 
 ---
 
 ## 🔧 Configuration
 
-### Agent Configuration
-
-Create `config/config.json` in agent directory:
-
-```json
-{
-  "server_url": "http://your-server.com:8000",
-  "auto_reconnect": true,
-  "reconnect_interval": 5,
-  "heartbeat_interval": 30,
-  "enable_auto_update": true,
-  "update_check_interval": 3600,
-  "backup_enabled": true,
-  "backup_retention_days": 7,
-  "allowed_shells": ["cmd", "powershell", "bash"]
-}
-```
-
-### Backend Configuration
-
-Key environment variables:
+### Backend environment variables (`.env` next to `start_server.py`)
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | - |
-| `SECRET_KEY` | Application secret key | - |
-| `JWT_SECRET_KEY` | JWT signing key | - |
-| `ENVIRONMENT` | Environment (dev/staging/prod) | `development` |
-| `FRONTEND_URL` | Frontend URL for CORS | `http://localhost:5173` |
-| `MAX_COMMAND_TIMEOUT` | Max command execution time (seconds) | `300` |
+| `DB_URL` | Database connection string (**required**) | – |
+| `JWT_SECRET_KEY` | JWT signing key | – |
+| `ENVIRONMENT` | `development` or `production` (controls CORS defaults) | `development` |
+| `FRONTEND_URL` / `FRONTEND_LOCAL_URL` | Allowed frontend origins | `https://deployxsystem.vercel.app` / `http://localhost:5173` |
+| `SMTP_EMAIL` / `SMTP_PASSWORD` | SMTP account for OTP/reset/email-change mails | – (email disabled if unset) |
+| `SMTP_HOST` / `SMTP_PORT` | SMTP server | smtp.gmail.com / 465 |
+| `PUBLIC_SERVER_URL` | Override public URL used in generated setup commands | request origin |
+| `AGENT_UPDATES_DIR` | Where agent binaries are served from | `./agent_updates` |
+
+### Agent configuration
+
+The agent is configured entirely via CLI flags and environment:
+
+```text
+--server URL                 Backend URL (default http://localhost:8000)
+--agent-id ID                Custom agent ID (else derived from machine ID)
+--activation-key KEY         Activate immediately on startup
+--set-activation-key KEY     Store a key for service mode and exit
+--advertise                  Advertise presence via mDNS (optional)
+DEPLOYX_ACTIVATION_KEY       Env-var alternative for the activation key
+```
 
 ---
 
 ## 🧪 Testing
 
-### Backend Tests
+From the repository root:
+
 ```bash
-cd backend
-pytest
+pytest tests
 ```
 
-### Agent Tests
-```bash
-cd agent
-python test_backup_rollback.py
-```
-
-### Frontend Tests
-```bash
-cd frontend
-npm test
-```
+Covers destructive-command classification, backup create/info/list/delete, restore (default + custom path) and full command-executor rollback.
 
 ---
 
-## 🚢 Deployment
+## 🚢 Production Deployment
 
-### Production Deployment
-
-#### Backend (Render)
-1. Connect your GitHub repository
-2. Set environment variables
-3. Deploy using `start_server.py`
-
-#### Frontend (Vercel)
-1. Import project from GitHub
-2. Configure build settings:
-   - Build Command: `npm run build`
-   - Output Directory: `dist`
-3. Set environment variables
-4. Deploy
-
-#### Agent Distribution
-1. Build executables:
-   ```bash
-   cd executable_agent_file
-   # Windows
-   build_all.bat
-   # Linux/Mac
-   ./build_all.sh
-   ```
-2. Distribute executables from `Exe/` directory
+- **Backend**: Render (or any host) — start command `python start_server.py`; set the env vars above.
+- **Frontend**: Vercel — build `npm run build`, output `dist/`; set `VITE_API_URL` / `VITE_SOCKET_URL`.
+- **Agents**: build executables with `executable_agent_file/build_all.bat|.sh`, drop them into `backend/agent_updates/`, then enroll machines with the one-command setup from the dashboard.
 
 ---
 
 ## 🤝 Contributing
 
-We welcome contributions! Here's how you can help:
-
 1. **Fork** the repository
 2. **Create** a feature branch (`git checkout -b feature/AmazingFeature`)
-3. **Commit** your changes (`git commit -m 'Add some AmazingFeature'`)
-4. **Push** to the branch (`git push origin feature/AmazingFeature`)
-5. **Open** a Pull Request
+3. **Commit** your changes
+4. **Push** and open a Pull Request
 
-### Development Guidelines
-- Follow PEP 8 for Python code
-- Use ESLint rules for JavaScript/React
-- Write tests for new features
-- Update documentation for API changes
+Guidelines: PEP 8 for Python, ESLint conventions for JS/React, add tests for new features.
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
 ---
 
@@ -511,15 +363,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 </table>
 
 ---
-
-## 🙏 Acknowledgments
-
-- FastAPI for the excellent web framework
-- Socket.IO for real-time communication
-- React team for the amazing UI library
-- Open source community for various libraries used
-
-
 
 <div align="center">
 

@@ -38,6 +38,7 @@ coverage/
 
 # VS Code
 .dist
+.ignore
 
 frontend/.vite
 agent/AgentTesting
@@ -53,3 +54,4 @@ backend/uploads/
 agent/backups/
 agent/test_backup_data/
 agent/test_integration_data/
+build_agent

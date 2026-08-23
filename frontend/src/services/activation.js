@@ -1,39 +1,9 @@
 /**
  * Activation Keys API Service
  */
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import api from './api';
 
-class ActivationService {
-  constructor() {
-    this.baseURL = API_BASE_URL;
-  }
-
-  getToken() {
-    return localStorage.getItem('access_token') || localStorage.getItem('token') || sessionStorage.getItem('token');
-  }
-
-  async request(endpoint, options = {}) {
-    const token = this.getToken();
-    
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` }),
-      ...options.headers,
-    };
-
-    const response = await fetch(`${this.baseURL}${endpoint}`, {
-      ...options,
-      headers,
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: 'Request failed' }));
-      throw new Error(error.detail || `HTTP error ${response.status}`);
-    }
-
-    return response.json();
-  }
-
+const activationService = {
   /**
    * Generate a new activation key
    * @param {Object} options - Optional parameters
@@ -41,62 +11,40 @@ class ActivationService {
    * @param {number} options.expiry_days - Days until expiry (default 30)
    */
   async generateKey(options = {}) {
-    return this.request('/activation/generate', {
-      method: 'POST',
-      body: JSON.stringify(options),
-    });
-  }
+    return api.post('/activation/generate', options);
+  },
 
   /**
    * List all activation keys
    * @param {Object} params - Query parameters
-   * @param {boolean} params.include_used - Include used keys
-   * @param {boolean} params.include_expired - Include expired keys
-   * @param {number} params.skip - Pagination skip
-   * @param {number} params.limit - Pagination limit
    */
   async listKeys(params = {}) {
-    const queryParams = new URLSearchParams();
-    
-    if (params.include_used !== undefined) {
-      queryParams.append('include_used', params.include_used);
-    }
-    if (params.include_expired !== undefined) {
-      queryParams.append('include_expired', params.include_expired);
-    }
-    if (params.skip !== undefined) {
-      queryParams.append('skip', params.skip);
-    }
-    if (params.limit !== undefined) {
-      queryParams.append('limit', params.limit);
-    }
-
-    const queryString = queryParams.toString();
-    const endpoint = `/activation/keys${queryString ? `?${queryString}` : ''}`;
-    
-    return this.request(endpoint, { method: 'GET' });
-  }
+    return api.get('/activation/keys', { params });
+  },
 
   /**
    * Delete an activation key
    * @param {number} keyId - The key ID to delete
    */
   async deleteKey(keyId) {
-    return this.request(`/activation/keys/${keyId}`, {
-      method: 'DELETE',
-    });
-  }
+    return api.delete(`/activation/keys/${keyId}`);
+  },
+
+  /**
+   * Get one-liner agent setup commands for a key (Windows + Linux)
+   * @param {number} keyId - The activation key ID
+   */
+  async getSetupCommands(keyId) {
+    return api.get(`/api/agent/setup/commands/${keyId}`);
+  },
 
   /**
    * Check activation status for a machine
    * @param {string} machineId - The machine ID to check
    */
   async checkStatus(machineId) {
-    return this.request(`/activation/check/${machineId}`, {
-      method: 'GET',
-    });
+    return api.get(`/activation/check/${machineId}`);
   }
-}
+};
 
-const activationService = new ActivationService();
 export default activationService;

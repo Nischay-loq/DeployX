@@ -24,10 +24,8 @@ export default function GroupsManager() {
     if (selectedGroup && groups.length > 0) {
       const updatedGroup = groups.find(g => g.id === selectedGroup.id);
       if (updatedGroup) {
-        console.log(`🔄 Updating selected group: ${updatedGroup.group_name} (${updatedGroup.devices?.length || 0} devices)`);
         setSelectedGroup(updatedGroup);
       } else {
-        console.log('⚠️ Selected group not found in updated groups list');
       }
     }
   }, [groups, selectedGroup?.id]);
@@ -48,9 +46,7 @@ export default function GroupsManager() {
       // groups result
       if (results[0].status === 'fulfilled') {
         const groupsData = results[0].value;
-        console.log('📦 Loaded groups:', groupsData.length, 'groups');
         groupsData.forEach(group => {
-          console.log(`   - ${group.group_name}: ${group.devices?.length || 0} devices`);
         });
         setGroups(groupsData);
       } else {
@@ -67,7 +63,6 @@ export default function GroupsManager() {
 
       // devices result
       if (results[1].status === 'fulfilled') {
-        console.log('Loaded devices:', results[1].value);
         setDevices(results[1].value || []);
       } else {
         console.warn('Failed to fetch devices:', results[1].reason);
@@ -118,9 +113,7 @@ export default function GroupsManager() {
 
   const handleAssignDevice = async (groupId, deviceId) => {
     try {
-      console.log(`🔄 Assigning device ${deviceId} to group ${groupId}`);
       await groupsService.assignDevice(groupId, deviceId);
-      console.log('✅ Device assigned, refreshing data...');
       
       // Force refresh data
       await loadData(true);
@@ -128,7 +121,6 @@ export default function GroupsManager() {
       // Small delay to ensure state has updated
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      console.log('✅ Data refreshed');
     } catch (err) {
       console.error('❌ Failed to assign device:', err);
       setError('Failed to assign device: ' + err.message);
@@ -137,9 +129,7 @@ export default function GroupsManager() {
 
   const handleRemoveDevice = async (groupId, deviceId) => {
     try {
-      console.log(`🔄 Removing device ${deviceId} from group ${groupId}`);
       await groupsService.removeDevice(groupId, deviceId);
-      console.log('✅ Device removed, refreshing data...');
       
       // Force refresh data
       await loadData(true);
@@ -147,7 +137,6 @@ export default function GroupsManager() {
       // Small delay to ensure state has updated
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      console.log('✅ Data refreshed');
     } catch (err) {
       console.error('❌ Failed to remove device:', err);
       setError('Failed to remove device: ' + err.message);

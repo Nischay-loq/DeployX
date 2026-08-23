@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import authService from '../services/auth.js';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import api from '../services/api.js';
 
 const DeleteAccountModal = ({ onClose }) => {
   const [password, setPassword] = useState('');
@@ -16,49 +15,12 @@ const DeleteAccountModal = ({ onClose }) => {
     checkAccountType();
   }, []);
 
-  const testAPI = async () => {
-    try {
-      console.log('Testing API connection...');
-      const response = await fetch(`${API_BASE_URL}/auth/test-auth`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${authService.getToken()}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      console.log('Test API response status:', response.status);
-      const data = await response.json();
-      console.log('Test API response data:', data);
-    } catch (error) {
-      console.error('Test API error:', error);
-    }
-  };
-
   const checkAccountType = async () => {
     try {
       setCheckingAccountType(true);
-      
-      // First test the API connection
-      await testAPI();
-      
-      const response = await fetch(`${API_BASE_URL}/auth/check-account-type`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${authService.getToken()}`,
-          'Content-Type': 'application/json'
-        }
-      });
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Account type check response:', data);
-        setIsGoogleUser(data.is_google_user);
-      } else {
-        console.error('Failed to check account type:', response.status, response.statusText);
-        // Default to false for Google user if check fails
-        setIsGoogleUser(false);
-      }
+      const data = await api.post('/auth/check-account-type');
+      setIsGoogleUser(data.is_google_user);
     } catch (error) {
       console.error('Error checking account type:', error);
       // Default to false for Google user if check fails
@@ -90,63 +52,21 @@ const DeleteAccountModal = ({ onClose }) => {
       const requestBody = {
         confirmation_text: confirmationText
       };
-      
+
       // Only include password for non-Google users
       if (!isGoogleUser && password) {
         requestBody.password = password;
       }
-      
-      console.log('Sending delete request with body:', requestBody);
-      
-      const response = await fetch(`${API_BASE_URL}/auth/delete-account`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${authService.getToken()}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody)
-      });
 
-      if (!response.ok) {
-        let errorMessage = 'Failed to delete account';
-        try {
-          const errorData = await response.json();
-          console.log('Error response data:', errorData);
-          
-          if (typeof errorData === 'string') {
-            errorMessage = errorData;
-          } else if (errorData.detail) {
-            // Handle FastAPI validation errors
-            if (Array.isArray(errorData.detail)) {
-              errorMessage = errorData.detail.map(err => err.msg).join(', ');
-            } else {
-              errorMessage = errorData.detail;
-            }
-          } else if (errorData.message) {
-            errorMessage = errorData.message;
-          } else if (errorData.error) {
-            errorMessage = errorData.error;
-          } else {
-            // Fallback for complex error objects
-            errorMessage = JSON.stringify(errorData);
-          }
-        } catch (parseError) {
-          console.error('Failed to parse error response:', parseError);
-          errorMessage = `Request failed with status ${response.status}: ${response.statusText}`;
-        }
-        throw new Error(errorMessage);
-      }
-
-      // Parse successful response
-      let responseData;
       try {
-        responseData = await response.json();
-        console.log('Success response data:', responseData);
-      } catch (parseError) {
-        console.error('Failed to parse success response:', parseError);
-        // Assume success if we can't parse but got 200
+        await api.request('/auth/delete-account', {
+          method: 'DELETE',
+          body: JSON.stringify(requestBody)
+        });
+      } catch (apiError) {
+        // ApiClient already extracts FastAPI detail messages
+        throw new Error(apiError.message || 'Failed to delete account');
       }
-
       // Account deleted successfully
       setMessage('Account deleted successfully. You will be logged out.');
       setMessageType('success');

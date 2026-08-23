@@ -23,9 +23,7 @@
     <meta property="twitter:image" content="/twitter-image.png" />
 
     <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/site.webmanifest" />
 
     <!-- Security -->
@@ -33,18 +31,30 @@
     <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
 
+    <!-- Theme (applied before paint to avoid flash) -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('deployx-theme');
+          document.documentElement.classList.toggle('dark', t !== 'light');
+        } catch (e) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+
     <!-- Performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
 
     <!-- Theme -->
-    <meta name="theme-color" content="#1890ff" />
+    <meta name="theme-color" content="#0f172a" />
     <meta name="color-scheme" content="dark light" />
 
     <title>DeployX - Professional Deployment Platform</title>
   </head>
-  <body class="bg-gray-900 text-gray-100 antialiased transition-colors duration-300">
+  <body class="bg-slate-950 text-slate-100 antialiased transition-colors duration-300">
     <div id="root"></div>
     
     <!-- Google Drive integration now uses manual process - no API scripts needed -->

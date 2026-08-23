@@ -112,58 +112,10 @@ class SoftwareInstaller:
     
     async def _execute_custom_command(self, filepath: str, command: str) -> Dict[str, any]:
         """Execute custom installation command"""
-        try:
-            # Replace {file} placeholder with actual filepath
-            command = command.replace('{file}', str(filepath))
-            
-            logger.info(f"Executing custom command: {command}")
-            
-            # Execute command with timeout
-            process = await asyncio.create_subprocess_shell(
-                command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            try:
-                # 30 minute timeout for large installations
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(),
-                    timeout=1800
-                )
-            except asyncio.TimeoutError:
-                logger.error("Custom command timed out after 30 minutes")
-                try:
-                    process.kill()
-                except:
-                    pass
-                return {
-                    "success": False,
-                    "error": "Command timed out after 30 minutes",
-                    "output": ""
-                }
-            
-            success = process.returncode == 0
-            output = stdout.decode(errors='ignore') + stderr.decode(errors='ignore')
-            
-            logger.info(f"Command completed with return code: {process.returncode}")
-            if not success:
-                logger.error(f"Command output: {output[:500]}")
-            
-            return {
-                "success": success,
-                "error": None if success else f"Exit code: {process.returncode}",
-                "output": output
-            }
-            
-        except Exception as e:
-            logger.error(f"Error executing custom command: {e}")
-            logger.exception(e)
-            return {
-                "success": False,
-                "error": str(e),
-                "output": ""
-            }
+        # Replace {file} placeholder with actual filepath
+        command = command.replace('{file}', str(filepath))
+        logger.info(f"Executing custom command: {command}")
+        return await self._run_command(command)
     
     # Windows installers
     async def _install_exe(self, filepath: Path) -> Dict[str, any]:
@@ -228,7 +180,7 @@ class SoftwareInstaller:
                 logger.error("Installation timed out after 30 minutes")
                 try:
                     process.kill()
-                except:
+                except Exception:
                     pass
                 return {
                     "success": False,

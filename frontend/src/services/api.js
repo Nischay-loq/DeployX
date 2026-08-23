@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 class ApiClient {
   constructor() {
@@ -111,8 +111,8 @@ class ApiClient {
             } else {
               this.clearAuth();
               
-              if (window.location.pathname !== '/login') {
-                window.location.href = '/login';
+              if (window.location.pathname !== '/') {
+                window.location.href = '/';
               }
               throw new Error('Your session has expired. Please log in again.');
             }
@@ -121,11 +121,15 @@ class ApiClient {
 
         const contentType = response.headers.get('content-type');
         let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        
+
         if (contentType && contentType.includes('application/json')) {
           try {
             const errorData = await response.json();
             errorMessage = errorData.detail || errorData.message || errorMessage;
+            // FastAPI validation errors return an array of { msg, ... }
+            if (Array.isArray(errorMessage)) {
+              errorMessage = errorMessage.map(err => err.msg || String(err)).join(', ');
+            }
           } catch (e) {}
         }
         

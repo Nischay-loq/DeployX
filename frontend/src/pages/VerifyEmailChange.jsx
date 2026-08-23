@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import ParticlesBackground from '../components/ParticlesBackground.jsx';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import api from '../services/api.js';
 
 const VerifyEmailChange = () => {
   const [searchParams] = useSearchParams();
@@ -24,39 +23,15 @@ const VerifyEmailChange = () => {
   const verifyEmailChange = async (token) => {
     try {
       setStatus('verifying');
-      
-      const response = await fetch(`${API_BASE_URL}/auth/verify-email-change`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ token })
-      });
-      
-      const data = await response.json();
-      console.log('Email verification response:', response.status, data);
-      
-      if (response.ok) {
-        setStatus('success');
-        setMessage(data.message || 'Email address changed successfully! You can now close this tab.');
-      } else {
-        setStatus('error');
-        let errorMessage = 'Email verification failed. The link may be expired or invalid.';
-        
-        if (data.detail) {
-          if (typeof data.detail === 'string') {
-            errorMessage = data.detail;
-          } else if (Array.isArray(data.detail)) {
-            errorMessage = data.detail.map(err => err.msg || err).join(', ');
-          }
-        }
-        
-        setMessage(errorMessage);
-      }
+
+      const data = await api.post('/auth/verify-email-change', { token });
+
+      setStatus('success');
+      setMessage(data.message || 'Email address changed successfully! You can now close this tab.');
     } catch (error) {
       console.error('Email verification error:', error);
       setStatus('error');
-      setMessage('An error occurred while verifying your email. Please try again.');
+      setMessage(error.message || 'An error occurred while verifying your email. Please try again.');
     }
   };
   

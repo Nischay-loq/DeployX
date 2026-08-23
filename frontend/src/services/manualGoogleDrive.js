@@ -9,11 +9,9 @@ class ManualGoogleDriveService {
   }
 
   async init() {
-    console.log('Manual Google Drive service ready');
   }
 
   async authenticate() {
-    console.log('Manual authentication - no OAuth needed');
     return 'manual-mode';
   }
 
@@ -37,12 +35,6 @@ class ManualGoogleDriveService {
         const driveWindow = window.open('https://drive.google.com', '_blank', 'noopener,noreferrer');
         
         if (driveWindow) {
-          console.log('📁 Google Drive opened in new tab');
-          console.log('💡 Instructions:');
-          console.log('   1. Find your files in Google Drive');
-          console.log('   2. Right-click and select "Download"');
-          console.log('   3. Return to this tab when done');
-          console.log('   4. Use the "Upload Files" button to select downloaded files');
           
           // Show success message after a short delay
           setTimeout(() => {
@@ -59,14 +51,12 @@ class ManualGoogleDriveService {
         }
       } else {
         // User cancelled
-        console.log('User chose to continue with local files only');
         resolve([]);
       }
     });
   }
 
   async downloadFile(fileId, fileName) {
-    console.log(`Manual download: ${fileName}`);
     throw new Error('Manual mode - please download from drive.google.com');
   }
 }

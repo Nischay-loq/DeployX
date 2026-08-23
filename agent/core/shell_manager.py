@@ -291,11 +291,7 @@ class ShellManager:
         except Exception as e:
             logger.error(f"Error in ping interrupt handler: {e}")
             return False
-    
-    async def _force_stop_ping_command(self):
-        """Force stop ping command by terminating the process."""
-        return await self._handle_windows_ping_interrupt()
-    
+
     async def send_suspend(self, force=False):
         """Send suspend signal (Ctrl+Z) to the current process."""
         if not self.current_process or self.current_process.poll() is not None:
@@ -325,19 +321,6 @@ class ShellManager:
         except Exception as e:
             logger.error(f"Failed to send suspend signal: {e}")
             return False
-            
-    def _is_long_running_cmd(self):
-        """Check if current process is likely a long-running Windows command.
-        
-        This helps identify commands like ping, tracert, etc. that need special handling.
-        """
-        if not self.current_process or platform.system().lower() != "windows":
-            return False
-            
-        if self.current_shell == "cmd" or self.current_shell == "powershell":
-            return True
-            
-        return False
 
     async def cleanup_process(self):
         """Cleanup current subprocess and its output thread."""

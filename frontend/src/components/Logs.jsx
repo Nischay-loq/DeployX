@@ -72,24 +72,20 @@ export default function Logs() {
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      console.log('Connected to logs socket');
     });
 
     // Listen for deployment status updates
     socket.on('deployment_status_update', (data) => {
-      console.log('Deployment status update:', data);
       refreshLogsAndStats();
     });
 
     // Listen for file deployment updates
     socket.on('file_deployment_update', (data) => {
-      console.log('File deployment update:', data);
       refreshLogsAndStats();
     });
 
     // Listen for file deployment completion
     socket.on('file_deployment_completed', (deploymentInfo) => {
-      console.log('File deployment completed:', deploymentInfo);
       
       const { status, success_count, failure_count, total_count } = deploymentInfo;
       const isSuccess = status === 'completed' && failure_count === 0;
@@ -107,7 +103,6 @@ export default function Logs() {
 
     // Listen for software deployment completion
     socket.on('deployment_completed', (deploymentInfo) => {
-      console.log('Software deployment completed:', deploymentInfo);
       
       const { deployment_name, status, success_count, failure_count, total_count } = deploymentInfo;
       const isSuccess = status === 'completed' && failure_count === 0;
@@ -125,19 +120,16 @@ export default function Logs() {
 
     // Listen for command execution updates
     socket.on('command_result', (data) => {
-      console.log('Command execution update:', data);
       refreshLogsAndStats();
     });
 
     // Listen for scheduled task updates
     socket.on('task_execution_update', (data) => {
-      console.log('Task execution update:', data);
       refreshLogsAndStats();
     });
 
     // Listen for scheduled task completion
     socket.on('scheduled_task_completed', (taskInfo) => {
-      console.log('Scheduled task completed:', taskInfo);
       
       const taskTypeLabel = taskInfo.task_type === 'command' ? 'Command Execution' :
                            taskInfo.task_type === 'software_deployment' ? 'Software Deployment' :
@@ -149,7 +141,6 @@ export default function Logs() {
 
     // Listen for scheduled task failure
     socket.on('scheduled_task_failed', (taskInfo) => {
-      console.log('Scheduled task failed:', taskInfo);
       
       const taskTypeLabel = taskInfo.task_type === 'command' ? 'Command Execution' :
                            taskInfo.task_type === 'software_deployment' ? 'Software Deployment' :
@@ -160,7 +151,6 @@ export default function Logs() {
     });
 
     socket.on('disconnect', () => {
-      console.log('Disconnected from logs socket');
     });
 
     return () => {
@@ -212,7 +202,6 @@ export default function Logs() {
       });
       
       const response = await logsService.getAllLogs(params);
-      console.log('Logs API response:', response);
       
       // Check if response is valid
       if (!response) {
@@ -228,7 +217,6 @@ export default function Logs() {
       const totalCount = response.total || 0;
       const totalPagesCount = response.total_pages || 1;
       
-      console.log('Parsed logs data:', { logsData, totalCount, totalPagesCount });
       
       setLogs(logsData);
       setTotal(totalCount);
@@ -254,7 +242,6 @@ export default function Logs() {
     
     try {
       const response = await logsService.getLogStats();
-      console.log('Stats API response:', response);
       setStats(response);
     } catch (err) {
       console.error('Failed to fetch stats:', err);

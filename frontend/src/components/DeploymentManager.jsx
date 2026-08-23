@@ -9,9 +9,7 @@ import {
   CheckCircle, 
   Clock, 
   XCircle,
-  Settings,
   Terminal,
-  Command,
   Layers,
   ChevronDown,
   ChevronRight,
@@ -22,19 +20,16 @@ import {
   Package,
   Timer,
   Monitor,
-  Server,
-  ArrowUpRight,
-  X
+  ArrowUpRight
 } from 'lucide-react';
 import io from 'socket.io-client';
 import SchedulingModal from './SchedulingModal';
 import groupsService from '../services/groups';
 import devicesService from '../services/devices';
-import authService from '../services/auth';
 import schedulingService from '../services/scheduling';
+import api, { API_BASE_URL } from '../services/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || API_BASE_URL;
 
 const STATUS_ICONS = {
   pending: <Clock className="w-4 h-4 text-yellow-400" />,
@@ -66,8 +61,6 @@ export default function DeploymentManager({
   showError = (msg) => alert(msg),
   showSuccess = (msg) => alert(msg)
 }) {
-  console.log('DeploymentManager: Received agents:', agents);
-  console.log('DeploymentManager: Current agent:', currentAgent);
   const [commands, setCommands] = useState([]);
   const [newCommand, setNewCommand] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -104,7 +97,6 @@ export default function DeploymentManager({
     try {
       const response = await groupsService.fetchGroups();
       setGroups(response || []);
-      console.log('DeploymentManager: Loaded groups:', response);
     } catch (error) {
       console.error('Failed to load groups:', error);
     } finally {
@@ -118,7 +110,6 @@ export default function DeploymentManager({
     try {
       const response = await devicesService.fetchDevices();
       setDevices(response || []);
-      console.log('DeploymentManager: Loaded devices:', response);
       return response || [];
     } catch (error) {
       console.error('Failed to load devices:', error);
@@ -131,15 +122,11 @@ export default function DeploymentManager({
   // Update available shells when groups are selected
   useEffect(() => {
     if (selectedGroups.length > 0 && devices.length > 0) {
-      console.log('DeploymentManager: Updating shells for selected groups');
-      console.log('Selected groups:', selectedGroups);
-      console.log('Available devices:', devices);
       
       // Get all unique shells from devices in selected groups
       const shellsSet = new Set();
       selectedGroups.forEach(groupId => {
         const group = groups.find(g => g.id === groupId);
-        console.log(`Group ${groupId}:`, group);
         
         if (group && group.devices) {
           group.devices.forEach(groupDevice => {
@@ -149,8 +136,6 @@ export default function DeploymentManager({
               d.device_id === groupDevice.id
             );
             
-            console.log('Group device:', groupDevice);
-            console.log('Found device:', device);
             
             if (device) {
               if (device.shells && Array.isArray(device.shells) && device.shells.length > 0) {
@@ -174,15 +159,12 @@ export default function DeploymentManager({
       
       // If no shells found, use common shells as fallback
       if (uniqueShells.length === 0) {
-        console.log('No shells found in devices, using common shells');
         uniqueShells = commonShells;
       }
       
       setAvailableShells(uniqueShells);
-      console.log('Available shells for selected groups:', uniqueShells);
     } else if (selectedGroups.length > 0) {
       // If groups are selected but devices not loaded yet, use common shells
-      console.log('Groups selected but devices not loaded, using common shells');
       setAvailableShells(commonShells);
     } else {
       setAvailableShells([]);
@@ -227,7 +209,6 @@ export default function DeploymentManager({
 
     // Listen for new commands added to queue
     newSocket.on('command_queue_updated', (data) => {
-      console.log('Command queue updated:', data);
       loadCommands(); // Reload the entire command list
     });
 
@@ -292,11 +273,8 @@ export default function DeploymentManager({
 
   const loadCommands = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/deployment/commands`);
-      if (response.ok) {
-        const data = await response.json();
-        setCommands(data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
-      }
+      const data = await api.get('/api/deployment/commands');
+      setCommands(data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
     } catch (error) {
       console.error('Error loading commands:', error);
     }
@@ -304,11 +282,8 @@ export default function DeploymentManager({
 
   const loadStats = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/deployment/stats`);
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data.stats);
-      }
+      const data = await api.get('/api/deployment/stats');
+      setStats(data.stats);
     } catch (error) {
       console.error('Error loading stats:', error);
     }
@@ -325,10 +300,8 @@ export default function DeploymentManager({
     // Ensure devices are loaded before trying to schedule
     let devicesToUse = devices;
     if (devices.length === 0) {
-      console.log('Devices not loaded, loading now...');
       try {
         devicesToUse = await loadDevices();
-        console.log('Devices loaded:', devicesToUse);
       } catch (error) {
         console.error('Failed to load devices:', error);
         showError('Failed to load devices. Please try again.');
@@ -343,9 +316,6 @@ export default function DeploymentManager({
     // Get device IDs from groups or use current agent
     let deviceIds = [];
     if (currentAgent && !selectedGroups.length) {
-      console.log('Looking for device with agent_id:', currentAgent);
-      console.log('Available devices from DB:', devicesToUse);
-      console.log('Available agents (connected):', agents);
       
       // First check if the agent is actually connected
       const connectedAgent = agents.find(a => a.agent_id === currentAgent);
@@ -361,7 +331,6 @@ export default function DeploymentManager({
       // If not found in devices, try matching by other fields from the agents list
       if (!device && agents.length > 0) {
         const agent = agents.find(a => a.agent_id === currentAgent);
-        console.log('Found agent in connected agents:', agent);
         
         if (agent && devicesToUse.length > 0) {
           // Try matching by hostname (agent.hostname should match device.device_name)
@@ -371,7 +340,6 @@ export default function DeploymentManager({
         }
       }
       
-      console.log('Final found device:', device);
       
       if (device) {
         deviceIds = [device.id];
@@ -399,12 +367,6 @@ export default function DeploymentManager({
           }
     };
 
-    console.log('DeploymentManager - Opening scheduling modal with data:', {
-      currentAgent,
-      deviceIds,
-      selectedGroups,
-      taskData
-    });
 
     const targetInfo = selectedGroups.length > 0 
       ? `${selectedGroups.length} groups selected`
@@ -445,54 +407,30 @@ export default function DeploymentManager({
 
     setIsLoading(true);
     try {
-      // Get authentication token
-      const token = authService.getToken() || 
-                    localStorage.getItem('access_token') || 
-                    sessionStorage.getItem('access_token');
-      
       // If groups are selected, use the group command execution API
       if (selectedGroups.length > 0) {
         // Execute command on each selected group using the group API
         for (const groupId of selectedGroups) {
-          const response = await fetch(`${API_BASE_URL}/groups/${groupId}/commands`, {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
+          try {
+            await api.post(`/groups/${groupId}/commands`, {
               command: newCommand,
               shell: currentShell || 'cmd',
               config: {}
-            })
-          });
-
-          if (response.ok) {
-            const execution = await response.json();
-            console.log(`Group ${groupId} execution started:`, execution.execution_id);
+            });
             // Reload commands immediately to show new queue entries
             loadCommands();
-          } else {
-            const error = await response.json();
-            showError(`Error executing on group ${groupId}: ${error.detail || 'Unknown error'}`, 'Execution Failed');
+          } catch (groupError) {
+            showError(`Error executing on group ${groupId}: ${groupError.message || 'Unknown error'}`, 'Execution Failed');
           }
         }
       } else {
         // Execute command on single agent
-        const response = await fetch(`${API_BASE_URL}/api/deployment/commands`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            command: newCommand,
-            agent_id: currentAgent,
-            shell: currentShell || 'cmd'
-          })
+        const newCmd = await api.post('/api/deployment/commands', {
+          command: newCommand,
+          agent_id: currentAgent,
+          shell: currentShell || 'cmd'
         });
-
-        if (response.ok) {
-          const newCmd = await response.json();
-          setCommands(prev => [newCmd, ...prev]);
-        }
+        setCommands(prev => [newCmd, ...prev]);
       }
       
       setNewCommand('');
@@ -506,47 +444,34 @@ export default function DeploymentManager({
 
   const getTargetAgentsFromGroups = () => {
     const targetAgents = [];
-    console.log('Selected groups:', selectedGroups);
-    console.log('All groups:', groups);
-    console.log('All devices:', devices);
-    console.log('Online agents (from props):', agents);
     
     selectedGroups.forEach(groupId => {
       const group = groups.find(g => g.id === groupId);
-      console.log(`Processing group ${groupId}:`, group);
       
       if (group && group.devices) {
-        console.log(`Group devices:`, group.devices);
         
         group.devices.forEach(groupDevice => {
-          console.log(`Checking group device:`, groupDevice);
           
           // The groupDevice itself IS the device with all info
           // It has agent_id field directly
           const agentId = groupDevice.agent_id;
           
-          console.log(`Agent ID from group device: ${agentId}`);
           
           if (agentId) {
             // Check if this agent is online
             const isOnline = agents.find(a => a.agent_id === agentId);
             
-            console.log(`Is agent ${agentId} online:`, !!isOnline);
             
             if (isOnline && !targetAgents.includes(agentId)) {
               targetAgents.push(agentId);
-              console.log(`Added agent ${agentId} to target list`);
             } else if (!isOnline) {
-              console.log(`Agent ${agentId} is not online (status: ${groupDevice.status})`);
             }
           } else {
-            console.log(`No agent_id found for device:`, groupDevice);
           }
         });
       }
     });
     
-    console.log('Final target agents:', targetAgents);
     return targetAgents;
   };
 
@@ -562,61 +487,32 @@ export default function DeploymentManager({
 
     setIsLoading(true);
     try {
-      // Get authentication token
-      const token = authService.getToken() || 
-                    localStorage.getItem('access_token') || 
-                    sessionStorage.getItem('access_token');
-      
       // If groups are selected, use the group batch command API
       if (selectedGroups.length > 0) {
-        console.log('Executing batch commands on groups:', selectedGroups);
-        console.log('Commands to execute:', validCommands);
-        
         // Execute batch commands on each selected group using the group API
         for (const groupId of selectedGroups) {
-          console.log(`Sending batch request to group ${groupId} with ${validCommands.length} commands`);
-          
-          const response = await fetch(`${API_BASE_URL}/groups/${groupId}/commands/batch/sequential`, {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
+          try {
+            await api.post(`/groups/${groupId}/commands/batch/sequential`, {
               commands: validCommands,
               shell: currentShell || 'cmd',
               stop_on_failure: true,
               config: {}
-            })
-          });
-
-          if (response.ok) {
-            const batch = await response.json();
-            console.log(`Group ${groupId} batch execution started:`, batch);
+            });
             // Reload commands immediately to show new queue entries
             loadCommands();
-          } else {
-            const error = await response.json();
-            console.error(`Error executing batch on group ${groupId}:`, error);
-            showError(`Error executing batch on group ${groupId}: ${error.detail || 'Unknown error'}`, 'Batch Execution Failed');
+          } catch (batchError) {
+            console.error(`Error executing batch on group ${groupId}:`, batchError);
+            showError(`Error executing batch on group ${groupId}: ${batchError.message || 'Unknown error'}`, 'Batch Execution Failed');
           }
         }
       } else {
         // Execute batch commands on single agent
-        const response = await fetch(`${API_BASE_URL}/api/deployment/commands/batch`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            commands: validCommands,
-            agent_id: currentAgent,
-            shell: currentShell || 'cmd'
-          })
+        const newCommands = await api.post('/api/deployment/commands/batch', {
+          commands: validCommands,
+          agent_id: currentAgent,
+          shell: currentShell || 'cmd'
         });
-
-        if (response.ok) {
-          const newCommands = await response.json();
-          setCommands(prev => [...newCommands, ...prev]);
-        }
+        setCommands(prev => [...newCommands, ...prev]);
       }
       
       setBatchCommands(['']);
@@ -631,13 +527,11 @@ export default function DeploymentManager({
 
   const pauseCommand = async (cmdId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/deployment/commands/${cmdId}/pause`, { method: 'POST' });
-      if (response.ok) {
-        setCommands(prev => prev.map(cmd => 
-          cmd.id === cmdId ? { ...cmd, status: 'paused' } : cmd
-        ));
-        loadStats();
-      }
+      await api.post(`/api/deployment/commands/${cmdId}/pause`);
+      setCommands(prev => prev.map(cmd => 
+        cmd.id === cmdId ? { ...cmd, status: 'paused' } : cmd
+      ));
+      loadStats();
     } catch (error) {
       console.error('Error pausing command:', error);
     }
@@ -645,13 +539,11 @@ export default function DeploymentManager({
 
   const resumeCommand = async (cmdId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/deployment/commands/${cmdId}/resume`, { method: 'POST' });
-      if (response.ok) {
-        setCommands(prev => prev.map(cmd => 
-          cmd.id === cmdId ? { ...cmd, status: 'pending' } : cmd
-        ));
-        loadStats();
-      }
+      await api.post(`/api/deployment/commands/${cmdId}/resume`);
+      setCommands(prev => prev.map(cmd => 
+        cmd.id === cmdId ? { ...cmd, status: 'pending' } : cmd
+      ));
+      loadStats();
     } catch (error) {
       console.error('Error resuming command:', error);
     }
@@ -661,11 +553,9 @@ export default function DeploymentManager({
     if (!confirm('Are you sure you want to delete this command?')) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/deployment/commands/${cmdId}`, { method: 'DELETE' });
-      if (response.ok) {
-        setCommands(prev => prev.filter(cmd => cmd.id !== cmdId));
-        loadStats();
-      }
+      await api.delete(`/api/deployment/commands/${cmdId}`);
+      setCommands(prev => prev.filter(cmd => cmd.id !== cmdId));
+      loadStats();
     } catch (error) {
       console.error('Error deleting command:', error);
     }
@@ -673,23 +563,13 @@ export default function DeploymentManager({
 
   const rollbackCommand = async (cmdId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/deployment/commands/${cmdId}/rollback`, { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-      if (response.ok) {
-        const rollbackCmd = await response.json();
-        setCommands(prev => [rollbackCmd, ...prev]);
-        loadStats();
-        showSuccess('Rollback command created and executing');
-      } else {
-        const error = await response.json();
-        showError(error.detail || 'Cannot rollback this command');
-      }
+      const rollbackCmd = await api.post(`/api/deployment/commands/${cmdId}/rollback`);
+      setCommands(prev => [rollbackCmd, ...prev]);
+      loadStats();
+      showSuccess('Rollback command created and executing');
     } catch (error) {
       console.error('Error rolling back command:', error);
-      showError('Error rolling back command: ' + error.message);
+      showError(error.message || 'Cannot rollback this command');
     }
   };
 
@@ -706,23 +586,13 @@ export default function DeploymentManager({
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/deployment/commands/${cmdId}/restore-backup`, { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        showSuccess('Backup restore command created and executing');
-        loadCommands(); // Reload to show the restore command
-        loadStats();
-      } else {
-        const error = await response.json();
-        showError(error.detail || 'Failed to restore from backup');
-      }
+      const result = await api.post(`/api/deployment/commands/${cmdId}/restore-backup`);
+      showSuccess('Backup restore command created and executing');
+      loadCommands(); // Reload to show the restore command
+      loadStats();
     } catch (error) {
       console.error('Error restoring from backup:', error);
-      showError('Error restoring from backup: ' + error.message);
+      showError(error.message || 'Failed to restore from backup');
     }
   };
 
@@ -730,11 +600,9 @@ export default function DeploymentManager({
     if (!confirm('Clear all completed and failed commands?')) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/deployment/commands/completed`, { method: 'DELETE' });
-      if (response.ok) {
-        loadCommands();
-        loadStats();
-      }
+      await api.delete('/api/deployment/commands/completed');
+      loadCommands();
+      loadStats();
     } catch (error) {
       console.error('Error clearing commands:', error);
     }
@@ -757,13 +625,11 @@ export default function DeploymentManager({
     const grouped = {};
     const standalone = [];
 
-    console.log('Grouping commands:', commands.length);
 
     commands.forEach(cmd => {
       const executionId = cmd.config?.execution_id;
       const isGroupExecution = cmd.config?.group_execution;
 
-      console.log('Command:', cmd.id, 'isGroup:', isGroupExecution, 'execId:', executionId);
 
       if (isGroupExecution && executionId) {
         if (!grouped[executionId]) {
@@ -783,26 +649,19 @@ export default function DeploymentManager({
       }
     });
 
-    console.log('Grouped executions:', Object.keys(grouped).length);
-    console.log('Standalone commands:', standalone.length);
 
     return { grouped: Object.values(grouped), standalone };
   };
 
   // Toggle expansion for a group execution
   const toggleExecution = (executionId) => {
-    console.log('Toggling execution:', executionId);
-    console.log('Current expanded:', expandedExecutions);
     setExpandedExecutions(prev => {
       const newSet = new Set(prev);
       if (newSet.has(executionId)) {
         newSet.delete(executionId);
-        console.log('Collapsed:', executionId);
       } else {
         newSet.add(executionId);
-        console.log('Expanded:', executionId);
       }
-      console.log('New expanded set:', newSet);
       return newSet;
     });
   };
@@ -1096,7 +955,6 @@ export default function DeploymentManager({
                       <div 
                         className="p-4 cursor-pointer hover:bg-gray-800/70 transition-all select-none"
                         onClick={(e) => {
-                          console.log('Clicked group execution:', execution.execution_id);
                           toggleExecution(execution.execution_id);
                         }}
                         role="button"
