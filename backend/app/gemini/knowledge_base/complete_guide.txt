@@ -1,0 +1,1642 @@
+================================
+DEPLOYX COMPLETE USER GUIDE
+================================
+
+This document contains comprehensive information about DeployX - a deployment automation platform.
+Use this to answer user questions accurately with exact UI element names, button labels, and navigation paths.
+
+================================
+TABLE OF CONTENTS
+================================
+1. Platform Overview
+2. Sidebar Navigation
+3. Overview (Dashboard) Page
+4. Agents Page
+5. Devices Page
+6. Device Groups Page
+7. Deployments Page
+8. Files Page
+9. Commands Page
+10. Backups Page
+11. Schedules Page
+12. Logs Page
+13. Settings Page
+14. Common Workflows
+15. Troubleshooting
+
+================================
+1. PLATFORM OVERVIEW
+================================
+
+DeployX is a deployment automation platform that helps users:
+- Manage multiple servers/devices from one dashboard
+- Deploy applications and files to remote servers
+- Execute commands across multiple machines
+- Schedule automated tasks
+- Monitor device health and performance
+- Group devices for bulk operations
+- Backup and rollback deployments
+
+Key Features:
+✓ Real-time device monitoring
+✓ Multi-device command execution
+✓ File transfer and management
+✓ Automated deployment scheduling
+✓ Device grouping for organized management
+✓ Comprehensive logging and history
+✓ Backup and restore capabilities
+
+================================
+2. SIDEBAR NAVIGATION
+================================
+
+The left sidebar contains all main navigation items:
+
+📊 **Overview** (Home icon)
+   - Description: "System overview & statistics"
+   - Shows dashboard with stats, charts, activity
+   
+👤 **Agents** (Monitor icon)
+   - Description: "Manage connected agents"
+   - Lists all connected devices/agents
+   - View agent status, details, metrics
+   
+💻 **Devices** (Server icon)
+   - Description: "View all devices"
+   - Device list with health status
+   - Search and filter devices
+   
+📁 **Device Groups** (Network icon)
+   - Description: "Organize devices into groups"
+   - Create and manage device groups
+   - Bulk operations on grouped devices
+   
+🚀 **Deployments** (Play icon)
+   - Description: "Software deployments"
+   - Create and manage deployments
+   - View deployment history and status
+   
+📂 **Files** (Folder icon)
+   - Description: "File management"
+   - Browse remote file systems
+   - Upload/download files to devices
+   
+⚡ **Commands** (Terminal icon)
+   - Description: "Execute commands"
+   - Run commands on selected devices
+   - Interactive terminal access
+   
+💾 **Backups** (Database icon)
+   - Description: "Backup & restore"
+   - Manage deployment backups
+   - Rollback failed deployments
+   
+📅 **Schedules** (Clock icon)
+   - Description: "Scheduled deployments"
+   - Create automated deployment schedules
+   - Manage recurring tasks
+   
+📋 **Logs** (File icon)
+   - Description: "System logs"
+   - View all system activity
+   - Deployment logs and errors
+   
+⚙️ **Settings** (Gear icon)
+   - Description: "System settings"
+   - User preferences
+   - System configuration
+
+================================
+3. OVERVIEW (DASHBOARD) PAGE
+================================
+
+Location: Click **Overview** in sidebar (first item)
+Purpose: Central dashboard showing system health and activity
+
+## Page Sections:
+
+### Welcome Header
+- Displays: "Welcome back, [Username]!"
+- Shows: Last updated timestamp
+
+### Quick Stats Cards (4 cards, clickable):
+
+**Connected Devices Card**
+- Icon: Blue server icon
+- Shows: Total device count
+- Shows: Online devices count (green with checkmark)
+- Click action: Opens Devices page
+
+**System Health Card**
+- Icon: Green shield icon
+- Shows: Health score percentage
+- Status indicators:
+  * 80%+: "Excellent" (green)
+  * 60-79%: "Good" (yellow)
+  * Below 60%: "Poor" (red)
+
+**Deployments Card**
+- Icon: Purple play icon
+- Shows: Total deployments
+- Shows: Success rate percentage
+- Click action: Opens Deployments page
+
+**Total Commands Card**
+- Icon: Orange command icon
+- Shows: Total commands executed
+- Shows: Completed commands count
+- Click action: Opens Commands page
+
+### Device Health Chart
+- Visual progress bars showing:
+  * Device Health percentage
+  * Deployment Success rate
+  * Uptime percentage
+  * Active connections count
+
+### System Metrics Chart
+- Real-time metrics:
+  * CPU Usage (percentage with bar)
+  * Memory Usage (percentage with bar)
+  * Disk Usage (percentage with bar)
+  * Network Connections (count)
+
+### Deployment Trends Chart
+- Time period selector:
+  * "Today" button
+  * "Past Week" button (default)
+  * "Past Month" button
+  * "Past Year" button
+  * "Custom Range" option
+- Shows: Deployment count over time
+- Color-coded bars for successful/failed deployments
+
+### Device Status Distribution
+- Pie chart showing:
+  * Online devices (green)
+  * Offline devices (red)
+  * Total count in center
+
+### Recent Activity Feed
+- Real-time activity log showing:
+  * Deployment events (purple icon)
+  * Command executions (orange icon)
+  * Device connections (green/red icon)
+  * System events (gray icon)
+- Each entry shows:
+  * Timestamp
+  * Event type
+  * Description
+  * Status badge
+
+================================
+4. AGENTS PAGE
+================================
+
+Location: Click **Agents** in sidebar (second item)
+Purpose: View and manage connected agent devices
+
+## Page Layout:
+
+### Top Actions Bar
+- **Refresh** button (top-right)
+  * Icon: Circular arrows
+  * Action: Reloads agent list
+
+### Agent Status Indicator (Top-Right Corner)
+- Shows connection status:
+  * Green dot + "Connected": Server connected
+  * Red dot + "Disconnected": Server offline
+  * Shows: "X agent(s)" count
+
+### Agent Status Tooltip
+- Hover over status indicator to see:
+  * List of all connected agents
+  * Agent hostname
+  * Agent ID (unique identifier)
+  * Operating system
+  * Online status (green dot)
+
+### Agent Cards Grid
+Each agent appears as a card showing:
+
+**Agent Information**:
+- Hostname (main title)
+- Agent ID (unique identifier)
+- Operating System
+- IP Address
+- Status badge:
+  * Green "Online": Agent connected
+  * Red "Offline": Agent disconnected
+  * Yellow "Busy": Agent executing task
+
+**Agent Metrics** (when online):
+- CPU Usage: Percentage with color bar
+- Memory Usage: Percentage with color bar
+- Disk Usage: Percentage with color bar
+- Uptime: Hours/days online
+
+**Agent Actions** (buttons on card):
+- **View Details** button
+  * Opens detailed agent information
+  * Shows full system specs
+  * Real-time performance graphs
+
+- **Execute Command** button
+  * Opens command execution interface
+  * Run commands on this specific agent
+  * See command output in real-time
+
+- **View Files** button
+  * Opens file browser for this agent
+  * Browse remote file system
+  * Upload/download files
+
+### No Agents State
+If no agents connected:
+- Shows: "No agents connected" message
+- Shows: "Add Agent" button
+- Instructions: How to install agent on devices
+
+### Adding New Agent
+1. Click **Add Agent** button (blue, top-right)
+2. Downloads agent installer
+3. Choose platform:
+   - Windows installer (.exe)
+   - Linux installer (.sh)
+   - macOS installer (.dmg)
+4. Run installer on target device
+5. Agent appears automatically in list
+
+================================
+5. DEVICES PAGE
+================================
+
+Location: Click **Devices** in sidebar
+Purpose: View all registered devices with detailed information
+
+## Page Layout:
+
+### Search and Filter Bar (Top)
+
+**Search Box**:
+- Placeholder: "Search devices..."
+- Icon: Magnifying glass
+- Searches: Device name, IP, ID
+
+**Status Filter Dropdown**:
+- Label: "Status"
+- Options:
+  * "All Statuses" (default)
+  * "Online"
+  * "Offline"
+- Icon: Green/red circle indicator
+
+**Group Filter Dropdown**:
+- Label: "Group"
+- Options:
+  * "All Groups" (default)
+  * List of existing groups
+- Icon: Network icon
+
+### Devices Grid
+Each device shown as card with:
+
+**Device Info**:
+- Device name/hostname
+- IP address
+- Operating system
+- Group membership badge (if assigned)
+
+**Status Indicator**:
+- Green dot + "Online" or
+- Red dot + "Offline"
+- Last seen timestamp
+
+**Health Metrics**:
+- CPU usage bar
+- RAM usage bar
+- Disk usage bar
+- Color coding:
+  * Green: <70%
+  * Yellow: 70-90%
+  * Red: >90%
+
+**Action Buttons**:
+- **View Details**: Full device information
+- **Manage**: Device configuration
+- **Remove**: Delete device from system
+
+### Empty State
+If no devices:
+- Shows: "No devices found"
+- Message: "Connect agents to see devices here"
+
+================================
+6. DEVICE GROUPS PAGE
+================================
+
+Location: Click **Device Groups** in sidebar
+Purpose: Organize devices into logical groups for bulk operations
+
+## Page Layout:
+
+### Top Actions Bar
+- **Create Group** button (blue, top-right)
+  * Icon: Plus sign
+  * Opens group creation form
+
+### Search Bar
+- Placeholder: "Search groups..."
+- Filters groups by name
+
+### Groups Grid
+Each group shown as card with:
+
+**Group Information**:
+- Group name (main title)
+- Description (if provided)
+- Device count badge
+  * Example: "5 devices"
+- Creation date
+
+**Group Actions** (buttons on card):
+- **View Devices** button
+  * Shows list of devices in group
+  * Device names and status
+  
+- **Edit** button
+  * Modify group name/description
+  * Add/remove devices
+  
+- **Delete** button (red)
+  * Removes group (not devices)
+  * Confirmation required
+
+### Creating a New Group
+1. Click **Create Group** button
+2. Modal opens with form:
+   - **Group Name** field (required)
+   - **Description** field (optional)
+   - **Select Devices** checklist
+     * Shows all available devices
+     * Checkbox for each device
+     * Search box to filter devices
+3. Click **Create** button (green)
+4. Group appears immediately in list
+
+### Editing a Group
+1. Click **Edit** button on group card
+2. Modal opens with:
+   - Current group name (editable)
+   - Current description (editable)
+   - Device list with checkboxes
+     * Checked = in group
+     * Unchecked = not in group
+3. Make changes
+4. Click **Save Changes** button
+
+### Deleting a Group
+1. Click **Delete** button (red trash icon)
+2. Confirmation dialog appears:
+   - "Are you sure you want to delete this group?"
+   - **Cancel** button (gray)
+   - **Delete** button (red)
+3. Group removed (devices remain)
+
+### Group Benefits
+Groups allow you to:
+- Deploy software to multiple devices at once
+- Execute commands on all group members
+- Monitor group health collectively
+- Schedule group deployments
+
+================================
+7. DEPLOYMENTS PAGE
+================================
+
+Location: Click **Deployments** in sidebar
+Purpose: Create and manage software deployments
+
+## Page Layout:
+
+### Top Actions Bar
+- **Create Deployment** button (green, top-right)
+  * Icon: Plus + rocket
+  * Opens deployment creation form
+
+### Deployments List/Table
+Shows all deployments with columns:
+
+**Deployment Name**
+- Main identifier
+- Click to view details
+
+**Target** (Where deployed)
+- Device name, or
+- Group name, or
+- Multiple targets count
+
+**Status**
+- 🟢 "Successful" (green)
+- 🔴 "Failed" (red)
+- 🟡 "Pending" (yellow)
+- 🔵 "Running" (blue, animated)
+
+**Progress Bar** (for running deployments)
+- Shows completion percentage
+- Animated while running
+
+**Created Date**
+- When deployment was created
+- Format: "Dec 27, 2025"
+
+**Actions** (buttons)
+- **View Details**: See full deployment info
+- **Retry**: Run deployment again (if failed)
+- **Rollback**: Undo deployment (if backed up)
+- **Delete**: Remove from history
+
+### Creating a Deployment
+1. Click **Create Deployment** button
+2. Form modal opens with fields:
+
+**Step 1: Deployment Information**
+- **Deployment Name** (required)
+  * Text field
+  * Example: "Production App v2.0"
+  
+- **Description** (optional)
+  * Text area
+  * What this deployment does
+
+**Step 2: Select Targets**
+- **Target Type** dropdown:
+  * "Single Device"
+  * "Device Group"
+  * "Multiple Devices"
+  
+- **Device/Group Selector**:
+  * If "Single Device": Dropdown of devices
+  * If "Device Group": Dropdown of groups
+  * If "Multiple": Checkboxes for devices
+
+**Step 3: Select Files/Application**
+- **Upload Files** button
+  * Opens file picker
+  * Multiple files allowed
+  * Max 100MB per file
+  * Shows selected files list
+  
+- OR **Select from Repository**
+  * Choose from previously uploaded files
+
+**Step 4: Deployment Settings**
+- **Destination Path** (required)
+  * Text field
+  * Where files go on target
+  * Example: "/var/www/html"
+  
+- **Pre-deployment Commands** (optional)
+  * Commands to run before deployment
+  * Example: "systemctl stop nginx"
+  
+- **Post-deployment Commands** (optional)
+  * Commands to run after deployment
+  * Example: "systemctl start nginx"
+  
+- **Backup Before Deploy** (checkbox)
+  * Creates backup for rollback
+  * Recommended: Checked
+
+**Step 5: Schedule (Optional)**
+- **Deploy Now** (default)
+  * Runs immediately
+  
+- OR **Schedule for Later**
+  * Date picker
+  * Time picker
+  * Timezone selector
+
+3. Click **Deploy** button (green)
+4. Deployment starts immediately or scheduled
+5. Progress shown in real-time
+
+### Viewing Deployment Details
+Click any deployment to see:
+- Full configuration
+- Target devices list
+- File list
+- Command execution logs
+- Success/failure status per device
+- Error messages (if failed)
+- Deployment timeline
+- Actions: Retry, Rollback, Delete
+
+================================
+8. FILES PAGE
+================================
+
+Location: Click **Files** in sidebar
+Purpose: Browse and manage files on remote devices
+
+## Page Layout:
+
+### Top Control Bar
+
+**Device Selector Dropdown** (left)
+- Label: "Select Device"
+- Shows: All online devices
+- Icon: Server icon
+- Must select device to browse files
+
+**Current Path Display**
+- Shows: Current directory path
+- Example: "/home/user/documents"
+- Clickable breadcrumbs for navigation
+
+**Action Buttons** (right)
+- **Upload** button (blue)
+  * Icon: Upload arrow
+  * Upload files to current directory
+  
+- **New Folder** button
+  * Icon: Folder plus
+  * Create new directory
+  
+- **Refresh** button
+  * Icon: Circular arrows
+  * Reload current directory
+
+### File Browser (Main Area)
+Split into two panes:
+
+**Left Pane: Directory Tree**
+- Hierarchical folder structure
+- Click folder to expand/collapse
+- Shows folder icon
+- Click to navigate
+
+**Right Pane: File List**
+Table showing current directory contents:
+
+Columns:
+- **Checkbox**: Select multiple files
+- **Icon**: File/folder icon with type indicator
+- **Name**: Filename
+- **Size**: File size (KB/MB/GB)
+- **Modified**: Last modified date/time
+- **Actions**: Buttons
+  * **Download** button
+  * **Delete** button (red)
+  * **Rename** button
+  * **Move** button
+
+### Uploading Files
+1. Select target device from dropdown
+2. Navigate to destination folder
+3. Click **Upload** button (blue, top-right)
+4. File picker opens:
+   - Select one or multiple files
+   - Max 100MB per file
+5. Click **Open** in file picker
+6. Progress bar shows upload status
+7. Files appear in current directory
+8. Success notification appears
+
+Important Notes:
+- Ensure device is online
+- Check write permissions
+- Verify sufficient disk space
+
+### Downloading Files
+1. Navigate to file location
+2. Click **Download** button on file row
+3. File downloads to your computer
+4. Browser's download location
+
+### Creating Folders
+1. Click **New Folder** button
+2. Modal opens:
+   - **Folder Name** field
+3. Enter folder name
+4. Click **Create** button
+5. Folder appears in list
+
+### Deleting Files/Folders
+1. Select file(s) or folder(s):
+   - Click checkbox next to items, OR
+   - Click **Delete** button on row
+2. Confirmation dialog:
+   - "Are you sure?"
+   - **Cancel** (gray)
+   - **Delete** (red)
+3. Item removed from device
+
+### Common Use Cases:
+- Upload application files to servers
+- Download logs for analysis
+- Clean up old files
+- Organize deployment artifacts
+- Transfer configuration files
+
+================================
+9. COMMANDS PAGE
+================================
+
+Location: Click **Commands** in sidebar
+Purpose: Execute commands on remote devices
+
+## Page Layout:
+
+### Command Execution Panel (Top)
+
+**Target Selection**
+- **Select Target** dropdown:
+  * "Single Device"
+  * "Device Group"
+  * "Multiple Devices"
+- Second dropdown: Choose specific target(s)
+
+**Command Input**
+- **Command** text field (required)
+  * Placeholder: "Enter command to execute..."
+  * Example: "ls -la", "systemctl status nginx"
+  * Supports shell commands
+
+**Execution Options**
+- **Run as sudo** checkbox
+  * Execute with elevated privileges
+  
+- **Timeout** field
+  * Seconds before command times out
+  * Default: 30 seconds
+
+**Action Button**
+- **Execute** button (green)
+  * Icon: Play icon
+  * Runs command on selected targets
+
+### Command History (Below)
+Table showing previous commands:
+
+Columns:
+- **Command**: Command text
+- **Target**: Device/group name
+- **Status**: 
+  * ✅ "Success" (green)
+  * ❌ "Failed" (red)
+  * ⏳ "Running" (blue, animated)
+- **Exit Code**: Command exit code (0 = success)
+- **Executed**: Date and time
+- **Actions**: 
+  * **View Output** button
+  * **Rerun** button
+  * **Delete** button
+
+### Interactive Terminal (Optional)
+For real-time command execution:
+
+1. Click **Open Terminal** button
+2. Terminal window opens
+3. Select device
+4. Type commands interactively
+5. See output in real-time
+6. Terminal features:
+   - Command history (up/down arrows)
+   - Tab completion
+   - Copy/paste support
+   - Clear screen option
+   - Close terminal button
+
+### Executing Commands
+1. Select target (device/group)
+2. Type command in input field
+3. (Optional) Check "Run as sudo"
+4. (Optional) Set timeout
+5. Click **Execute** button
+6. Command runs on target(s)
+7. Output appears in popup or history
+8. Status indicator shows success/failure
+
+### Viewing Command Output
+1. Find command in history
+2. Click **View Output** button
+3. Modal opens showing:
+   - Full command
+   - Target device(s)
+   - Standard output (stdout)
+   - Error output (stderr)
+   - Exit code
+   - Execution time
+   - Timestamp
+
+### Common Commands:
+- System info: `uname -a`, `lsb_release -a`
+- Process management: `systemctl status nginx`, `pm2 list`
+- File operations: `ls -la`, `du -sh`, `df -h`
+- Network: `ping google.com`, `netstat -tulpn`
+- Updates: `apt update`, `yum update`
+
+================================
+10. BACKUPS PAGE
+================================
+
+Location: Click **Backups** in sidebar
+Purpose: Manage deployment backups and perform rollbacks
+
+## Page Layout:
+
+### Backups List
+Table showing all backups:
+
+Columns:
+- **Backup Name**: Identifier
+- **Deployment**: Associated deployment name
+- **Device**: Target device
+- **Created**: Backup date/time
+- **Size**: Backup size (MB/GB)
+- **Status**: 
+  * "Valid" (green)
+  * "Corrupted" (red)
+- **Actions**:
+  * **Restore** button (blue)
+  * **Download** button
+  * **Delete** button (red)
+
+### Backup Details
+Click any backup to view:
+- Full backup information
+- Files included
+- Deployment configuration
+- Backup metadata
+- Restore preview
+
+### Restoring a Backup (Rollback)
+1. Find backup in list
+2. Click **Restore** button
+3. Confirmation dialog:
+   - "This will restore files to previous state"
+   - Shows: Files to be restored
+   - Shows: Target device
+   - **Cancel** (gray)
+   - **Restore** (blue)
+4. Restoration process starts
+5. Progress bar shown
+6. Success/failure notification
+7. Device reverted to backed-up state
+
+### Automatic Backups
+Backups are created automatically when:
+- "Backup Before Deploy" is checked during deployment
+- Before overwriting existing files
+- Before destructive operations
+
+### Manual Backup
+To create manual backup:
+1. Go to Deployments page
+2. Find deployment to backup
+3. Click **Actions** menu
+4. Select **Create Backup**
+5. Backup created and listed
+
+### Deleting Backups
+1. Click **Delete** button (red trash icon)
+2. Confirmation required
+3. Backup permanently removed
+4. Cannot be restored after deletion
+
+### Backup Best Practices:
+- Always backup before major deployments
+- Regularly clean old backups
+- Download critical backups locally
+- Test restores periodically
+- Keep at least one backup per deployment
+
+================================
+11. SCHEDULES PAGE
+================================
+
+Location: Click **Schedules** in sidebar
+Purpose: Create and manage automated deployment schedules
+
+## Page Layout:
+
+### Top Actions
+- **Create Schedule** button (green, top-right)
+  * Opens schedule creation form
+
+### Schedules List
+Table showing all schedules:
+
+Columns:
+- **Schedule Name**: Identifier
+- **Deployment**: Associated deployment
+- **Frequency**: How often runs
+  * "One-time"
+  * "Daily"
+  * "Weekly"
+  * "Monthly"
+  * "Custom (Cron)"
+- **Next Run**: When next execution
+- **Status**: 
+  * "Active" (green)
+  * "Paused" (yellow)
+  * "Expired" (gray)
+- **Actions**:
+  * **Edit** button
+  * **Pause/Resume** toggle
+  * **Delete** button
+
+### Creating a Schedule
+1. Click **Create Schedule** button
+2. Form opens with fields:
+
+**Schedule Information**
+- **Schedule Name** (required)
+  * Text field
+  
+- **Description** (optional)
+  * What this schedule does
+
+**Select Deployment**
+- **Deployment** dropdown (required)
+  * Choose existing deployment
+  * Or create new deployment
+
+**Schedule Type**
+- **One-time**: Runs once
+  * Date picker
+  * Time picker
+  
+- **Recurring**: Runs repeatedly
+  * **Frequency** dropdown:
+    - Daily
+    - Weekly
+    - Monthly
+    - Custom (Cron expression)
+  
+  * If Daily:
+    - Time picker
+  
+  * If Weekly:
+    - Day selector (checkboxes)
+    - Time picker
+  
+  * If Monthly:
+    - Day of month (1-31)
+    - Time picker
+  
+  * If Custom:
+    - Cron expression field
+    - Example: "0 2 * * *" (2 AM daily)
+
+**Additional Options**
+- **Timezone** dropdown
+  * Select appropriate timezone
+  
+- **Retry on Failure** checkbox
+  * Automatically retry if deployment fails
+  
+- **Max Retries** field (if retry enabled)
+  * Number of retry attempts
+
+3. Click **Create Schedule** button
+4. Schedule becomes active
+
+### Editing a Schedule
+1. Click **Edit** button on schedule row
+2. Modify any fields
+3. Click **Save Changes**
+4. Next run time recalculates
+
+### Pausing/Resuming Schedules
+- Click **Pause** button to temporarily stop
+- Schedule kept but not executed
+- Click **Resume** to reactivate
+- Next run time recalculates from now
+
+### Deleting Schedules
+1. Click **Delete** button
+2. Confirmation required
+3. Schedule removed
+4. Past executions remain in history
+
+### Schedule Monitoring
+- View upcoming schedules
+- See execution history
+- Check success/failure rates
+- Receive notifications on failures
+
+================================
+12. LOGS PAGE
+================================
+
+Location: Click **Logs** in sidebar
+Purpose: View all system activity and debugging information
+
+## Page Layout:
+
+### Log Filters (Top)
+
+**Time Range Selector**
+- **Quick Filters**:
+  * "Last Hour"
+  * "Today"
+  * "Last 7 Days"
+  * "Last 30 Days"
+  * "Custom Range"
+- **Custom Range** (if selected):
+  * From date picker
+  * To date picker
+
+**Log Level Filter**
+- **Dropdown** options:
+  * "All Levels"
+  * "Info" (blue)
+  * "Warning" (yellow)
+  * "Error" (red)
+  * "Critical" (dark red)
+
+**Category Filter**
+- **Dropdown** options:
+  * "All Categories"
+  * "Deployments"
+  * "Commands"
+  * "Agents"
+  * "Files"
+  * "System"
+  * "Authentication"
+
+**Search Box**
+- Placeholder: "Search logs..."
+- Searches: Log messages and metadata
+
+**Buttons**
+- **Refresh** button (reload logs)
+- **Export** button (download as CSV/JSON)
+- **Clear Old Logs** button (housekeeping)
+
+### Logs Table
+Shows log entries with columns:
+
+**Timestamp**
+- Date and time of event
+- Format: "Dec 27, 2025 14:35:22"
+
+**Level** (badge)
+- 🔵 "Info"
+- 🟡 "Warning"
+- 🔴 "Error"
+- ⚫ "Critical"
+
+**Category**
+- Type of log entry
+- Example: "Deployment", "Command", "Agent"
+
+**Message**
+- Description of event
+- Truncated if long
+
+**Source**
+- Where log came from
+- Device name or system component
+
+**Actions**
+- **View Details** button
+  * Opens full log entry
+  * Shows:
+    - Complete message
+    - Stack trace (if error)
+    - Related objects (IDs, names)
+    - Context data
+    - Raw JSON
+
+### Log Details Modal
+Click any log to see:
+- Full timestamp
+- Complete message
+- Log level with color
+- Category and subcategory
+- Source device/component
+- User (if action performed by user)
+- Related entities (deployment ID, command ID, etc.)
+- Stack trace (for errors)
+- Context data (JSON)
+- Actions taken or recommended
+
+### Exporting Logs
+1. Set desired filters
+2. Click **Export** button
+3. Choose format:
+   - CSV (spreadsheet)
+   - JSON (raw data)
+   - TXT (plain text)
+4. File downloads
+
+### Clearing Old Logs
+1. Click **Clear Old Logs** button
+2. Modal opens:
+   - "Delete logs older than:"
+   - Dropdown: 7 days, 30 days, 90 days, 1 year
+3. Confirmation required
+4. Old logs deleted
+
+### Real-time Log Streaming
+- Logs update automatically
+- New entries appear at top
+- Auto-scroll option
+- Pause button to stop updates
+
+### Common Log Scenarios:
+- Deployment success: Info level, green
+- Command failed: Error level, red
+- Agent disconnected: Warning level, yellow
+- Authentication issues: Error level, red
+- System errors: Critical level, dark red
+
+================================
+13. SETTINGS PAGE
+================================
+
+Location: Click **Settings** in sidebar
+Purpose: Configure user account and system preferences
+
+## Page Sections:
+
+### User Profile Settings
+
+**Username**
+- Current username displayed
+- **Change Username** button
+  * Opens modal:
+    - "New Username" field
+    - "Current Password" field (verification)
+    - **Save** button
+    - **Cancel** button
+
+**Email**
+- Current email displayed
+- **Change Email** button
+  * Opens modal:
+    - "New Email" field
+    - "Current Password" field (verification)
+    - **Send Verification** button
+  * Verification email sent to new address
+  * Click link in email to confirm
+  * Email updated after verification
+
+**Password**
+- **Change Password** button
+  * Opens modal:
+    - "Current Password" field
+    - "New Password" field
+    - "Confirm New Password" field
+    - Password strength indicator
+    - **Update Password** button
+    - **Cancel** button
+
+### Account Actions
+
+**Logout**
+- **Logout** button (orange)
+  * Logs out current user
+  * Redirects to login page
+  * Session ended
+
+**Delete Account**
+- **Delete Account** button (red)
+  * Opens confirmation dialog
+  * Warning: "This cannot be undone"
+  * Requires password confirmation
+  * Deletes all user data
+  * Cancels all deployments
+  * Removes all devices
+
+### System Preferences (If Admin)
+
+**Notifications**
+- Email notifications toggle
+- Desktop notifications toggle
+- Notification types checkboxes:
+  * Deployment completions
+  * Agent disconnections
+  * Failed commands
+  * System errors
+
+**Theme**
+- Dark mode (default)
+- Light mode (if available)
+
+**Regional Settings**
+- Timezone selector
+- Date format
+- Time format (12h/24h)
+
+================================
+14. COMMON WORKFLOWS
+================================
+
+### WORKFLOW 1: First-Time Setup
+**Goal**: Get started with DeployX
+
+1. Login to DeployX
+2. You see the **Overview** page (dashboard)
+3. Click **Agents** in sidebar (left side, second item)
+4. You see "No agents connected" message
+5. Click **Add Agent** button (blue, top-right)
+6. Download agent installer for your platform:
+   - Windows: .exe file
+   - Linux: .sh script
+   - macOS: .dmg file
+7. Run installer on your server/device
+8. Agent automatically connects
+9. Agent appears in Agents list with green "Online" status
+10. Now you can deploy applications!
+
+---
+
+### WORKFLOW 2: Deploying an Application
+**Goal**: Deploy files to a server
+
+1. Make sure you have at least one online agent
+2. Click **Deployments** in sidebar
+3. Click **Create Deployment** button (green, top-right)
+4. Fill in deployment form:
+   - **Name**: Give it a descriptive name (e.g., "Production App v1.0")
+   - **Target**: Select device or group
+   - **Files**: Click Upload and select your application files
+   - **Destination Path**: Where files should go (e.g., "/var/www/html")
+   - **Backup**: Check this box (recommended)
+5. (Optional) Add post-deployment commands:
+   - Example: "systemctl restart nginx"
+6. Click **Deploy** button (green, bottom)
+7. Watch progress bar
+8. Success notification appears
+9. Your app is now deployed!
+
+---
+
+### WORKFLOW 3: Uploading Files to a Server
+**Goal**: Transfer files to a remote device
+
+1. Click **Files** in sidebar (left menu, has folder icon)
+2. At the top, use the **device dropdown** to select your target server
+3. Wait for file browser to load
+4. Navigate to destination folder:
+   - Click folders in left tree to browse, OR
+   - Use breadcrumbs at top to navigate
+5. Click **Upload** button (blue, top-right corner)
+6. File picker opens
+7. Select file(s) from your computer
+8. Click **Open**
+9. Upload progress bar appears
+10. Files now visible in current directory
+11. Done!
+
+**Important Notes**:
+- Maximum file size: 100MB per file
+- Ensure device has write permissions
+- Check available disk space
+
+---
+
+### WORKFLOW 4: Running Commands on Multiple Devices
+**Goal**: Execute a command across several servers
+
+1. Click **Device Groups** in sidebar
+2. Create a group (if you haven't already):
+   - Click **Create Group** button
+   - Enter group name (e.g., "Web Servers")
+   - Select devices to include
+   - Click **Create**
+3. Click **Commands** in sidebar
+4. In the **Target** dropdown, select "Device Group"
+5. Choose your group from second dropdown
+6. Type your command in the text field
+   - Example: "systemctl restart apache2"
+7. (Optional) Check **Run as sudo** if needed
+8. Click **Execute** button (green)
+9. Command runs on all devices in group
+10. View results in command history below
+
+---
+
+### WORKFLOW 5: Scheduling Recurring Deployments
+**Goal**: Automatically deploy updates every week
+
+1. First, create a deployment (see Workflow 2)
+2. Click **Schedules** in sidebar
+3. Click **Create Schedule** button (green)
+4. Fill in schedule form:
+   - **Name**: "Weekly Production Update"
+   - **Deployment**: Select existing deployment
+   - **Frequency**: Choose "Weekly"
+   - **Days**: Check days (e.g., Monday at 2 AM)
+   - **Time**: Set time
+   - **Timezone**: Select correct timezone
+5. Check **Retry on Failure** (recommended)
+6. Click **Create Schedule** button
+7. Schedule is now active
+8. Deployment runs automatically every week
+
+---
+
+### WORKFLOW 6: Rolling Back a Failed Deployment
+**Goal**: Restore previous version after bad deployment
+
+1. Click **Backups** in sidebar
+2. Find the backup for your deployment
+3. Click **Restore** button (blue)
+4. Confirmation dialog appears:
+   - Shows what will be restored
+   - Shows target device
+5. Click **Restore** button in dialog
+6. Restoration process begins
+7. Progress bar shows status
+8. Success message appears
+9. Your device is back to previous state!
+
+**Note**: This only works if you checked "Backup Before Deploy" during the original deployment.
+
+---
+
+### WORKFLOW 7: Monitoring Device Health
+**Goal**: Check if your servers are running well
+
+1. Click **Overview** in sidebar (first item, home icon)
+2. Look at the **Quick Stats Cards**:
+   - **Connected Devices**: Shows how many are online
+   - **System Health**: Overall health score
+3. Scroll to **System Metrics** section:
+   - Check CPU usage
+   - Check memory usage
+   - Check disk space
+4. For detailed device info:
+   - Click **Devices** in sidebar
+   - Each device card shows:
+     * CPU usage (green <70%, yellow 70-90%, red >90%)
+     * RAM usage
+     * Disk usage
+     * Status (online/offline)
+5. Click **View Details** on any device for full information
+
+---
+
+### WORKFLOW 8: Organizing Devices into Groups
+**Goal**: Group servers by environment (dev, staging, prod)
+
+1. Click **Device Groups** in sidebar
+2. Create "Development" group:
+   - Click **Create Group** button
+   - Name: "Development Servers"
+   - Description: "Dev environment machines"
+   - Select development devices (checkboxes)
+   - Click **Create**
+3. Create "Production" group:
+   - Click **Create Group** again
+   - Name: "Production Servers"
+   - Description: "Live production machines"
+   - Select production devices
+   - Click **Create**
+4. Now you can:
+   - Deploy to all dev servers at once
+   - Run commands on all prod servers
+   - Monitor groups separately
+
+---
+
+### WORKFLOW 9: Troubleshooting Offline Agent
+**Goal**: Fix an agent that shows "Offline"
+
+1. Click **Agents** in sidebar
+2. Find agent with red "Offline" status
+3. Troubleshooting steps:
+
+**Step A: Check Device Connection**
+- Verify device has internet access
+- Ping device: Can you reach it?
+- Check firewall rules
+
+**Step B: Check Agent Service**
+- SSH into the device
+- Check if agent is running:
+  * Linux: `systemctl status deployx-agent`
+  * Windows: Check Services app
+- If stopped, restart it:
+  * Linux: `systemctl restart deployx-agent`
+  * Windows: Start service
+
+**Step C: Check Logs**
+- Go to **Logs** page in DeployX
+- Filter by agent name
+- Look for error messages
+- Common issues:
+  * "Connection refused" → Server unreachable
+  * "Authentication failed" → Wrong credentials
+  * "Certificate error" → SSL/TLS issue
+
+**Step D: Reinstall Agent** (last resort)
+- Download fresh installer
+- Uninstall old agent
+- Install new agent
+- Agent reconnects automatically
+
+---
+
+### WORKFLOW 10: Viewing Deployment History
+**Goal**: See all past deployments and their results
+
+1. Click **Deployments** in sidebar
+2. All deployments listed with status:
+   - ✅ Green "Successful"
+   - ❌ Red "Failed"
+   - ⏳ Yellow "Pending"
+   - 🔵 Blue "Running"
+3. Click any deployment to see details
+4. Deployment details show:
+   - When it was created
+   - Who created it
+   - Target devices/groups
+   - Files deployed
+   - Commands executed
+   - Success/failure for each device
+   - Error messages if failed
+   - Duration
+5. From here you can:
+   - **Retry** if it failed
+   - **Rollback** if it succeeded but caused issues
+   - **Clone** to create similar deployment
+   - **Delete** from history
+
+================================
+15. TROUBLESHOOTING
+================================
+
+### PROBLEM: Agent Shows Offline
+**Symptoms**: Agent has red "Offline" status
+
+**Solutions**:
+1. **Check device is powered on and connected to internet**
+2. **Restart agent service**:
+   - Linux: `sudo systemctl restart deployx-agent`
+   - Windows: Services → DeployX Agent → Restart
+3. **Check agent logs**:
+   - Location: `/var/log/deployx/agent.log` (Linux)
+   - Location: `C:\ProgramData\DeployX\logs` (Windows)
+4. **Verify firewall allows connections**:
+   - Port: Usually 8000 or configured port
+   - Allow outbound connections to DeployX server
+5. **Reinstall agent if corrupted**
+
+---
+
+### PROBLEM: Deployment Failed
+**Symptoms**: Deployment shows red "Failed" status
+
+**Solutions**:
+1. **Click deployment to view error message**
+2. **Common errors**:
+   
+   **"Permission denied"**
+   - Solution: Check file/folder permissions
+   - Solution: Ensure agent has write access
+   - Solution: Try with sudo in pre-deployment commands
+   
+   **"No space left on device"**
+   - Solution: Check disk space on target device
+   - Solution: Clean up old files
+   - Solution: Deploy to different location
+   
+   **"Connection timeout"**
+   - Solution: Check network connectivity
+   - Solution: Increase timeout in deployment settings
+   - Solution: Verify agent is online
+   
+   **"File not found"**
+   - Solution: Check destination path exists
+   - Solution: Create directory in pre-deployment commands
+   - Solution: Verify file paths are correct
+
+3. **Fix the issue and click Retry button**
+4. **Check logs page for detailed error information**
+
+---
+
+### PROBLEM: File Upload Failing
+**Symptoms**: Upload button doesn't work or upload fails midway
+
+**Solutions**:
+1. **Check file size**: Max 100MB per file
+   - Solution: Split large files
+   - Solution: Use compression
+2. **Verify agent is online**
+   - Green status indicator
+3. **Check write permissions**:
+   - Agent needs write access to destination folder
+4. **Ensure sufficient disk space**:
+   - Check device disk usage
+5. **Try smaller files first**: Test upload with small file
+6. **Check network stability**: Poor connection can interrupt uploads
+
+---
+
+### PROBLEM: Command Not Executing
+**Symptoms**: Command shows "Failed" or no output
+
+**Solutions**:
+1. **Check command syntax**:
+   - Test locally first
+   - Verify command exists on target OS
+2. **Check permissions**:
+   - Try with "Run as sudo" checkbox
+   - Verify user has permissions
+3. **Check timeout setting**:
+   - Increase timeout for long-running commands
+4. **Verify agent is online**
+5. **Check command output**:
+   - Click "View Output" button
+   - Read stderr for error messages
+6. **Try interactive terminal**:
+   - Click "Open Terminal"
+   - Test commands manually
+
+---
+
+### PROBLEM: Schedule Not Running
+**Symptoms**: Scheduled deployment doesn't execute
+
+**Solutions**:
+1. **Check schedule status**: Must be "Active" (green)
+   - If "Paused", click Resume
+2. **Verify next run time**:
+   - Is it in the future?
+   - Check timezone is correct
+3. **Check associated deployment**:
+   - Deployment must still exist
+   - Deployment must be valid
+4. **Review logs**:
+   - Go to Logs page
+   - Filter by "Schedules" category
+   - Look for error messages
+5. **Check agent availability**:
+   - Target agents must be online at scheduled time
+6. **Edit and save schedule**:
+   - Sometimes recreating the schedule helps
+
+---
+
+### PROBLEM: Cannot See Devices
+**Symptoms**: Devices page is empty or missing devices
+
+**Solutions**:
+1. **Ensure agents are installed and online**:
+   - Go to Agents page
+   - Check green "Online" status
+2. **Refresh the page**: Click Refresh button or F5
+3. **Check filters**:
+   - Status filter: Set to "All Statuses"
+   - Group filter: Set to "All Groups"
+   - Search box: Clear any search terms
+4. **Check authentication**:
+   - Ensure you're logged in
+   - Token might be expired, try logging out and in
+5. **Check browser console**:
+   - F12 → Console tab
+   - Look for error messages
+
+---
+
+### PROBLEM: Backup Not Created
+**Symptoms**: Cannot rollback, no backup available
+
+**Solutions**:
+1. **Ensure "Backup Before Deploy" was checked**:
+   - This option must be enabled during deployment
+   - It's not automatic otherwise
+2. **Check disk space on server**:
+   - Backups require storage space
+   - Clean old backups if needed
+3. **Verify backup location permissions**:
+   - Agent needs write access to backup directory
+4. **Manual backup**:
+   - Go to Deployments page
+   - Click deployment Actions → Create Backup
+5. **For future**: Always check backup option in deployments
+
+---
+
+### PROBLEM: Slow Performance
+**Symptoms**: Dashboard loads slowly, actions take long time
+
+**Solutions**:
+1. **Check internet connection**: Speed test
+2. **Clear browser cache**:
+   - Settings → Privacy → Clear browsing data
+3. **Check server resources**:
+   - Go to Overview page
+   - Look at System Metrics
+   - High CPU/memory usage?
+4. **Reduce number of devices**:
+   - Large deployments slow things down
+   - Group devices instead of selecting many individually
+5. **Archive old logs**:
+   - Go to Logs page
+   - Click "Clear Old Logs"
+   - Remove logs older than 30 days
+6. **Close unused browser tabs**
+7. **Use modern browser**: Chrome, Firefox, Edge (latest versions)
+
+---
+
+### PROBLEM: Login Issues
+**Symptoms**: Cannot login, "Invalid credentials" error
+
+**Solutions**:
+1. **Verify credentials**:
+   - Double-check username and password
+   - Check Caps Lock is off
+2. **Reset password**:
+   - Click "Forgot Password" link
+   - Enter email address
+   - Check email for reset link
+   - Follow instructions
+3. **Check account status**:
+   - Account might be locked
+   - Contact administrator
+4. **Clear browser cookies**:
+   - Settings → Privacy → Clear cookies
+5. **Try different browser**: Test in incognito/private mode
+6. **Check server is running**: Is backend accessible?
+
+---
+
+### PROBLEM: Group Not Showing Devices
+**Symptoms**: Created group but devices not appearing
+
+**Solutions**:
+1. **Edit group**:
+   - Click Edit button on group card
+   - Verify devices are checked
+   - Click Save Changes
+2. **Refresh devices list**:
+   - Sometimes devices need to be re-added
+3. **Check device status**:
+   - Devices must exist and be registered
+   - Go to Devices page to verify
+4. **Recreate group if corrupted**:
+   - Delete group
+   - Create new group
+   - Add devices again
+
+---
+
+### COMMON ERROR MESSAGES
+
+**"Authentication failed"**
+- **Meaning**: Login credentials invalid
+- **Solution**: Check username and password, reset if needed
+
+**"Connection refused"**
+- **Meaning**: Cannot reach target device
+- **Solution**: Check network, firewall, agent status
+
+**"Permission denied"**
+- **Meaning**: Insufficient access rights
+- **Solution**: Use sudo, check file/folder permissions
+
+**"No such file or directory"**
+- **Meaning**: Path doesn't exist
+- **Solution**: Create directory first, check path spelling
+
+**"Port already in use"**
+- **Meaning**: Another app using the same port
+- **Solution**: Stop other app, use different port
+
+**"Timeout"**
+- **Meaning**: Operation took too long
+- **Solution**: Increase timeout setting, check network
+
+**"Internal server error"**
+- **Meaning**: Backend issue
+- **Solution**: Check logs, contact support, try again
+
+**"Agent offline"**
+- **Meaning**: Target device not connected
+- **Solution**: Start agent, check device connection
+
+**"Insufficient disk space"**
+- **Meaning**: Not enough storage
+- **Solution**: Free up space, use different location
+
+**"Invalid deployment configuration"**
+- **Meaning**: Deployment settings incorrect
+- **Solution**: Review deployment form, check required fields
+
+================================
+END OF COMPLETE GUIDE
+================================
+
+Use this information to provide accurate, helpful answers to users.
+Always refer to exact UI element names (buttons, pages, menus) as described here.
+Be friendly, clear, and guide users step-by-step through tasks.

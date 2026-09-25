@@ -1,0 +1,1450 @@
+================================
+DEPLOYX UI COMPONENTS REFERENCE
+================================
+
+This document maps ALL UI elements (buttons, labels, icons, menus) exactly as users see them.
+Use these EXACT terms when guiding users.
+
+================================
+MAIN NAVIGATION (SIDEBAR)
+================================
+
+**Sidebar Location**: Left side of screen
+**Background**: Dark gray with subtle backdrop blur
+
+Navigation Items (Top to Bottom):
+
+1. **Overview**
+   - Icon: Home icon 🏠
+   - Text: "Overview"
+   - Subtitle: "System overview & statistics"
+   - Active State: Blue/primary highlight with border
+   
+2. **Agents**
+   - Icon: Monitor icon 📺
+   - Text: "Agents"
+   - Subtitle: "Manage connected agents"
+   
+3. **Devices**
+   - Icon: Server icon 🖥️
+   - Text: "Devices"
+   - Subtitle: "View all devices"
+   
+4. **Device Groups**
+   - Icon: Network icon 🌐
+   - Text: "Device Groups"
+   - Subtitle: "Organize devices into groups"
+   
+5. **Deployments**
+   - Icon: Play/Rocket icon 🚀
+   - Text: "Deployments"
+   - Subtitle: "Software deployments"
+   
+6. **Files**
+   - Icon: Folder icon 📁
+   - Text: "Files"
+   - Subtitle: "File management"
+   
+7. **Commands**
+   - Icon: Terminal icon ⌨️
+   - Text: "Commands"
+   - Subtitle: "Execute commands"
+   
+8. **Backups**
+   - Icon: Database icon 💾
+   - Text: "Backups"
+   - Subtitle: "Backup & restore"
+   
+9. **Schedules**
+   - Icon: Clock icon 🕐
+   - Text: "Schedules"
+   - Subtitle: "Scheduled deployments"
+   
+10. **Logs**
+    - Icon: File/Document icon 📄
+    - Text: "Logs"
+    - Subtitle: "System logs"
+    
+11. **Settings**
+    - Icon: Gear icon ⚙️
+    - Text: "Settings"
+    - Subtitle: "System settings"
+
+================================
+TOP HEADER BAR
+================================
+
+**Left Side**:
+- DeployX logo
+- Platform name: "DeployX"
+
+**Center**:
+- Current page title (dynamic)
+
+**Right Side** (Left to Right):
+
+1. **Search Bar** (if applicable)
+   - Icon: Magnifying glass 🔍
+   - Placeholder: "Search..."
+
+2. **Notification Bell** 
+   - Icon: Bell 🔔
+   - Badge: Red number for unread count
+   - Hover: "Notifications"
+
+3. **Connection Status Indicator**
+   - Shows: "Connected" or "Disconnected"
+   - Green dot + text: Connected
+   - Red dot + text: Disconnected
+   - Also shows: "X agent(s)" count
+   - Hover: Shows list of connected agents
+
+4. **Profile Button**
+   - Icon: User avatar (gradient circle)
+   - Shows: First letter of username
+   - Hover: Username
+   - Click: Opens profile dropdown
+
+**Profile Dropdown Menu** (when clicked):
+- Username (bold, top)
+- Email (gray, below username)
+- Divider line
+- "Change Username" (with Edit icon)
+- "Change Password" (with Lock icon)
+- "Change Email" (with Mail icon)
+- Divider line
+- "Logout" (red text, with Logout icon)
+- "Delete Account" (red text, with Trash icon)
+
+================================
+OVERVIEW PAGE ELEMENTS
+================================
+
+### Welcome Section
+- Heading: "Welcome back, [Username]!"
+- Subtext: "Here's what's happening with your systems today"
+- Last Updated: "Last updated" + time
+
+### Quick Stats Cards (4 cards)
+
+**Card 1: Connected Devices**
+- Icon: Blue server icon
+- Label: "Connected Devices"
+- Number: Total device count (large, white)
+- Subtext: "X Online" (green, with checkmark icon)
+- Clickable: Yes (goes to Devices page)
+
+**Card 2: System Health**
+- Icon: Green shield icon
+- Label: "System Health"
+- Number: Percentage score (large, white)
+- Subtext: "Excellent" / "Good" / "Poor" (color-coded with trend icon)
+
+**Card 3: Deployments**
+- Icon: Purple play/rocket icon
+- Label: "Deployments"
+- Number: Total count (large, white)
+- Subtext: "X% Success Rate" (green, with checkmark icon)
+- Clickable: Yes (goes to Deployments page)
+
+**Card 4: Total Commands**
+- Icon: Orange terminal icon
+- Label: "Total Commands"
+- Number: Total count (large, white)
+- Subtext: "X Completed" (blue, with checkmark icon)
+- Clickable: Yes (goes to Commands page)
+
+### Device Health Chart Card
+- Title: "Device Health"
+- Icon: Bar chart icon
+- Progress bars showing:
+  * "Device Health" - percentage
+  * "Deployment Success" - percentage
+  * "Uptime" - percentage
+  * "Active Connections" - count
+
+### System Metrics Card
+- Title: "System Metrics"
+- Icon: Activity/pulse icon
+- Four metrics with bars:
+  * "CPU Usage" - percentage (color: blue to red gradient)
+  * "Memory Usage" - percentage (color: blue to red gradient)
+  * "Disk Usage" - percentage (color: blue to red gradient)
+  * "Network Connections" - count
+
+### Deployment Trends Chart Card
+- Title: "Deployment Trends"
+- Time period buttons:
+  * "Today"
+  * "Past Week" (default selected)
+  * "Past Month"
+  * "Past Year"
+  * "Custom Range"
+- Bar chart with:
+  * X-axis: Dates
+  * Y-axis: Deployment count
+  * Green bars: Successful
+  * Red bars: Failed
+
+### Device Status Distribution Card
+- Title: "Device Status"
+- Icon: Pie chart icon
+- Pie chart showing:
+  * Green slice: "Online" devices
+  * Red slice: "Offline" devices
+  * Center number: Total devices
+
+### Recent Activity Card
+- Title: "Recent Activity"
+- Icon: Clock icon
+- List of events:
+  * Purple rocket icon: Deployment events
+  * Orange terminal icon: Command events
+  * Green/Red server icon: Device events
+  * Gray icon: System events
+- Each entry shows:
+  * Timestamp
+  * Event description
+  * Status badge (Success/Failed/Running)
+
+================================
+AGENTS PAGE ELEMENTS
+================================
+
+### Top Bar
+**Right Side**:
+- **Refresh** button
+  * Icon: Circular arrows icon
+  * Text: "Refresh"
+  * Color: Blue
+  * Action: Reloads agent list
+
+### Agent Status Indicator (Top-Right)
+- Status badge with:
+  * Green dot + "Connected": When connected
+  * Red dot + "Disconnected": When offline
+  * Text: "X agent(s)"
+- Hover: Shows agent tooltip
+
+### Agent Status Tooltip (on hover)
+- Title: "Connected Devices" with green pulse dot
+- Badge: Agent count
+- List showing:
+  * Agent icon (green gradient box)
+  * Hostname
+  * Agent ID: "ID: XXXXXX"
+  * OS info
+  * Green status dot
+
+### Agent Cards (Grid Layout)
+Each card shows:
+
+**Top Section**:
+- Server icon (gradient)
+- Hostname (bold, white)
+- Agent ID (gray, smaller)
+- Status badge:
+  * Green "Online"
+  * Red "Offline"
+  * Yellow "Busy"
+
+**Metrics Section** (if online):
+- "CPU": Bar with percentage
+- "RAM": Bar with percentage
+- "Disk": Bar with percentage
+- "Uptime": Text (e.g., "24h")
+
+**Actions** (Bottom buttons):
+- **View Details** button (blue)
+- **Execute Command** button (green, terminal icon)
+- **View Files** button (orange, folder icon)
+
+### No Agents State
+- Icon: Large gray monitor icon
+- Message: "No agents connected"
+- Subtext: "Add your first agent to get started"
+- **Add Agent** button (blue, large)
+
+### Add Agent Modal
+- Title: "Add New Agent"
+- Platform tabs:
+  * "Windows" tab
+  * "Linux" tab
+  * "macOS" tab
+- Download buttons:
+  * "Download for Windows" (.exe icon)
+  * "Download for Linux" (.sh icon)
+  * "Download for macOS" (.dmg icon)
+- Instructions section with numbered steps
+- **Close** button
+
+================================
+DEVICES PAGE ELEMENTS
+================================
+
+### Top Filter Bar
+
+**Left Side**:
+- **Search Box**
+  * Icon: Magnifying glass
+  * Placeholder: "Search devices..."
+  * Width: Medium
+
+**Right Side** (filters):
+- **Status** dropdown
+  * Label: "Status"
+  * Default: "All Statuses"
+  * Options: "All Statuses", "Online", "Offline"
+  * Icon: Circle status indicator
+
+- **Group** dropdown
+  * Label: "Group"
+  * Default: "All Groups"
+  * Options: "All Groups", [List of groups]
+  * Icon: Network icon
+
+- **Refresh** button
+  * Icon: Circular arrows
+  * Tooltip: "Refresh"
+
+### Device Cards (Grid)
+Each device card shows:
+
+**Header**:
+- Server icon
+- Device name (bold)
+- Status indicator:
+  * Green dot + "Online"
+  * Red dot + "Offline"
+
+**Info Section**:
+- "IP Address": Value
+- "Operating System": Value
+- "Group": Badge (if assigned)
+- "Last Seen": Timestamp
+
+**Health Metrics**:
+- "CPU Usage": Bar (color-coded)
+- "RAM Usage": Bar (color-coded)
+- "Disk Usage": Bar (color-coded)
+
+Color Coding:
+- Green: <70%
+- Yellow: 70-90%
+- Red: >90%
+
+**Actions** (bottom buttons):
+- **View Details** button
+- **Manage** button
+- **Remove** button (red, trash icon)
+
+### Empty State
+- Icon: Gray server icon
+- Message: "No devices found"
+- Subtext: "Connect agents to see devices here"
+
+================================
+DEVICE GROUPS PAGE ELEMENTS
+================================
+
+### Top Bar
+**Right Side**:
+- **Create Group** button
+  * Icon: Plus icon
+  * Text: "Create Group"
+  * Color: Green
+
+### Search Bar
+- Icon: Magnifying glass
+- Placeholder: "Search groups..."
+
+### Group Cards (Grid)
+Each group card shows:
+
+**Header**:
+- Network icon (gradient)
+- Group name (bold, white)
+
+**Info**:
+- Description text (gray)
+- Device count badge:
+  * Example: "5 devices"
+  * Color: Blue background
+
+**Footer**:
+- Created date (small, gray)
+
+**Actions** (bottom buttons):
+- **View Devices** button (blue)
+- **Edit** button (yellow, pencil icon)
+- **Delete** button (red, trash icon)
+
+### Create Group Modal
+- Title: "Create New Group"
+- Form fields:
+  * **Group Name** (text input, required)
+    - Placeholder: "Enter group name"
+  * **Description** (textarea, optional)
+    - Placeholder: "Enter description"
+  * **Select Devices** section
+    - Search box: "Search devices..."
+    - Checkbox list of all devices
+    - Each device shows:
+      + Checkbox
+      + Device name
+      + Status dot (green/red)
+      + IP address (gray)
+
+- Buttons:
+  * **Cancel** (gray, left)
+  * **Create** (green, right)
+
+### Edit Group Modal
+- Title: "Edit Group"
+- Same fields as Create Group
+- Pre-filled with current values
+- Buttons:
+  * **Cancel** (gray)
+  * **Save Changes** (blue)
+
+### Delete Confirmation Dialog
+- Icon: Red warning triangle
+- Title: "Delete Group?"
+- Message: "Are you sure you want to delete [Group Name]? This action cannot be undone."
+- Note: "Devices will not be deleted."
+- Buttons:
+  * **Cancel** (gray)
+  * **Delete** (red)
+
+================================
+DEPLOYMENTS PAGE ELEMENTS
+================================
+
+### Top Bar
+**Right Side**:
+- **Create Deployment** button
+  * Icon: Plus + rocket icon
+  * Text: "Create Deployment"
+  * Color: Green
+
+### Deployments List (Table)
+Columns:
+
+1. **Deployment Name**
+   - Clickable (opens details)
+   - Bold, white text
+
+2. **Target**
+   - Device/Group name
+   - Icon varies (server/network)
+
+3. **Status** (badge)
+   - 🟢 "Successful" (green)
+   - 🔴 "Failed" (red)
+   - 🟡 "Pending" (yellow)
+   - 🔵 "Running" (blue, animated)
+
+4. **Progress** (if running)
+   - Progress bar
+   - Percentage text
+
+5. **Created**
+   - Date and time
+   - Format: "Dec 27, 2025"
+
+6. **Actions** (dropdown)
+   - Three dots icon
+   - Menu options:
+     + "View Details"
+     + "Retry" (if failed)
+     + "Rollback" (if successful)
+     + "Clone"
+     + "Delete"
+
+### Create Deployment Modal
+**Title**: "Create New Deployment"
+
+**Tab/Step Indicator**:
+- Step 1: "Information" (blue dot)
+- Step 2: "Target" (gray dot)
+- Step 3: "Files" (gray dot)
+- Step 4: "Settings" (gray dot)
+- Step 5: "Schedule" (gray dot)
+
+**Step 1: Information**
+- **Deployment Name** (text input, required)
+  * Placeholder: "Enter deployment name"
+- **Description** (textarea, optional)
+  * Placeholder: "Describe this deployment"
+- **Next** button (blue, bottom-right)
+
+**Step 2: Target**
+- **Target Type** (radio buttons)
+  * "Single Device"
+  * "Device Group"
+  * "Multiple Devices"
+- **Select Target** (dropdown/checklist based on type)
+- Buttons:
+  * **Back** (gray, left)
+  * **Next** (blue, right)
+
+**Step 3: Files**
+- **Upload Files** button
+  * Icon: Upload arrow
+  * Text: "Upload Files"
+  * Opens file picker
+- **File List** (after selection)
+  * Each file shows:
+    - File icon
+    - Filename
+    - Size
+    - Remove button (X)
+- Buttons:
+  * **Back** (gray)
+  * **Next** (blue)
+
+**Step 4: Settings**
+- **Destination Path** (text input, required)
+  * Placeholder: "/path/to/destination"
+- **Pre-deployment Commands** (textarea, optional)
+  * Placeholder: "Commands to run before deployment"
+- **Post-deployment Commands** (textarea, optional)
+  * Placeholder: "Commands to run after deployment"
+- **Backup Before Deploy** (checkbox)
+  * Checked by default
+  * Label: "Create backup for rollback"
+- Buttons:
+  * **Back** (gray)
+  * **Next** (blue)
+
+**Step 5: Schedule**
+- **Deployment Time** (radio buttons)
+  * "Deploy Now" (selected)
+  * "Schedule for Later"
+- **Schedule Options** (if "later" selected)
+  * **Date** (date picker)
+  * **Time** (time picker)
+  * **Timezone** (dropdown)
+- Buttons:
+  * **Back** (gray, left)
+  * **Deploy** (green, right)
+
+### Deployment Details Modal
+- Title: [Deployment Name]
+- Status badge (large, top)
+- Tabs:
+  * "Overview" tab
+  * "Targets" tab
+  * "Files" tab
+  * "Logs" tab
+
+**Overview Tab**:
+- Deployment info table
+- Created by
+- Created date
+- Status
+- Progress
+
+**Targets Tab**:
+- List of target devices
+- Status per device
+- Success/failure indicator
+
+**Files Tab**:
+- List of deployed files
+- File sizes
+- Destination paths
+
+**Logs Tab**:
+- Real-time log output
+- Command execution results
+- Error messages
+- Timestamps
+
+**Actions** (bottom):
+- **Retry** button (if failed)
+- **Rollback** button (if successful with backup)
+- **Clone** button
+- **Delete** button (red)
+- **Close** button
+
+================================
+FILES PAGE ELEMENTS
+================================
+
+### Top Control Bar
+
+**Left Side**:
+- **Select Device** dropdown
+  * Icon: Server icon
+  * Default: "Choose a device..."
+  * Shows: All online devices
+
+**Center**:
+- **Breadcrumb Navigation**
+  * Shows: Current path
+  * Example: "Home / Documents / Projects"
+  * Clickable: Each part
+
+**Right Side**:
+- **Upload** button (blue)
+  * Icon: Upload arrow
+  * Text: "Upload"
+- **New Folder** button
+  * Icon: Folder plus
+  * Text: "New Folder"
+- **Refresh** button
+  * Icon: Circular arrows
+
+### File Browser (Split View)
+
+**Left Pane: Directory Tree**
+- Width: ~25%
+- Shows: Folder hierarchy
+- Root folders:
+  * "Home" icon
+  * Folder names with icons
+- Expandable/collapsible
+- Click: Navigates to folder
+
+**Right Pane: File List**
+- Width: ~75%
+- Table with columns:
+
+1. **Checkbox**
+   - Select files/folders
+
+2. **Icon & Name**
+   - File type icon
+   - Name (clickable)
+
+3. **Size**
+   - File size
+   - "-" for folders
+
+4. **Modified**
+   - Date and time
+   - Format: "Dec 27, 2025 14:30"
+
+5. **Actions**
+   - **Download** button
+   - **Delete** button (red trash)
+   - **Rename** button (pencil)
+   - **More** dropdown (three dots)
+
+### Upload Modal
+- Title: "Upload Files"
+- File picker interface
+- Drag & drop zone:
+  * "Drag files here or click to browse"
+  * Icon: Upload cloud
+- Selected files list:
+  * File name
+  * Size
+  * Remove button (X)
+- Upload progress bars (during upload)
+- Buttons:
+  * **Cancel** (gray)
+  * **Upload** (blue)
+
+### New Folder Modal
+- Title: "Create New Folder"
+- **Folder Name** input (required)
+  * Placeholder: "Enter folder name"
+- Buttons:
+  * **Cancel** (gray)
+  * **Create** (blue)
+
+### Delete Confirmation
+- Title: "Delete Files?"
+- Message: "Are you sure you want to delete X item(s)?"
+- Warning: "This action cannot be undone."
+- Buttons:
+  * **Cancel** (gray)
+  * **Delete** (red)
+
+================================
+COMMANDS PAGE ELEMENTS
+================================
+
+### Command Execution Panel (Top Card)
+
+**Target Selection**:
+- **Select Target Type** (radio buttons or dropdown)
+  * "Single Device"
+  * "Device Group"
+  * "Multiple Devices"
+- **Choose Target** (dropdown based on type)
+
+**Command Input**:
+- **Command** (text input, large, required)
+  * Placeholder: "Enter command to execute..."
+  * Example: "ls -la" or "systemctl status nginx"
+
+**Options**:
+- **Run as sudo** (checkbox)
+  * Label: "Execute with elevated privileges"
+- **Timeout** (number input)
+  * Label: "Timeout (seconds)"
+  * Default: 30
+
+**Action Button**:
+- **Execute** button (green, large)
+  * Icon: Play icon
+  * Text: "Execute"
+
+### Command History (Below)
+Table showing past commands:
+
+**Columns**:
+
+1. **Command**
+   - Command text (truncated if long)
+   - Monospace font
+
+2. **Target**
+   - Device/Group name
+   - Icon (server/network)
+
+3. **Status** (badge)
+   - ✅ "Success" (green)
+   - ❌ "Failed" (red)
+   - ⏳ "Running" (blue, animated)
+
+4. **Exit Code**
+   - Number (0 = success)
+   - Color-coded
+
+5. **Executed**
+   - Date and time
+   - Relative time (e.g., "5 minutes ago")
+
+6. **Actions**
+   - **View Output** button (eye icon)
+   - **Rerun** button (circular arrow)
+   - **Delete** button (red trash)
+
+### Command Output Modal
+- Title: "Command Output"
+- Command info section:
+  * Command text (monospace)
+  * Target device(s)
+  * Executed timestamp
+  * Exit code
+  * Duration
+
+- Output section:
+  * **stdout** tab (default)
+    - Standard output text
+    - Monospace font
+    - Light text on dark background
+  * **stderr** tab
+    - Error output text
+    - Red-tinted
+
+- Actions:
+  * **Copy Output** button (clipboard icon)
+  * **Download as Text** button
+  * **Close** button
+
+### Interactive Terminal (Optional Feature)
+- Title: "Terminal - [Device Name]"
+- Terminal window:
+  * Black background
+  * Green text (classic terminal style)
+  * Command prompt: "user@device:~$"
+  * Real-time input/output
+  * Scrollable
+
+- Controls (top-right):
+  * **Clear** button (trash icon)
+  * **Copy** button (clipboard icon)
+  * **Close** button (X)
+
+================================
+BACKUPS PAGE ELEMENTS
+================================
+
+### Backups List (Table)
+Columns:
+
+1. **Backup Name**
+   - Identifier
+   - Clickable
+
+2. **Deployment**
+   - Associated deployment name
+   - Link to deployment
+
+3. **Device**
+   - Target device name
+   - Icon
+
+4. **Created**
+   - Date and time
+   - Relative time
+
+5. **Size**
+   - Backup size (MB/GB)
+
+6. **Status** (badge)
+   - "Valid" (green checkmark)
+   - "Corrupted" (red X)
+
+7. **Actions**
+   - **Restore** button (blue, restore icon)
+   - **Download** button (download icon)
+   - **Delete** button (red, trash icon)
+
+### Restore Confirmation Modal
+- Title: "Restore Backup?"
+- Icon: Warning triangle (blue)
+- Message: "This will restore files to their previous state."
+- Info section:
+  * Backup name
+  * Target device
+  * Files to be restored (count)
+  * Created date
+- Warning: "Current files will be overwritten."
+- Buttons:
+  * **Cancel** (gray)
+  * **Restore** (blue)
+
+### Restore Progress Modal
+- Title: "Restoring Backup..."
+- Progress bar (animated)
+- Status text: "Restoring X of Y files..."
+- Current file being restored
+- Cannot close during process
+
+### Restore Complete Dialog
+- Title: "Restore Successful"
+- Icon: Green checkmark
+- Message: "Backup has been restored successfully."
+- Details:
+  * Files restored: Count
+  * Duration: Time taken
+- **OK** button
+
+================================
+SCHEDULES PAGE ELEMENTS
+================================
+
+### Top Bar
+**Right Side**:
+- **Create Schedule** button
+  * Icon: Plus + clock icon
+  * Text: "Create Schedule"
+  * Color: Green
+
+### Schedules List (Table)
+Columns:
+
+1. **Schedule Name**
+   - Identifier
+   - Clickable
+
+2. **Deployment**
+   - Associated deployment
+   - Link to deployment
+
+3. **Frequency**
+   - Type of schedule
+   - "One-time", "Daily", "Weekly", etc.
+
+4. **Next Run**
+   - Date and time of next execution
+   - Relative time (e.g., "in 2 hours")
+
+5. **Status** (badge)
+   - "Active" (green)
+   - "Paused" (yellow)
+   - "Expired" (gray)
+
+6. **Actions**
+   - **Edit** button (pencil icon)
+   - **Pause/Resume** toggle button
+   - **Delete** button (red, trash icon)
+
+### Create Schedule Modal
+**Title**: "Create New Schedule"
+
+**Form Fields**:
+
+**Schedule Information**:
+- **Schedule Name** (text input, required)
+  * Placeholder: "Enter schedule name"
+- **Description** (textarea, optional)
+  * Placeholder: "Describe this schedule"
+
+**Select Deployment**:
+- **Deployment** (dropdown, required)
+  * Options: List of deployments
+  * "Create New Deployment" link
+
+**Schedule Type** (tabs or radio):
+- **One-time** tab
+  * **Date** (date picker)
+  * **Time** (time picker)
+  
+- **Recurring** tab
+  * **Frequency** (dropdown)
+    - "Daily"
+    - "Weekly"
+    - "Monthly"
+    - "Custom (Cron)"
+  
+  * **If Daily**:
+    - **Time** (time picker)
+  
+  * **If Weekly**:
+    - **Days** (checkboxes)
+      + Monday
+      + Tuesday
+      + Wednesday
+      + Thursday
+      + Friday
+      + Saturday
+      + Sunday
+    - **Time** (time picker)
+  
+  * **If Monthly**:
+    - **Day of Month** (number input, 1-31)
+    - **Time** (time picker)
+  
+  * **If Custom**:
+    - **Cron Expression** (text input)
+    - Helper text: "Format: minute hour day month weekday"
+    - Example: "0 2 * * *" (2 AM daily)
+
+**Additional Options**:
+- **Timezone** (dropdown)
+  * List of timezones
+- **Retry on Failure** (checkbox)
+  * If checked:
+    - **Max Retries** (number input)
+    - Default: 3
+
+**Buttons**:
+- **Cancel** (gray, left)
+- **Create Schedule** (green, right)
+
+### Edit Schedule Modal
+- Same as Create Schedule
+- Title: "Edit Schedule"
+- Pre-filled with current values
+- Button: "Save Changes" (blue)
+
+### Pause Confirmation
+- Title: "Pause Schedule?"
+- Message: "This schedule will not run until you resume it."
+- Buttons:
+  * **Cancel** (gray)
+  * **Pause** (yellow)
+
+================================
+LOGS PAGE ELEMENTS
+================================
+
+### Top Filter Bar
+
+**Left Side**:
+- **Time Range** (dropdown)
+  * "Last Hour"
+  * "Today"
+  * "Last 7 Days"
+  * "Last 30 Days"
+  * "Custom Range"
+- **From** (date picker, if custom)
+- **To** (date picker, if custom)
+
+**Center**:
+- **Log Level** (dropdown)
+  * "All Levels"
+  * "Info" (blue dot)
+  * "Warning" (yellow dot)
+  * "Error" (red dot)
+  * "Critical" (dark red dot)
+
+- **Category** (dropdown)
+  * "All Categories"
+  * "Deployments"
+  * "Commands"
+  * "Agents"
+  * "Files"
+  * "System"
+  * "Authentication"
+
+**Right Side**:
+- **Search** (text input)
+  * Icon: Magnifying glass
+  * Placeholder: "Search logs..."
+- **Refresh** button
+  * Icon: Circular arrows
+- **Export** button
+  * Icon: Download icon
+  * Text: "Export"
+- **Clear Old Logs** button
+  * Icon: Trash icon
+  * Text: "Clear Old"
+
+### Logs Table
+Columns:
+
+1. **Timestamp**
+   - Date and time
+   - Format: "Dec 27, 2025 14:35:22"
+   - Sortable
+
+2. **Level** (badge)
+   - 🔵 "Info"
+   - 🟡 "Warning"
+   - 🔴 "Error"
+   - ⚫ "Critical"
+
+3. **Category**
+   - Type of log
+   - Icon varies by category
+
+4. **Message**
+   - Log description
+   - Truncated if long
+
+5. **Source**
+   - Origin (device/system)
+
+6. **Actions**
+   - **View Details** button (eye icon)
+
+### Log Details Modal
+- Title: "Log Details"
+- **Log Information**:
+  * Full timestamp
+  * Log level (large badge)
+  * Category
+  * Source
+  * User (if applicable)
+  
+- **Message** (section):
+  * Full message text
+  * Formatted/highlighted
+
+- **Context Data** (if available):
+  * JSON view
+  * Expandable/collapsible
+  * Syntax highlighting
+
+- **Stack Trace** (if error):
+  * Full stack trace
+  * Monospace font
+  * Line numbers
+
+- **Related** (if applicable):
+  * Links to related objects
+  * Deployment ID
+  * Command ID
+  * Device ID
+
+- **Actions**:
+  * **Copy** button (copy all info)
+  * **Download** button (save as file)
+  * **Close** button
+
+### Export Modal
+- Title: "Export Logs"
+- **Format** (radio buttons):
+  * "CSV" (spreadsheet)
+  * "JSON" (raw data)
+  * "TXT" (plain text)
+- **Apply Filters** (checkbox):
+  * Checked: Export only filtered logs
+  * Unchecked: Export all logs
+- Buttons:
+  * **Cancel** (gray)
+  * **Export** (blue)
+
+### Clear Old Logs Modal
+- Title: "Clear Old Logs"
+- Warning icon (red triangle)
+- Message: "This will permanently delete old logs."
+- **Delete logs older than** (dropdown):
+  * "7 days"
+  * "30 days"
+  * "90 days"
+  * "1 year"
+- Warning: "This action cannot be undone."
+- Buttons:
+  * **Cancel** (gray)
+  * **Delete Logs** (red)
+
+================================
+SETTINGS PAGE ELEMENTS
+================================
+
+### User Profile Section
+
+**Username**:
+- Label: "Username"
+- Current value displayed
+- **Change Username** button (blue, right)
+
+**Email**:
+- Label: "Email Address"
+- Current value displayed
+- **Change Email** button (blue, right)
+
+**Password**:
+- Label: "Password"
+- Value: "••••••••" (hidden)
+- **Change Password** button (blue, right)
+
+### Account Actions Section
+
+**Logout**:
+- Large button (orange/red)
+- Icon: Logout icon
+- Text: "Logout"
+- Subtext: "End your current session"
+
+**Delete Account**:
+- Large button (red)
+- Icon: Trash icon
+- Text: "Delete Account"
+- Subtext: "Permanently delete your account and all data"
+
+### Change Username Modal
+- Title: "Change Username"
+- Fields:
+  * **New Username** (text input, required)
+    - Placeholder: "Enter new username"
+  * **Current Password** (password input, required)
+    - Placeholder: "Confirm with password"
+- Buttons:
+  * **Cancel** (gray)
+  * **Save** (blue)
+
+### Change Email Modal
+- Title: "Change Email Address"
+- Fields:
+  * **New Email** (email input, required)
+    - Placeholder: "Enter new email"
+  * **Current Password** (password input, required)
+    - Placeholder: "Confirm with password"
+- Info message: "We'll send a verification link to the new email"
+- Buttons:
+  * **Cancel** (gray)
+  * **Send Verification** (blue)
+
+### Change Password Modal
+- Title: "Change Password"
+- Fields:
+  * **Current Password** (password input, required)
+    - Eye icon: Toggle visibility
+  * **New Password** (password input, required)
+    - Eye icon: Toggle visibility
+    - Password strength indicator:
+      + Weak (red bar)
+      + Medium (yellow bar)
+      + Strong (green bar)
+  * **Confirm New Password** (password input, required)
+    - Eye icon: Toggle visibility
+- Password requirements (checklist):
+  * ✓ At least 8 characters
+  * ✓ Contains uppercase letter
+  * ✓ Contains lowercase letter
+  * ✓ Contains number
+  * ✓ Contains special character
+- Buttons:
+  * **Cancel** (gray)
+  * **Update Password** (blue)
+
+### Delete Account Modal
+- Title: "Delete Account?"
+- Warning icon (large, red)
+- Message: "Are you sure you want to delete your account?"
+- Warning list:
+  * "All your data will be permanently deleted"
+  * "All deployments will be cancelled"
+  * "All devices will be removed"
+  * "This action cannot be undone"
+- **Password Confirmation** (password input, required)
+  * Placeholder: "Enter your password to confirm"
+- Buttons:
+  * **Cancel** (gray)
+  * **Delete My Account** (red, bold)
+
+================================
+NOTIFICATION PANEL
+================================
+
+**Trigger**: Click bell icon in header
+
+**Panel**:
+- Slides from right side
+- Title: "Notifications"
+- Badge: Unread count
+
+**Notification List**:
+Each notification shows:
+- Icon (based on type):
+  * 🚀 Deployment
+  * ⌨️ Command
+  * 🖥️ Device/Agent
+  * ⚠️ Warning
+  * ✅ Success
+  * ❌ Error
+  
+- Title (bold)
+- Message (description)
+- Timestamp (relative, e.g., "5 minutes ago")
+- Unread indicator (blue dot if unread)
+- Click: Marks as read and navigates to related item
+
+**Actions** (top of panel):
+- **Mark All as Read** button
+- **Clear All** button
+- **Close** button (X)
+
+**Empty State**:
+- Icon: Gray bell
+- Message: "No notifications"
+- Subtext: "You're all caught up!"
+
+================================
+CUSTOM MODAL DIALOGS
+================================
+
+### Info Modal
+- Icon: Blue info circle
+- Title: [Custom]
+- Message: [Custom]
+- **OK** button (blue)
+
+### Success Modal
+- Icon: Green checkmark
+- Title: [Custom]
+- Message: [Custom]
+- **OK** button (green)
+
+### Warning Modal
+- Icon: Yellow warning triangle
+- Title: [Custom]
+- Message: [Custom]
+- Buttons:
+  * **Cancel** (gray)
+  * **Proceed** (yellow)
+
+### Error Modal
+- Icon: Red X circle
+- Title: [Custom]
+- Message: [Custom]
+- Error details (expandable)
+- **OK** button (red)
+
+### Confirm Modal
+- Icon: Yellow question mark
+- Title: [Custom]
+- Message: [Custom]
+- Buttons:
+  * **Cancel** (gray)
+  * **Confirm** (blue)
+
+================================
+LOADING STATES
+================================
+
+**Page Loading**:
+- Centered spinner
+- DeployX logo
+- Text: "Loading..."
+- Pulse animation
+
+**Component Loading**:
+- Skeleton screens (gray shimmer)
+- Spinner icon
+- Text: "Loading [component]..."
+
+**Button Loading**:
+- Spinner inside button
+- Button disabled
+- Text: "Processing..."
+
+================================
+ERROR STATES
+================================
+
+**Page Error**:
+- Icon: Red warning triangle
+- Title: "Oops! Something went wrong"
+- Message: Error description
+- **Retry** button (blue)
+- **Go Home** button (gray)
+
+**Component Error**:
+- Small warning icon
+- Error message
+- **Retry** link
+
+**Form Validation Error**:
+- Red border on input field
+- Red text below field
+- Example: "This field is required"
+
+================================
+EMPTY STATES
+================================
+
+**No Data Available**:
+- Relevant icon (gray)
+- Title: "No [items] found"
+- Description: What to do next
+- Action button (if applicable)
+
+Examples:
+- No agents: "No agents connected" + "Add Agent" button
+- No deployments: "No deployments yet" + "Create Deployment" button
+- No groups: "No groups created" + "Create Group" button
+
+================================
+TOOLTIPS & HELP TEXT
+================================
+
+**Tooltips**:
+- Appear on hover
+- Dark background
+- White text
+- Arrow pointing to element
+- Brief description
+
+**Help Icons**:
+- Question mark icon (circle)
+- Gray color
+- Hover/click: Shows help text
+- Used next to labels for extra info
+
+================================
+STATUS BADGES
+================================
+
+**Success**:
+- Background: Green
+- Text: White
+- Icon: Checkmark
+- Examples: "Online", "Successful", "Active", "Completed"
+
+**Error/Failed**:
+- Background: Red
+- Text: White
+- Icon: X or warning
+- Examples: "Offline", "Failed", "Error", "Disconnected"
+
+**Warning**:
+- Background: Yellow/Orange
+- Text: Dark
+- Icon: Warning triangle
+- Examples: "Pending", "Paused", "Busy", "Warning"
+
+**Info**:
+- Background: Blue
+- Text: White
+- Icon: Info circle
+- Examples: "Running", "Processing", "Info"
+
+**Neutral**:
+- Background: Gray
+- Text: White
+- Icon: None
+- Examples: "Inactive", "Expired", "Unknown"
+
+================================
+COLOR CODING REFERENCE
+================================
+
+**Primary Actions**: Blue (#3B82F6)
+**Success**: Green (#10B981)
+**Warning**: Yellow (#F59E0B)
+**Danger**: Red (#EF4444)
+**Info**: Blue (#3B82F6)
+**Neutral**: Gray (#6B7280)
+
+**Text Colors**:
+- Primary: White (#FFFFFF)
+- Secondary: Light Gray (#E5E7EB)
+- Muted: Gray (#9CA3AF)
+
+**Backgrounds**:
+- Main: Dark Gray (#111827)
+- Card: Slightly lighter (#1F2937)
+- Hover: Even lighter (#374151)
+
+================================
+ANIMATION & TRANSITIONS
+================================
+
+**Loading Spinners**:
+- Circular rotation
+- Continuous animation
+
+**Progress Bars**:
+- Smooth fill animation
+- Color gradient
+
+**Pulse Effects**:
+- Status indicators (green dots)
+- Loading states
+- Scale 1.0 to 1.2 and back
+
+**Hover Effects**:
+- Scale up slightly (1.05x)
+- Brightness increase
+- Smooth transition (200ms)
+
+**Slide-ins**:
+- Modals: Scale from 0.95 to 1.0
+- Panels: Slide from edge
+
+================================
+ICON REFERENCE
+================================
+
+**Navigation Icons**:
+- Home: House icon
+- Agents: Monitor/screen icon
+- Devices: Server rack icon
+- Groups: Network/connected nodes icon
+- Deployments: Rocket/play icon
+- Files: Folder icon
+- Commands: Terminal/command line icon
+- Backups: Database/save icon
+- Schedules: Clock icon
+- Logs: Document/file icon
+- Settings: Gear/cog icon
+
+**Action Icons**:
+- Add/Create: Plus (+) icon
+- Edit: Pencil icon
+- Delete: Trash can icon
+- Refresh: Circular arrows icon
+- Search: Magnifying glass icon
+- Upload: Up arrow icon
+- Download: Down arrow icon
+- Close: X icon
+- More: Three dots (horizontal) icon
+- View: Eye icon
+- Play/Execute: Play triangle icon
+- Pause: Two vertical bars icon
+- Stop: Square icon
+
+**Status Icons**:
+- Success: Green checkmark
+- Error: Red X
+- Warning: Yellow triangle
+- Info: Blue circle with "i"
+- Loading: Spinning circle
+
+================================
+END OF UI COMPONENTS REFERENCE
+================================
+
+Always use these EXACT element names when guiding users.
+Never invent button names or menu items - only use what's documented here.

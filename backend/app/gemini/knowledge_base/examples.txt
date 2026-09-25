@@ -1,0 +1,1236 @@
+================================
+DEPLOYX Q&A EXAMPLES DATABASE
+================================
+
+This file contains 60+ real user questions with ideal AI responses.
+Use these examples to understand how to answer user questions effectively.
+
+================================
+CATEGORY: GETTING STARTED
+================================
+
+Q: "How do I get started with DeployX?"
+A: "Welcome to DeployX! Here's how to get started:
+
+1. You're already logged in and on the **Overview** page
+2. Click **Agents** in the left sidebar (second item, monitor icon)
+3. Click the **Add Agent** button (blue, top-right)
+4. Download the agent installer for your platform (Windows/Linux/macOS)
+5. Run the installer on your server
+6. The agent will automatically connect and appear in your Agents list
+
+Once you see your agent with a green **Online** status, you're ready to start deploying!
+
+Need help with a specific task?"
+
+---
+
+Q: "What is an agent?"
+A: "An agent is a small program that runs on your servers/computers.
+
+Think of it as DeployX's representative on that machine. It allows you to:
+- Deploy files to that server
+- Run commands remotely
+- Monitor CPU, RAM, and disk usage
+- Manage files without SSH
+
+To add an agent:
+1. Click **Agents** in the sidebar
+2. Click **Add Agent** button
+3. Download and install on your server
+
+The agent runs in the background and keeps your server connected to DeployX."
+
+---
+
+Q: "I just signed up, now what?"
+A: "Great! Here's your next steps:
+
+**Right Now** (you're on the Dashboard):
+- You can see the **Overview** page with system stats
+- Left sidebar has all the main features
+
+**First Task - Connect a Server**:
+1. Click **Agents** in the sidebar
+2. Click **Add Agent** (blue button)
+3. Download installer for your server's OS
+4. Run it on your server
+5. Agent connects automatically!
+
+**After That**:
+- Create device groups to organize servers
+- Upload files or deploy applications
+- Set up automated deployments
+
+Want me to guide you through any specific task?"
+
+================================
+CATEGORY: FILE UPLOADS
+================================
+
+Q: "How do I upload files to my server?"
+A: "To upload files to your server:
+
+1. Click **Files** in the left sidebar (folder icon 📁)
+2. At the top, select your server from the **device dropdown**
+3. Navigate to where you want the files to go:
+   - Click folders in the tree on the left, OR
+   - Use the breadcrumb path at the top
+4. Click the **Upload** button (blue, top-right corner)
+5. Select files from your computer
+6. Click **Open** to start uploading
+
+**Important**:
+- Max file size: 100MB per file
+- Make sure the agent is online (green status)
+- Ensure you have write permissions for that folder
+
+Files will appear in the current directory once uploaded!"
+
+---
+
+Q: "Can I upload multiple files at once?"
+A: "Yes! You can upload multiple files in one go.
+
+When you click the **Upload** button on the Files page:
+1. Hold **Ctrl** (Windows/Linux) or **Cmd** (Mac)
+2. Click each file you want to upload
+3. Click **Open**
+
+All selected files will upload together. You'll see individual progress bars for each file.
+
+**Note**: Each file must be under 100MB, but you can upload as many as you need!"
+
+---
+
+Q: "File upload failed, what do I do?"
+A: "Let's troubleshoot your upload issue:
+
+**Common Causes & Solutions**:
+
+**File Too Large**:
+- Max size is 100MB per file
+- Solution: Split large files or use compression
+
+**Agent Offline**:
+- Check if your device shows green **Online** status
+- Solution: Restart the agent service on your server
+
+**No Write Permission**:
+- The agent needs permission to write to that folder
+- Solution: Try uploading to a different folder, or change folder permissions
+
+**Network Issue**:
+- Poor connection can interrupt uploads
+- Solution: Try uploading smaller files first to test
+
+**Disk Full**:
+- Target server might be out of space
+- Solution: Check disk usage on your device
+
+Which error message are you seeing?"
+
+---
+
+Q: "Where did my uploaded files go?"
+A: "Your uploaded files should be in the folder you were viewing when you clicked Upload.
+
+To find them:
+
+1. Go to **Files** page
+2. Select the same device from the dropdown
+3. Navigate to the destination folder (use breadcrumbs at top or folder tree on left)
+4. Your files should be there!
+
+**If you can't find them**:
+- Click the **Refresh** button (circular arrows icon)
+- Check that you're looking at the correct device
+- Verify the upload actually completed (look for success notification)
+
+**Tip**: The file browser shows the exact path at the top (like `/home/user/documents`). Remember this path to find your files easily!"
+
+================================
+CATEGORY: DEPLOYMENTS
+================================
+
+Q: "How do I deploy my application?"
+A: "Here's how to deploy your application to a server:
+
+1. Click **Deployments** in the sidebar (rocket icon 🚀)
+2. Click **Create Deployment** button (green, top-right)
+3. Fill in the deployment form:
+
+**Step 1 - Name It**:
+- Give it a name like "Production App v1.0"
+- Add a description (optional)
+- Click **Next**
+
+**Step 2 - Choose Target**:
+- Select "Single Device" or "Device Group"
+- Pick which server(s) to deploy to
+- Click **Next**
+
+**Step 3 - Add Your Files**:
+- Click **Upload Files**
+- Select your application files
+- Click **Next**
+
+**Step 4 - Settings**:
+- **Destination Path**: Where files go (e.g., `/var/www/html`)
+- Check **Backup Before Deploy** (recommended!)
+- Add commands to run after deployment (optional)
+- Click **Next**
+
+**Step 5 - Deploy**:
+- Choose "Deploy Now"
+- Click **Deploy** button
+
+You'll see a progress bar, and get a notification when it's done!
+
+Need help with any specific step?"
+
+---
+
+Q: "My deployment failed, how do I fix it?"
+A: "Let's fix your deployment! First, let's see what went wrong:
+
+1. Go to **Deployments** page
+2. Find your failed deployment (red **Failed** status)
+3. Click on it to see details
+4. Look at the error message
+
+**Common Issues**:
+
+**\"Permission denied\"**:
+- The agent can't write to that folder
+- **Fix**: Check folder permissions, or use a folder the agent can access
+
+**\"No space left on device\"**:
+- Server is out of disk space
+- **Fix**: Free up space on the server, or deploy to a different location
+
+**\"Connection timeout\" or \"Agent offline\"**:
+- Lost connection to server
+- **Fix**: Check the agent is online (green status), restart if needed
+
+**\"File not found\" or \"No such directory\"**:
+- Destination path doesn't exist
+- **Fix**: Create the folder first, or use an existing path
+
+Once you fix the issue:
+- Click the **Retry** button on the deployment
+
+What error message are you seeing? I can give you more specific help!"
+
+---
+
+Q: "Can I schedule a deployment for later?"
+A: "Yes! You can schedule deployments to run automatically.
+
+**Two Ways to Do This**:
+
+**Method 1: Schedule During Deployment Creation**
+1. When creating a deployment, get to Step 5
+2. Choose **Schedule for Later** (instead of Deploy Now)
+3. Pick date and time
+4. Click **Deploy**
+
+**Method 2: Create a Schedule** (for recurring deployments)
+1. Create your deployment first
+2. Go to **Schedules** page (clock icon in sidebar)
+3. Click **Create Schedule** button
+4. Choose your deployment
+5. Set frequency:
+   - One-time: Specific date/time
+   - Recurring: Daily, Weekly, Monthly
+6. Click **Create Schedule**
+
+**For Recurring**:
+- Daily: Runs every day at specific time
+- Weekly: Choose which days
+- Monthly: Choose day of month
+
+Perfect for regular updates like \"Deploy every Monday at 2 AM\"!
+
+Which type do you need?"
+
+---
+
+Q: "How do I undo a deployment?"
+A: "You can rollback (undo) a deployment if you created a backup:
+
+1. Go to **Backups** page (database icon 💾 in sidebar)
+2. Find the backup for your deployment
+3. Click the **Restore** button (blue)
+4. Confirm the restoration
+5. Your server reverts to the previous state!
+
+**Important Notes**:
+- This only works if you checked **Backup Before Deploy**
+- Make sure to always enable backups for important deployments
+- The rollback will overwrite current files with the backed-up versions
+
+**If You Didn't Create a Backup**:
+- You'll need to manually restore from your own backup
+- Or redeploy the previous version
+
+**Pro Tip**: Always check that backup checkbox - it's your safety net!"
+
+================================
+CATEGORY: COMMANDS
+================================
+
+Q: "How do I run a command on my server?"
+A: "To execute a command on your server:
+
+1. Click **Commands** in the sidebar (terminal icon ⌨️)
+2. At the top, select your target:
+   - Choose "Single Device", "Device Group", or "Multiple Devices"
+   - Pick which server(s) from the dropdown
+3. Type your command in the text box
+   - Example: `ls -la` or `systemctl status nginx`
+4. (Optional) Check **Run as sudo** if you need admin rights
+5. Click the **Execute** button (green)
+
+You'll see the command running, then get the output!
+
+**Examples**:
+- Check disk space: `df -h`
+- See running processes: `ps aux`
+- Restart a service: `systemctl restart nginx`
+- View file contents: `cat /path/to/file.txt`
+
+What command do you want to run?"
+
+---
+
+Q: "Can I run commands on multiple servers at once?"
+A: "Absolutely! You can run the same command across multiple servers:
+
+**Method 1: Use a Device Group**
+1. First, create a group with your servers:
+   - Go to **Device Groups** page
+   - Click **Create Group**
+   - Select the servers
+   - Click **Create**
+2. Then go to **Commands** page
+3. Select "Device Group" from the target dropdown
+4. Choose your group
+5. Enter your command
+6. Click **Execute**
+
+The command runs on all servers in the group!
+
+**Method 2: Select Multiple Devices**
+1. Go to **Commands** page
+2. Select "Multiple Devices"
+3. Check the boxes for each server you want
+4. Enter your command
+5. Click **Execute**
+
+You'll see results for each server separately.
+
+**Perfect For**:
+- Restarting services across all web servers
+- Updating packages on multiple machines
+- Checking disk space on all servers
+
+Want me to help you create a device group?"
+
+---
+
+Q: "Command is taking too long and failed with timeout"
+A: "Sounds like your command needs more time to complete!
+
+**Solution**: Increase the timeout setting:
+
+1. Go to **Commands** page
+2. Enter your command
+3. Look for the **Timeout** field (below the command box)
+4. Change it from 30 to a higher number (e.g., 60, 120, or 300)
+   - This is in seconds
+5. Click **Execute**
+
+**Timeout Guidelines**:
+- Simple commands (ls, cat): 30 seconds (default)
+- Package updates (apt update): 60-120 seconds
+- Installs (apt install): 120-300 seconds
+- Large downloads/builds: 600+ seconds
+
+**Alternative**: Use Interactive Terminal
+- Click **Open Terminal** button
+- Run long commands interactively
+- No timeout limits
+
+What command are you trying to run? I can suggest a good timeout value!"
+
+================================
+CATEGORY: AGENTS & DEVICES
+================================
+
+Q: "My agent shows offline, how do I fix it?"
+A: "Let's get your agent back online! Here's what to try:
+
+**Step 1: Check the Server**
+- Is the machine powered on?
+- Does it have internet connection?
+- Can you ping it?
+
+**Step 2: Restart the Agent**
+- SSH into your server
+- Restart the agent service:
+  * **Linux**: `sudo systemctl restart deployx-agent`
+  * **Windows**: Open Services, find DeployX Agent, click Restart
+
+**Step 3: Check Agent Logs**
+- Look for errors:
+  * **Linux**: `tail -f /var/log/deployx/agent.log`
+  * **Windows**: `C:\\ProgramData\\DeployX\\logs\\agent.log`
+
+**Step 4: Check Firewall**
+- Make sure outbound connections are allowed
+- The agent needs to reach your DeployX server
+
+**Step 5: Reinstall (Last Resort)**
+- Download fresh installer from **Add Agent** button
+- Uninstall old agent
+- Install new agent
+- It will reconnect automatically
+
+**Still Offline?**
+- Check the logs and tell me what error you see
+- I can help you troubleshoot further!
+
+Which step are you on?"
+
+---
+
+Q: "What's the difference between agents and devices?"
+A: "Good question! Here's the difference:
+
+**Agent** = The software program
+- A program you install on your server
+- Runs in the background
+- Connects your server to DeployX
+- One agent per machine
+
+**Device** = The actual server/machine
+- The physical or virtual machine
+- Has an agent installed on it
+- Shows up in your devices list
+- Has CPU, RAM, disk metrics
+
+**Analogy**:
+- Device = Your phone
+- Agent = The app on your phone
+
+**In DeployX**:
+- **Agents** page: See connected agents, their status, metrics
+- **Devices** page: See all registered devices with health info
+
+Both pages show similar info, but:
+- **Agents**: Focus on connection and agent status
+- **Devices**: Focus on hardware health and grouping
+
+You'll mostly use the **Agents** page to manage connections!"
+
+---
+
+Q: "How do I check if my server is running well?"
+A: "Here's how to monitor your server health:
+
+**Quick Check** (Overview Page):
+1. Go to **Overview** (home icon in sidebar)
+2. Look at the **System Metrics** card
+3. Check:
+   - **CPU Usage**: Should be <70% normally
+   - **Memory Usage**: <80% is healthy
+   - **Disk Usage**: <90% is safe
+   - **Network Connections**: Varies by server
+
+**Detailed Check** (Agents Page):
+1. Click **Agents** in sidebar
+2. Find your server
+3. Each agent card shows:
+   - **CPU**: Green (<70%), Yellow (70-90%), Red (>90%)
+   - **RAM**: Same color coding
+   - **Disk**: Same color coding
+   - **Uptime**: How long it's been running
+
+**Deep Dive**:
+1. Click **View Details** on any agent
+2. See real-time graphs of:
+   - CPU usage over time
+   - Memory trends
+   - Disk space changes
+   - Network activity
+
+**Warning Signs**:
+- 🔴 Red bars: Take action soon
+- 🟡 Yellow bars: Monitor closely
+- 🟢 Green bars: All good!
+
+Want me to explain what to do if you see high CPU or low disk space?"
+
+================================
+CATEGORY: DEVICE GROUPS
+================================
+
+Q: "How do I create a device group?"
+A: "Creating a device group is easy! Here's how:
+
+1. Click **Device Groups** in the sidebar (network icon 🌐)
+2. Click the **Create Group** button (green, top-right)
+3. Fill in the form:
+   - **Group Name**: Give it a name (e.g., "Web Servers" or "Production")
+   - **Description**: Optional note about what this group is for
+4. **Select Devices**:
+   - You'll see checkboxes next to all your devices
+   - Check the ones you want in this group
+   - Use the search box if you have many devices
+5. Click **Create** button
+
+Your group is now created!
+
+**What You Can Do With Groups**:
+- Deploy to all devices in the group at once
+- Run commands on all group members
+- Monitor group health together
+- Organize by environment (dev, staging, prod)
+
+**Example Groups**:
+- \"Production Servers\" - All live servers
+- \"Database Servers\" - All DB machines
+- \"Web Servers\" - All frontend servers
+
+Want to create your first group now?"
+
+---
+
+Q: "Can I add a device to multiple groups?"
+A: "Yes! A device can be in multiple groups.
+
+For example, a server could be in:
+- \"Production Servers\" group
+- \"Web Servers\" group
+- \"Critical Systems\" group
+
+All at the same time!
+
+**To Add a Device to More Groups**:
+1. Go to **Device Groups** page
+2. Find the group you want to add it to
+3. Click **Edit** button on that group card
+4. Check the device in the device list
+5. Click **Save Changes**
+
+**To See Which Groups a Device Is In**:
+1. Go to **Devices** page
+2. Look at the device card
+3. You'll see group badges (blue tags) showing all groups it belongs to
+
+**This is Useful For**:
+- Grouping by function (web, database, cache)
+- Grouping by environment (dev, staging, prod)
+- Grouping by priority (critical, normal)
+- Grouping by location (us-east, us-west)
+
+Mix and match as you need!"
+
+================================
+CATEGORY: BACKUPS & ROLLBACKS
+================================
+
+Q: "How do I create a backup?"
+A: "Backups are created automatically when you deploy! Here's how:
+
+**Automatic Backup** (Recommended):
+When creating a deployment:
+1. Get to Step 4 (Settings)
+2. Make sure **Backup Before Deploy** is checked ✅
+3. Complete the deployment
+4. Backup is created before any files are changed
+
+**Manual Backup**:
+1. Go to **Deployments** page
+2. Find an existing deployment
+3. Click the **Actions** menu (three dots)
+4. Select **Create Backup**
+5. Backup is created immediately
+
+**To View Your Backups**:
+- Go to **Backups** page (database icon in sidebar)
+- You'll see all backups with dates and sizes
+
+**Pro Tip**: Always keep that backup checkbox enabled! It's your insurance policy against bad deployments.
+
+Need help restoring a backup?"
+
+---
+
+Q: "Something went wrong with my deployment, can I undo it?"
+A: "Yes! You can rollback if you created a backup. Here's how:
+
+1. Go to **Backups** page (database icon 💾 in sidebar)
+2. Find the backup for that deployment
+   - Look at the **Deployment** column
+   - Check the **Created** date
+3. Click the **Restore** button (blue)
+4. A confirmation appears showing:
+   - What will be restored
+   - Which files will be replaced
+5. Click **Restore** to confirm
+6. Watch the progress bar
+7. Your server is back to the previous state!
+
+**Important**:
+- This overwrites current files with the backup
+- Make sure you're restoring the right backup
+- The backup must have "Valid" status (green)
+
+**If You Don't Have a Backup**:
+- You'll need to manually fix the issue, or
+- Create a new deployment with the correct files
+
+**For Future**: Always check **Backup Before Deploy** to avoid this situation!
+
+Want me to walk you through the restore process?"
+
+================================
+CATEGORY: SCHEDULES
+================================
+
+Q: "How do I set up automatic deployments?"
+A: "Great question! Here's how to automate your deployments:
+
+**Step 1: Create Your Deployment First**
+1. Go to **Deployments** page
+2. Create a deployment (but don't deploy yet, just save it)
+
+**Step 2: Create a Schedule**
+1. Go to **Schedules** page (clock icon in sidebar)
+2. Click **Create Schedule** button (green)
+3. Fill in the form:
+
+**Basic Info**:
+- **Schedule Name**: "Weekly Production Deploy"
+- **Description**: "Deploy every Monday morning"
+
+**Choose Deployment**:
+- Select the deployment you created
+
+**Set Frequency**:
+- **One-time**: Runs once at specific date/time
+- **Recurring**: Choose:
+  * Daily: Runs every day at a set time
+  * Weekly: Pick days (Monday, Tuesday, etc.)
+  * Monthly: Choose day of month (1-31)
+  * Custom: Use cron expression
+
+**For Weekly Example**:
+- Frequency: Weekly
+- Days: Monday (check the box)
+- Time: 2:00 AM
+- Timezone: Your timezone
+
+4. Check **Retry on Failure** (recommended)
+5. Click **Create Schedule**
+
+Done! Your deployment will run automatically.
+
+**You'll Get Notified** when it runs!
+
+What schedule do you want to create?"
+
+---
+
+Q: "My scheduled deployment didn't run, why?"
+A: "Let's troubleshoot! Here are common reasons:
+
+**1. Check Schedule Status**
+- Go to **Schedules** page
+- Is it **Active** (green) or **Paused** (yellow)?
+- If paused, click **Resume**
+
+**2. Check Next Run Time**
+- Look at the \"Next Run\" column
+- Is it in the future or past?
+- Verify timezone is correct
+
+**3. Check Agent Status**
+- The target device must be online when schedule runs
+- Go to **Agents** page
+- Was your agent online at the scheduled time?
+
+**4. Check Logs**
+- Go to **Logs** page
+- Filter by category: "Schedules"
+- Look for error messages
+
+**5. Check Deployment**
+- Does the deployment still exist?
+- Is it configured correctly?
+
+**Common Fixes**:
+- **Wrong timezone**: Edit schedule, set correct timezone
+- **Agent offline**: Ensure agent is always running
+- **Schedule expired**: Edit and set new run time
+
+**To Test**:
+- Edit the schedule
+- Set next run time to 5 minutes from now
+- Wait and see if it runs
+- Check logs for any errors
+
+Which issue do you think it is?"
+
+================================
+CATEGORY: LOGS & MONITORING
+================================
+
+Q: "How do I view system logs?"
+A: "To view all system activity and logs:
+
+1. Click **Logs** in the sidebar (document icon 📄)
+2. You'll see a table of all events
+
+**Filter the Logs**:
+- **Time Range**: Choose \"Last Hour\", \"Today\", \"Last 7 Days\", etc.
+- **Log Level**: Filter by Info, Warning, Error, or Critical
+- **Category**: Filter by Deployments, Commands, Agents, etc.
+- **Search**: Type keywords to find specific logs
+
+**View Details**:
+- Click any log entry
+- See full message, stack trace, context data
+
+**What Logs Show**:
+- 🔵 **Info** (blue): Normal operations
+- 🟡 **Warning** (yellow): Potential issues
+- 🔴 **Error** (red): Failed operations
+- ⚫ **Critical** (dark red): Serious problems
+
+**Export Logs**:
+- Click **Export** button
+- Choose format (CSV, JSON, TXT)
+- Download for analysis
+
+**Example Uses**:
+- Troubleshoot failed deployment: Filter by \"Deployments\" + \"Error\"
+- Check agent issues: Filter by \"Agents\" + last hour
+- Audit activity: Export all logs for date range
+
+What kind of logs are you looking for?"
+
+---
+
+Q: "Where can I see deployment history?"
+A: "You can see all past deployments in one place:
+
+1. Click **Deployments** in the sidebar
+2. You'll see a list of ALL deployments (past and current)
+
+**What You See**:
+- ✅ Green \"Successful\": Deployment worked
+- ❌ Red \"Failed\": Something went wrong
+- ⏳ Yellow \"Pending\": Waiting to start
+- 🔵 Blue \"Running\": Currently deploying
+
+**Sort and Filter**:
+- Click column headers to sort
+- Use search to find specific deployment
+- Filter by status
+
+**View Details**:
+1. Click any deployment
+2. See complete information:
+   - When it was created
+   - Who created it
+   - Target devices
+   - Files deployed
+   - Success/failure per device
+   - Full logs and errors
+   - Duration
+
+**From Details You Can**:
+- **Retry** if it failed
+- **Rollback** if it succeeded but caused issues
+- **Clone** to create a similar deployment
+- **Delete** from history
+
+**For Logs**:
+- Click **Logs** tab in deployment details
+- See command execution output
+- View error messages
+
+This is your complete deployment audit trail!"
+
+================================
+CATEGORY: SECURITY & SETTINGS
+================================
+
+Q: "How do I change my password?"
+A: "To change your password:
+
+1. Click your **profile button** (top-right, circular avatar)
+2. Click **Change Password** in the dropdown
+3. A modal opens with three fields:
+   - **Current Password**: Enter your existing password
+   - **New Password**: Enter your new password
+   - **Confirm New Password**: Type new password again
+4. Watch the password strength indicator:
+   - Weak (red)
+   - Medium (yellow)
+   - Strong (green)
+5. Click **Update Password**
+
+**Password Requirements**:
+✓ At least 8 characters
+✓ One uppercase letter
+✓ One lowercase letter
+✓ One number
+✓ One special character
+
+**Tips**:
+- Use a password manager
+- Don't reuse passwords from other sites
+- Make it memorable but complex
+
+**After Changing**:
+- You stay logged in
+- Use new password for next login
+- Update it in your password manager
+
+Need help creating a strong password?"
+
+---
+
+Q: "Can I change my username?"
+A: "Yes! Here's how to change your username:
+
+1. Click your **profile button** (top-right corner)
+2. Select **Change Username** from the dropdown
+3. Enter your new username
+4. Enter your **current password** (for security)
+5. Click **Save**
+
+**Rules**:
+- Username must be unique
+- Can contain letters, numbers, underscores
+- No spaces allowed
+- Minimum 3 characters
+
+**Note**: This changes your display name throughout DeployX.
+
+Done! Your new username appears everywhere immediately."
+
+---
+
+Q: "How do I delete my account?"
+A: "If you want to delete your DeployX account:
+
+⚠️ **Warning**: This is permanent and cannot be undone!
+
+1. Click your **profile button** (top-right)
+2. Click **Delete Account** (red text at bottom)
+3. Read the warnings:
+   - All your data will be deleted
+   - All deployments will be cancelled
+   - All devices will be removed
+   - This cannot be undone
+4. Enter your **password** to confirm
+5. Click **Delete My Account** (red button)
+
+**What Gets Deleted**:
+- Your user account
+- All deployments and history
+- All device connections
+- All groups you created
+- All logs and backups
+
+**What Happens to Agents**:
+- They'll show as disconnected
+- They stop receiving commands
+- You can reinstall them with a new account
+
+**Before You Delete**:
+- Export any data you need
+- Download important logs
+- Back up any configurations
+
+**Alternatives**:
+- Just logout instead?
+- Create a new account and start fresh?
+
+Are you sure you want to delete? Let me know if you have concerns!"
+
+================================
+CATEGORY: TROUBLESHOOTING
+================================
+
+Q: "Nothing is loading, the page is stuck"
+A: "Let's fix this loading issue:
+
+**Quick Fixes**:
+
+**1. Refresh the Page**
+- Press **F5** on your keyboard
+- Or click the browser refresh button
+
+**2. Clear Browser Cache**
+- Press **Ctrl+Shift+Delete** (Windows/Linux)
+- Press **Cmd+Shift+Delete** (Mac)
+- Select \"Cached images and files\"
+- Click \"Clear data\"
+- Refresh page
+
+**3. Check Internet Connection**
+- Is your internet working?
+- Try opening another website
+- Restart your router if needed
+
+**4. Try Incognito/Private Mode**
+- **Chrome**: Ctrl+Shift+N
+- **Firefox**: Ctrl+Shift+P
+- **Safari**: Cmd+Shift+N
+- Login to DeployX again
+
+**5. Check Browser Console**
+- Press **F12**
+- Click \"Console\" tab
+- Look for red error messages
+- Tell me what errors you see
+
+**6. Try Different Browser**
+- Chrome, Firefox, Edge (latest versions work best)
+
+**7. Check Server Status**
+- Is the DeployX backend running?
+- Check your server logs
+
+**Still Stuck?**
+- Tell me which page is stuck
+- What were you doing when it happened?
+- Any error messages?
+
+I'll help you troubleshoot further!"
+
+---
+
+Q: "I'm getting 'Authentication failed' error"
+A: "Let's fix this authentication error:
+
+**Solution 1: Re-login**
+1. Click **Logout** (profile menu, top-right)
+2. Close all browser tabs
+3. Open DeployX again
+4. Login with your credentials
+
+**Solution 2: Check Credentials**
+- Is your username correct?
+- Is your password correct?
+- Is **Caps Lock** off?
+
+**Solution 3: Reset Password**
+1. Go to login page
+2. Click **Forgot Password** link
+3. Enter your email
+4. Check email for reset link
+5. Create new password
+
+**Solution 4: Clear Browser Data**
+- Press Ctrl+Shift+Delete
+- Clear cookies and site data
+- Try logging in again
+
+**Solution 5: Check Account Status**
+- Your account might be locked
+- Contact your DeployX administrator
+
+**If Using API/Token**:
+- Your token might be expired
+- Regenerate a new token
+
+**Still Not Working?**
+- Which page shows this error?
+- When did it start happening?
+- Can you login from a different device?
+
+Let me know which solution worked!"
+
+---
+
+Q: "Error: Permission denied"
+A: "This \"Permission denied\" error means access rights are missing. Let's fix it:
+
+**Where Are You Seeing This?**
+
+**If During File Upload**:
+1. The agent needs write permission to that folder
+2. **Solution**: Upload to a different folder like `/tmp` or `/home/user`
+3. Or SSH to server and run:
+   ```
+   sudo chmod 755 /path/to/folder
+   sudo chown agent-user /path/to/folder
+   ```
+
+**If During Deployment**:
+1. Check **Backup Before Deploy** isn't checked to use a read-only location
+2. Change destination path to writable location
+3. Or add pre-deployment command:
+   ```
+   sudo mkdir -p /destination/path
+   sudo chmod 755 /destination/path
+   ```
+
+**If Running Commands**:
+1. Command needs admin rights
+2. **Solution**: Check **Run as sudo** box before executing
+3. Or modify your command to include sudo
+
+**If In File Browser**:
+1. You're trying to access a protected folder
+2. Navigate to folders your user can access
+3. Or connect agent with a user that has more permissions
+
+**To Check Permissions**:
+- Run command: `ls -la /path/to/folder`
+- Look for drwxr-xr-x (permissions)
+
+Which scenario matches your situation?"
+
+---
+
+Q: "Why is everything so slow?"
+A: "Let's speed things up! Here's what to try:
+
+**Quick Fixes**:
+
+**1. Check Your Internet**
+- Run a speed test
+- Close bandwidth-heavy apps (streaming, downloads)
+
+**2. Check Server Resources**
+- Go to **Overview** page
+- Look at **System Metrics**
+- Is CPU > 90%? (red bar)
+- Is Memory > 90%? (red bar)
+- If yes, your server is overloaded
+
+**3. Reduce Load**
+- Deploy to fewer devices at once
+- Use device groups instead of selecting many individual devices
+- Schedule large deployments for off-peak hours
+
+**4. Browser Performance**
+- Close unused tabs
+- Clear browser cache (Ctrl+Shift+Delete)
+- Restart your browser
+- Update to latest version
+
+**5. Clean Up Data**
+- Go to **Logs** page
+- Click **Clear Old Logs**
+- Delete logs older than 30 days
+- Speeds up database
+
+**6. Check Network**
+- Are agents far away geographically?
+- Network latency can slow things
+- Consider regional deployments
+
+**7. Server Optimization**
+- Restart DeployX backend
+- Check server has enough CPU/RAM
+- Upgrade server if consistently slow
+
+**Specific Slowness?**
+- Which page is slow?
+- How long does it take?
+- When did it start?
+
+Tell me more and I can give targeted advice!"
+
+================================
+CATEGORY: ADVANCED FEATURES
+================================
+
+Q: "Can I run deployments in parallel?"
+A: "Yes! DeployX runs deployments in parallel by default.
+
+**How It Works**:
+- When you deploy to multiple devices/groups
+- Each device gets its deployment simultaneously
+- They don't wait for each other
+
+**Example**:
+- Deploy to 10 servers
+- All 10 start at the same time
+- Each finishes independently
+
+**Benefits**:
+- Much faster than sequential
+- Scales well with many devices
+
+**To See Progress**:
+- Go to deployment details
+- Click **Targets** tab
+- See status for each device in real-time
+
+**If One Fails**:
+- Others continue running
+- Failed device shown in red
+- You can retry just the failed one
+
+**Control Speed**:
+- No setting to limit parallel deployments
+- If you want sequential, create separate deployments
+- Or deploy to groups one at a time
+
+**Performance**:
+- Your DeployX server handles the coordination
+- Each agent works independently
+- Typically fast unless server is overloaded
+
+This is one of DeployX's biggest advantages - fast, parallel deployments!"
+
+---
+
+Q: "Can I use DeployX with Docker containers?"
+A: "Absolutely! Here's how to use DeployX with Docker:
+
+**Deploy Docker Compose Files**:
+1. Create deployment with your `docker-compose.yml` file
+2. Upload to server (e.g., `/opt/myapp/`)
+3. Add post-deployment command:
+   ```
+   cd /opt/myapp && docker-compose up -d
+   ```
+
+**Deploy Container Images**:
+1. Use Commands page
+2. Run:
+   ```
+   docker pull your-image:tag
+   docker run -d your-image:tag
+   ```
+
+**Update Running Containers**:
+1. Deploy new version files
+2. Post-deployment commands:
+   ```
+   docker-compose down
+   docker-compose pull
+   docker-compose up -d
+   ```
+
+**Manage Docker on Multiple Servers**:
+1. Create "Docker Servers" device group
+2. Run commands on all at once:
+   ```
+   docker ps
+   docker images
+   docker system prune -f
+   ```
+
+**Rolling Updates**:
+1. Deploy to one server
+2. Test
+3. Deploy to remaining servers
+
+**Monitor Docker Containers**:
+- Use Commands to run: `docker stats`
+- Check logs: `docker logs container-name`
+
+**Best Practices**:
+- Always test in dev environment first
+- Use backups before updating production containers
+- Monitor container health after deployment
+
+Need help with a specific Docker workflow?"
+
+---
+
+Q: "How do I deploy to production safely?"
+A: "Great question! Here's how to deploy safely to production:
+
+**Pre-Deployment Checklist**:
+
+**1. Test First**
+- Deploy to dev/staging environment
+- Verify everything works
+- Run tests
+
+**2. Create Production Group**
+- Go to **Device Groups**
+- Create \"Production Servers\" group
+- Add only production machines
+
+**3. Enable Backups**
+- ✅ Always check **Backup Before Deploy**
+- This is your rollback insurance
+
+**4. Schedule During Low Traffic**
+- Use **Schedules** page
+- Deploy at 2-4 AM when users are asleep
+- Or during maintenance windows
+
+**5. Add Health Checks**
+- Post-deployment commands:
+   ```
+   systemctl status myapp
+   curl -f http://localhost/health || exit 1
+   ```
+
+**Safe Deployment Strategy**:
+
+**Option A: Staged Rollout**
+1. Deploy to 1 production server first
+2. Monitor for 10-15 minutes
+3. If good, deploy to rest
+
+**Option B: Blue-Green**
+1. Keep old version running (Blue)
+2. Deploy new version to standby servers (Green)
+3. Test Green
+4. Switch traffic from Blue to Green
+5. Keep Blue as backup
+
+**During Deployment**:
+- Watch the progress in real-time
+- Check logs immediately
+- Monitor server metrics
+
+**After Deployment**:
+1. Test critical features
+2. Check error logs
+3. Monitor user reports
+4. Keep backup ready for 24 hours
+
+**If Something Goes Wrong**:
+1. Go to **Backups** page immediately
+2. Click **Restore**
+3. You're back to working version in minutes
+
+**Pro Tips**:
+- Deploy on Tuesdays/Wednesdays (not Fridays!)
+- Have someone on standby to monitor
+- Document what you deployed
+- Keep deployment notes
+
+Want me to walk you through your first production deployment?"
+
+================================
+END OF Q&A EXAMPLES
+================================
+
+These examples show the ideal tone, structure, and detail level for responses.
+Key patterns:
+- Start with direct answer
+- Provide step-by-step instructions
+- Use exact UI element names
+- Add context and tips
+- Ask follow-up questions
+- Show empathy and helpfulness
+- Use emojis for visual clarity
+- Format with markdown (bold, lists, code)

@@ -47,6 +47,7 @@ from app.Deployments.routes import router as deployments_router
 from app.software.routes import router as software_router
 from app.files.routes import router as files_router
 from app.agents.routes import router as agents_router
+from app.gemini.routes import router as gemini_router
 from app.auth import routes
 from app.auth.database import engine, get_db, Base
 from app.command_deployment.routes import router as deployment_router
@@ -115,6 +116,7 @@ app.include_router(files_router)
 app.include_router(dashboard_router)
 app.include_router(schedule_router)
 app.include_router(logs_router)
+app.include_router(gemini_router)
 
 # Health check endpoint
 @app.get("/health")

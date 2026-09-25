@@ -1,0 +1,48 @@
+# DeployX - Unified Requirements
+# Generated from all project requirements files
+
+# Web Framework & API
+fastapi
+uvicorn
+python-socketio
+aiohttp
+
+# Database & ORM
+sqlalchemy
+psycopg2-binary
+
+# Authentication & Security
+passlib==1.7.4
+bcrypt==3.2.0
+python-jose[cryptography]
+PyJWT
+email-validator
+
+# Configuration & Environment
+python-dotenv
+pydantic
+
+# File Handling
+python-multipart
+
+# Network & Discovery
+zeroconf
+
+# System & Process Management
+psutil
+
+# Scheduling & Timezone
+apscheduler
+pytz
+
+# HTTP Client
+requests>=2.31.0
+
+# AI/ML Integration
+google-generativeai
+
+# Build & Packaging
+pyinstaller>=5.13.0
+
+# Platform-specific
+uvloop; sys_platform != "win32"

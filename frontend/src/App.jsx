@@ -5,6 +5,7 @@ import ForgotPassword from './pages/ForgotPassword.jsx'
 import ResetPassword from './pages/ResetPassword.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import VerifyEmailChange from './pages/VerifyEmailChange.jsx'
+import GeminiChatButton from './components/GeminiChatButton.jsx'
 import authService from './services/auth.js'
 
 export default function App() {
@@ -93,6 +94,9 @@ export default function App() {
           </div>
         } />
       </Routes>
+      
+      {/* Gemini AI Chat Button - Available on all pages when authenticated */}
+      {isAuthenticated && <GeminiChatButton />}
     </div>
   )
 }

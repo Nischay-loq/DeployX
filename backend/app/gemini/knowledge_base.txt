@@ -1,0 +1,423 @@
+# DeployX Knowledge Base for AI Assistant
+
+## SYSTEM OVERVIEW
+DeployX is a centralized deployment automation platform that manages software installations, command execution, and system monitoring across multiple remote machines through lightweight agents.
+
+## CORE CONCEPTS
+
+### 1. AGENTS
+- Lightweight Python clients installed on target machines
+- Communicate with backend via Socket.IO (real-time) and REST APIs
+- Report system metrics (CPU, RAM, disk usage)
+- Execute commands received from backend
+- Auto-update capability for seamless upgrades
+- Each agent has unique ID (format: agent_XXXXXXXX)
+- Status: online/offline based on last heartbeat
+
+### 2. DEPLOYMENTS
+- Software installation process across one or more machines
+- Types: Node.js, Python, React, Next.js, Docker, Custom
+- Stages: Queued → Running → Success/Failed
+- Automatic backup before deployment (if destructive)
+- Real-time progress updates via WebSocket
+- Can be scheduled for specific times
+- Rollback capability if deployment fails
+
+### 3. DEVICES/MACHINES
+- Remote servers/computers where agents are installed
+- Grouped logically (Production, Development, Staging, etc.)
+- Tracked metrics: CPU, RAM, Disk, Network
+- SSH credentials stored for file operations
+- Can belong to multiple groups
+
+### 4. GROUPS
+- Logical collections of devices
+- Execute commands on entire group simultaneously
+- Execution modes: Parallel or Sequential
+- Examples: "Production Servers", "Database Servers"
+
+### 5. SOFTWARE CATALOG
+- Repository of installable software
+- Each entry has: name, version, installation command
+- Can be deployed to multiple machines
+- Track which software is installed where
+
+## NAVIGATION STRUCTURE
+
+### Dashboard (/) - Main Overview
+PATH: /dashboard
+COMPONENTS:
+- Total deployments counter
+- Active agents count
+- Success rate chart
+- Recent activity feed
+- System metrics overview
+- Quick action buttons
+
+### Agents Page (/dashboard/agents)
+PATH: /dashboard/agents
+PURPOSE: Manage and monitor all connected agents
+FEATURES:
+- List all agents with status indicators
+- View agent details (system info, uptime, metrics)
+- Execute commands on specific agent
+- View agent logs
+- Update agent version
+- Remove/disconnect agents
+ACTIONS:
+- "Execute Command" button → Opens command execution modal
+- Click agent card → Shows detailed metrics
+- "Refresh" → Updates agent list
+
+### Deployments Page (/dashboard/deployments)
+PATH: /dashboard/deployments
+PURPOSE: Manage software deployments
+FEATURES:
+- List all deployments (past and current)
+- Filter by status (Success, Failed, Running, Queued)
+- Create new deployment
+- View deployment logs
+- Retry failed deployments
+- Schedule future deployments
+ACTIONS:
+- "New Deployment" → Opens deployment creation form
+- Click deployment → Shows detailed logs
+- "Retry" → Re-runs failed deployment
+- "Schedule" → Set time for deployment
+
+### Devices Page (/dashboard/devices)
+PATH: /dashboard/devices
+PURPOSE: Manage remote machines
+FEATURES:
+- List all devices with online/offline status
+- Add new device (requires SSH credentials)
+- View device metrics (CPU, RAM, Disk)
+- Group devices
+- Execute commands
+- File operations
+ACTIONS:
+- "Add Device" → Form to add new machine
+- Click device → Shows details and metrics
+- "Execute Command" → Run command on device
+- "File Manager" → Browse device file system
+
+### Groups Page (/dashboard/groups)
+PATH: /dashboard/groups
+PURPOSE: Organize devices into logical groups
+FEATURES:
+- Create/edit/delete groups
+- Add/remove devices from groups
+- Execute commands on entire group
+- View group-wide metrics
+ACTIONS:
+- "Create Group" → Form to create new group
+- "Add Devices" → Select devices to add
+- "Execute Command" → Run on all devices in group
+- Execution mode: Parallel/Sequential
+
+### Software Page (/dashboard/software)
+PATH: /dashboard/software
+PURPOSE: Manage software catalog
+FEATURES:
+- List available software
+- Add new software packages
+- Edit software details
+- Deploy software to devices
+- Track installations
+ACTIONS:
+- "Add Software" → Form to add new package
+- "Deploy" → Select devices to deploy to
+- Click software → Shows installation history
+
+### Commands Page (/dashboard/commands)
+PATH: /dashboard/commands
+PURPOSE: Execute and track commands
+FEATURES:
+- Command execution interface
+- Select target (device, group, or multiple)
+- Choose shell type (CMD, PowerShell, Bash)
+- View command history
+- Live output streaming
+ACTIONS:
+- "Execute Command" → Opens execution form
+- Select devices → Choose target machines
+- "Run" → Execute the command
+- View output → Real-time results
+
+### Files Page (/dashboard/files)
+PATH: /dashboard/files
+PURPOSE: File management operations
+FEATURES:
+- Remote file browser
+- Upload files to devices
+- Download files from devices
+- Delete/rename files
+- Directory navigation
+ACTIONS:
+- "Upload" → Select local files
+- "Download" → Get files from device
+- Click folder → Navigate into directory
+- "Delete" → Remove files
+
+### Logs Page (/dashboard/logs)
+PATH: /dashboard/logs
+PURPOSE: View system logs
+FEATURES:
+- All system activity logs
+- Filter by: date, type, device, user
+- Search logs
+- Export logs
+TYPES:
+- Deployment logs
+- Command execution logs
+- Agent connection logs
+- Error logs
+ACTIONS:
+- Filter dropdown → Narrow down logs
+- Search bar → Find specific entries
+- "Export" → Download logs
+
+### Settings Page (/dashboard/settings)
+PATH: /dashboard/settings
+PURPOSE: User and system configuration
+FEATURES:
+- User profile
+- Password change
+- Notification preferences
+- System settings
+- Backup configuration
+SECTIONS:
+- Profile: Edit name, email
+- Security: Change password, 2FA
+- Notifications: Email/SMS alerts
+- Backups: Retention policy
+
+## COMMON USER TASKS & NAVIGATION
+
+### Task 1: Deploy Software to a Server
+1. Go to **Deployments** page (/dashboard/deployments)
+2. Click **"New Deployment"**
+3. Select software from dropdown
+4. Choose target device(s)
+5. Configure deployment settings
+6. Click **"Deploy"** or **"Schedule"**
+
+### Task 2: Execute Command on Multiple Servers
+1. Go to **Groups** page (/dashboard/groups)
+2. Select the group OR
+3. Go to **Commands** page (/dashboard/commands)
+4. Select target devices
+5. Enter command
+6. Choose execution mode (Parallel/Sequential)
+7. Click **"Execute"**
+
+### Task 3: Check Agent Status
+1. Go to **Agents** page (/dashboard/agents)
+2. View status indicators (green=online, red=offline)
+3. Click agent card for details
+4. Check last seen timestamp
+5. View system metrics
+
+### Task 4: View Deployment Logs
+1. Go to **Deployments** page (/dashboard/deployments)
+2. Find the deployment in list
+3. Click on deployment row
+4. View detailed logs in modal/panel
+5. Check status and error messages
+
+### Task 5: Add New Device
+1. Go to **Devices** page (/dashboard/devices)
+2. Click **"Add Device"**
+3. Enter device details (IP, hostname)
+4. Provide SSH credentials
+5. Install agent on the device
+6. Device appears in list once agent connects
+
+### Task 6: Create Device Group
+1. Go to **Groups** page (/dashboard/groups)
+2. Click **"Create Group"**
+3. Enter group name and description
+4. Select devices to add
+5. Save group
+
+### Task 7: Upload File to Server
+1. Go to **Files** page (/dashboard/files)
+2. Select target device
+3. Navigate to destination directory
+4. Click **"Upload"**
+5. Select local file(s)
+6. Click **"Upload"** to transfer
+
+### Task 8: Check System Metrics
+1. Go to **Dashboard** (/)
+2. View overview cards (deployments, agents, success rate)
+3. Check recent activity feed
+4. View charts and graphs
+5. For detailed metrics: Click agent/device card
+
+### Task 9: Retry Failed Deployment
+1. Go to **Deployments** page
+2. Filter by "Failed" status
+3. Find the failed deployment
+4. Click **"Retry"** button
+5. Confirm retry action
+
+### Task 10: Schedule Future Deployment
+1. Go to **Deployments** page
+2. Click **"New Deployment"**
+3. Configure deployment details
+4. Click **"Schedule"** instead of "Deploy"
+5. Select date and time
+6. Save scheduled deployment
+
+## TERMINOLOGY
+
+- **Agent**: Software running on remote machine
+- **Device/Machine**: Remote server/computer
+- **Deployment**: Installation process
+- **Group**: Collection of devices
+- **Command**: Shell command to execute
+- **Queue**: Pending deployments/commands
+- **Heartbeat**: Agent status check (every 30 seconds)
+- **Rollback**: Restore previous state after failure
+- **Backup**: Snapshot before destructive operation
+- **Socket**: Real-time WebSocket connection
+- **mDNS**: Network discovery protocol for agents
+
+## IMPORTANT TECHNICAL DETAILS
+
+### Agent Connection
+- Agents connect via Socket.IO on port 8000
+- Heartbeat every 30 seconds
+- If no heartbeat for 2 minutes → Agent marked offline
+- Auto-reconnection on network recovery
+
+### Deployment Lifecycle
+1. **Created**: User initiates deployment
+2. **Queued**: Waiting for available slot
+3. **Running**: Installation in progress
+4. **Success**: Completed without errors
+5. **Failed**: Error occurred (check logs)
+6. **Rolled Back**: Restored to previous state
+
+### Command Execution
+- Commands run in agent's environment
+- Output streamed in real-time
+- Exit code captured
+- Timeout: 5 minutes (configurable)
+- Destructive commands trigger auto-backup
+
+### File Operations
+- Max file size: 100MB per file
+- Supports: Upload, Download, Delete, Rename
+- Uses SSH for secure transfer
+- Progress tracking for large files
+
+### Backup System
+- Automatic before destructive operations
+- Retention: 7 days (configurable)
+- Stored in: /backups/ directory
+- Includes: Files, database snapshots, configs
+
+## TROUBLESHOOTING GUIDES
+
+### "Agent is offline"
+CAUSES:
+1. Network connectivity issue
+2. Agent service stopped
+3. Server/machine powered off
+4. Firewall blocking connection
+SOLUTIONS:
+1. Check machine is powered on
+2. Test network connectivity
+3. Restart agent service: `systemctl restart deployx-agent`
+4. Check firewall rules for port 8000
+5. View agent logs on the machine
+
+### "Deployment failed"
+CAUSES:
+1. Port already in use
+2. Missing dependencies
+3. Insufficient permissions
+4. Network timeout
+5. Disk space full
+SOLUTIONS:
+1. Check deployment logs for specific error
+2. Verify port availability
+3. Install missing dependencies
+4. Check disk space: `df -h`
+5. Retry deployment after fixing issue
+
+### "Command execution timeout"
+CAUSES:
+1. Command taking too long (>5 minutes)
+2. Waiting for user input
+3. Network lag
+SOLUTIONS:
+1. Break command into smaller steps
+2. Use non-interactive mode
+3. Increase timeout in settings
+4. Run as background process
+
+### "Cannot upload file"
+CAUSES:
+1. File too large (>100MB)
+2. No disk space on target
+3. Permission denied
+4. SSH credentials invalid
+SOLUTIONS:
+1. Check file size
+2. Verify disk space on target
+3. Check SSH credentials
+4. Verify write permissions on directory
+
+## BEST PRACTICES
+
+1. **Group similar devices** for easier batch operations
+2. **Test deployments** on development group first
+3. **Schedule deployments** during off-peak hours
+4. **Monitor agent health** regularly
+5. **Review logs** after failed operations
+6. **Keep agents updated** to latest version
+7. **Use descriptive names** for groups and deployments
+8. **Set up backups** before critical deployments
+9. **Document commands** in software catalog
+10. **Monitor system metrics** to prevent resource issues
+
+## API ENDPOINTS (For Reference)
+
+- `GET /agents` - List all agents
+- `POST /deployments` - Create deployment
+- `GET /deployments/{id}` - Get deployment details
+- `POST /commands/execute` - Execute command
+- `GET /devices` - List devices
+- `POST /devices` - Add new device
+- `GET /groups` - List groups
+- `POST /groups` - Create group
+- `GET /logs` - Get logs
+- `POST /files/upload` - Upload file
+- `GET /dashboard/stats` - Dashboard statistics
+
+## COMMON ERROR MESSAGES
+
+1. **"Port XXXX already in use"**
+   - Another app using the port
+   - Solution: Stop conflicting app or use different port
+
+2. **"ECONNREFUSED"**
+   - Cannot connect to agent
+   - Solution: Check agent is running and network is accessible
+
+3. **"Authentication failed"**
+   - Invalid SSH credentials
+   - Solution: Update device credentials in settings
+
+4. **"Permission denied"**
+   - Insufficient permissions
+   - Solution: Run with elevated privileges or fix permissions
+
+5. **"Disk quota exceeded"**
+   - No disk space
+   - Solution: Free up space on target machine
+
+This knowledge base helps the AI understand DeployX structure, navigation, and how to guide users effectively!
