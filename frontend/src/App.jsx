@@ -5,7 +5,7 @@ import ForgotPassword from './pages/ForgotPassword.jsx'
 import ResetPassword from './pages/ResetPassword.jsx'
 import VerifyEmailChange from './pages/VerifyEmailChange.jsx'
 import SignIn from './pages/SignIn.jsx'
-import SignUp from './pages/SignUp.jsx'
+import SignUp from './pages/Signup.jsx'
 import authService from './services/auth.js'
 
 // Dashboard is the heaviest page (terminal + managers) - load it on demand
